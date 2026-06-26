@@ -67,6 +67,8 @@ final class HealthKitImportService {
                                         standTimeMinutes: 0, restingHeartRate: nil, avgHeartRateWaking: nil)
     var sleep: HKSleepSnapshot? = nil
     var isAuthorized = false
+    /// Most recent VO2max estimate from Apple Health (mL/kg·min). Nil if not available.
+    var vo2Max: Double? = nil
     /// Per-day history keyed by "yyyy-MM-dd". Populated for the last 30 days on launch.
     var history: [String: DaySnapshot] = [:]
 
@@ -88,7 +90,8 @@ final class HealthKitImportService {
         HKObjectType.quantityType(forIdentifier: .heartRate)!,
         HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!,
         HKObjectType.quantityType(forIdentifier: .appleStandTime)!,
-        HKObjectType.quantityType(forIdentifier: .restingHeartRate)!
+        HKObjectType.quantityType(forIdentifier: .restingHeartRate)!,
+        HKObjectType.quantityType(forIdentifier: .vo2Max)!
     ]
 
     private static let keyFormatter: DateFormatter = {
@@ -119,15 +122,17 @@ final class HealthKitImportService {
         startObservers()
     }
 
-    /// Re-fetches today's three data domains concurrently.
+    /// Re-fetches today's data domains concurrently (workouts, activity, sleep, VO2max).
     func fetchAll() async {
         async let w = fetchWorkoutsData()
         async let a = fetchActivityData()
         async let s = fetchSleepData()
-        let (wData, aData, sData) = await (w, a, s)
+        async let v = fetchVO2Max()
+        let (wData, aData, sData, vData) = await (w, a, s, v)
         workouts = wData
         activity = aData
         sleep    = sData
+        vo2Max   = vData
     }
 
     /// Fetches and caches activity + workouts for the last `days` days.
@@ -270,6 +275,18 @@ final class HealthKitImportService {
         let pred = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         return await hkStatistic(type: hrType, predicate: pred, options: .discreteAverage) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "count/min"))
+        }
+    }
+
+    /// Returns the most recent VO2max estimate recorded by Apple Health (mL/kg·min).
+    private func fetchVO2Max() async -> Double? {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .vo2Max) else { return nil }
+        let cal   = Calendar.current
+        let end   = Date()
+        let start = cal.date(byAdding: .day, value: -90, to: end) ?? end
+        let pred  = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        return await hkStatistic(type: type, predicate: pred, options: .discreteAverage) {
+            $0.averageQuantity()?.doubleValue(for: HKUnit(from: "ml/kg*min"))
         }
     }
 

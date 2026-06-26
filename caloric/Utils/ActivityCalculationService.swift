@@ -79,52 +79,52 @@ struct ActivityCalculationService {
 
     // MARK: - EAT (Exercise Activity Thermogenesis)
 
-    /// Net calories from a single workout using the Keytel heart-rate formula.
-    /// Requires heart-rate data; returns 0 for workouts without HR.
-    /// Strength-training sessions receive a +20 % EPOC uplift.
+    /// Net active calories from a single workout using the Hiilloskorpi HRR formula.
+    ///
+    /// Hiilloskorpi already measures the net active expenditure above rest,
+    /// so no additional BMR subtraction is needed.
+    /// VO2max fallback: 45 mL/kg·min (male) / 40 mL/kg·min (female).
     static func eat(
         workout: HKWorkoutSnapshot,
         weightKg: Double,
+        vo2Max: Double?,
+        hrRest: Double?,
         age: Int,
-        isMale: Bool,
-        bmrDynamisch: Double
+        isMale: Bool
     ) -> Double {
         guard let avgHR = workout.averageHeartRate,
-              avgHR > 0, bmrDynamisch > 0 else { return 0 }
+              avgHR > 0, weightKg > 0 else { return 0 }
 
         let minutes = workout.duration / 60.0
         guard minutes > 0 else { return 0 }
 
-        // Keytel outputs kJ/min
-        var bruttoKJ: Double
-        if isMale {
-            bruttoKJ = minutes * (-55.0969 + 0.6309 * avgHR + 0.1988 * weightKg + 0.2017 * Double(age))
-        } else {
-            bruttoKJ = minutes * (-20.4022 + 0.4472 * avgHR - 0.1263 * weightKg + 0.0740 * Double(age))
-        }
+        let vo2    = (vo2Max ?? 0) > 0 ? vo2Max! : (isMale ? 45.0 : 40.0)
+        let hrRst  = (hrRest ?? 0) > 0 ? hrRest! : 60.0
+        let hrMax  = 220.0 - Double(age)
+        let hrr    = (avgHR - hrRst) / max(1, hrMax - hrRst)
 
-        var bruttoKcal = bruttoKJ / 4.184
+        // Hiilloskorpi formula (kJ/min → kcal/min × minutes)
+        let kJperMin: Double = isMale
+            ? weightKg * vo2 * (0.019  * hrr - 0.0043)
+            : weightKg * vo2 * (0.0143 * hrr - 0.0038)
+        var bruttoKcal = (kJperMin / 4.184) * minutes
 
-        // EPOC uplift — strength training: fixed ×1.20 (HR underestimates muscular load).
+        // EPOC — strength training: fixed ×1.20 (HR underestimates muscular load).
         // All other sports: linear 0–20 % between 60 % and 85 % of HR_max.
         let isStrength = workout.activityType == .functionalStrengthTraining ||
                          workout.activityType == .traditionalStrengthTraining
         if isStrength {
             bruttoKcal *= 1.20
         } else {
-            let hrMax     = 220.0 - Double(age)
             let intensity = hrMax > 0 ? avgHR / hrMax : 0
             if intensity >= 0.85 {
                 bruttoKcal *= 1.20
             } else if intensity > 0.60 {
-                let epocFactor = (intensity - 0.60) / (0.85 - 0.60) * 0.20
-                bruttoKcal *= (1.0 + epocFactor)
+                bruttoKcal *= 1.0 + (intensity - 0.60) / (0.85 - 0.60) * 0.20
             }
-            // intensity ≤ 0.60 → no EPOC uplift
         }
 
-        let bmrShare = (minutes / 60.0) * (bmrDynamisch / 24.0)
-        return max(0, bruttoKcal - bmrShare)
+        return max(0, bruttoKcal)
     }
 
     // MARK: - Combined
@@ -135,6 +135,7 @@ struct ActivityCalculationService {
         standTimeMinutes: Double,
         restingHR: Double?,
         avgHRWaking: Double?,
+        vo2Max: Double?,
         workouts: [HKWorkoutSnapshot],
         weightKg: Double,
         age: Int,
@@ -156,7 +157,8 @@ struct ActivityCalculationService {
             bmrDynamisch:     bmrDynamisch
         )
         let eatKcal = workouts.reduce(0.0) { sum, w in
-            sum + eat(workout: w, weightKg: weightKg, age: age, isMale: isMale, bmrDynamisch: bmrDynamisch)
+            sum + eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
+                      hrRest: restingHR, age: age, isMale: isMale)
         }
         return ActivityResult(neatKcal: neatKcal, eatKcal: eatKcal)
     }

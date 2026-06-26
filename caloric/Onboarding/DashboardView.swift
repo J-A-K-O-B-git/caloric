@@ -212,6 +212,7 @@ struct DashboardView: View {
             standTimeMinutes: healthKit.activity.standTimeMinutes,
             restingHR:        healthKit.activity.restingHeartRate,
             avgHRWaking:      healthKit.activity.avgHeartRateWaking,
+            vo2Max:           healthKit.vo2Max,
             workouts:         healthKit.workouts,
             weightKg:         weightInKg,
             age:              userAge,
@@ -251,6 +252,7 @@ struct DashboardView: View {
                 standTimeMinutes: snap.activity.standTimeMinutes,
                 restingHR:        snap.activity.restingHeartRate,
                 avgHRWaking:      snap.activity.avgHeartRateWaking,
+                vo2Max:           healthKit.vo2Max,
                 workouts:         snap.workouts,
                 weightKg:         weightInKg,
                 age:              userAge,
@@ -773,9 +775,10 @@ struct DashboardView: View {
                                 let kcal = ActivityCalculationService.eat(
                                     workout: w,
                                     weightKg: weightInKg,
+                                    vo2Max: healthKit.vo2Max,
+                                    hrRest: healthKit.activity.restingHeartRate,
                                     age: userAge,
-                                    isMale: isMale,
-                                    bmrDynamisch: tdeeResult.bmrDynamisch
+                                    isMale: isMale
                                 )
                                 let mins = Int(w.duration / 60)
                                 let hrStr = w.averageHeartRate
