@@ -50,6 +50,7 @@ struct DashboardView: View {
     @State private var editHeightFeet: Int = 5
     @State private var editHeightInches: Int = 9
     @State private var showBodyFatHelp = false
+    @State private var showRefreshBadge = false
     @State private var thyroidCondition: String? = nil
     @State private var thyroidWellControlled: Bool? = nil
     @State private var selectedHypoSymptoms: Set<String> = []
@@ -278,7 +279,7 @@ struct DashboardView: View {
     private var calendarDays: [Date] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        return (-4...4).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+        return (-90...7).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
     }
 
     private var hkLastUpdatedText: String {
@@ -297,6 +298,7 @@ struct DashboardView: View {
     var body: some View {
         ZStack {
             // Hauptinhalt
+            ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
                 Spacer().frame(height: 8)
 
@@ -376,7 +378,20 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 10)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
+            }
+            .refreshable {
+                await healthKit.fetchAll()
+                Task { @MainActor in
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                        showRefreshBadge = true
+                    }
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    withAnimation(.easeOut(duration: 0.45)) {
+                        showRefreshBadge = false
+                    }
+                }
+            }
 
             // Abdunkelung beim Öffnen der Leiste
             if showAdjustSidebar {
@@ -400,6 +415,38 @@ struct DashboardView: View {
             }
             .ignoresSafeArea(edges: .bottom)
             .animation(.spring(response: 0.45, dampingFraction: 0.82), value: showAdjustSidebar)
+            .allowsHitTesting(showAdjustSidebar)
+
+            // Refresh-Badge
+            if showRefreshBadge {
+                VStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(language == "de" ? "Alles aktuell" : "All up to date")
+                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                                .foregroundStyle(.primary)
+                            Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
+                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(.regularMaterial)
+                            .shadow(color: .black.opacity(0.14), radius: 14, x: 0, y: 6)
+                    )
+                    .padding(.top, topSafeArea + 6)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            }
         }
         .onAppear { runBurnAnimation() }
         .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
@@ -418,14 +465,26 @@ struct DashboardView: View {
     // MARK: - Datumsleiste
 
     private var datePicker: some View {
-        HStack(spacing: 4) {
-            ForEach(calendarDays, id: \.self) { date in
-                dayChip(date: date)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 4) {
+                    ForEach(calendarDays, id: \.self) { date in
+                        dayChip(date: date)
+                            .id(date)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 6)
+            }
+            .onAppear {
+                proxy.scrollTo(Calendar.current.startOfDay(for: Date()), anchor: .center)
+            }
+            .onChange(of: selectedDate) { _, date in
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    proxy.scrollTo(date, anchor: .center)
+                }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)
     }
 
     private func dayChip(date: Date) -> some View {
@@ -439,8 +498,7 @@ struct DashboardView: View {
         let chipH: CGFloat  = isToday ? 46 : isSelected ? 42 : 36
         let dayFS: CGFloat  = isToday ? 15 : isSelected ? 13 : 11
         let weekFS: CGFloat = isToday ? 9 : 8
-        let chipOpacity: Double = (isToday || isSelected) ? 1.0
-                                 : max(0.35, 1.0 - Double(dist) * 0.2)
+        let chipOpacity: Double = (isToday || isSelected) ? 1.0 : 0.65
 
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
@@ -634,6 +692,7 @@ struct DashboardView: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .task { await healthKit.fetchAll() }
     }
 
     // MARK: - Berechnungsmethoden View
@@ -642,6 +701,60 @@ struct DashboardView: View {
         let lbm = weightInKg * (1.0 - bodyFatPercent / 100.0)
         let baseBMR = 370 + 21.6 * lbm
         let isMale = selectedGender != femaleText
+
+        // ── NEAT intermediate values (mirror ActivityCalculationService.neat) ──
+        let nWalkMin      = Double(healthKit.activity.steps) / 100.0
+        let nWalkH        = nWalkMin / 60.0
+        let nBmrH         = activeFinalBMR / 24.0
+        let nStepsKcal    = nWalkH * 2.0 * nBmrH
+
+        let nStandMin     = healthKit.activity.standTimeMinutes
+        let nPureStandMin = max(0, nStandMin - nWalkMin)
+        let nPureStandH   = nPureStandMin / 60.0
+        let nStandKcal    = nPureStandH * 0.18 * nBmrH
+
+        let nHrMax        = 220.0 - Double(userAge)
+        let nWorkoutMin   = healthKit.workouts.reduce(0.0) { $0 + $1.duration } / 60.0
+        let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
+        let nWakeMin      = (24.0 - nEffSleepH) * 60.0
+        let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
+        let nHrAvg        = healthKit.activity.avgHeartRateWaking
+        let nHrRest       = healthKit.activity.restingHeartRate
+        // Mirror ActivityCalculationService.neat() exactly (saubererPuls, Effizienzfaktor, Cap)
+        let nMicroKcal: Double = {
+            guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
+            let divisor = nHrMax - rest
+            guard divisor > 0 else { return 0 }
+            let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
+            let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
+            let kJ: Double = isMale
+                ? -55.0969 + 0.6309 * nHrMax + 0.1988 * weightInKg + 0.2017 * Double(userAge)
+                : -20.4022 + 0.4472 * nHrMax - 0.1263 * weightInKg + 0.0740 * Double(userAge)
+            let kNetto = max(0, kJ / 4.184 - activeFinalBMR / (24.0 * 60.0))
+            let micro = ((saubererPuls - rest) / divisor) * nGapMin * kNetto * 0.10
+            return min(max(0, micro), 500.0)
+        }()
+        let nMicroRow: AnyView = { () -> AnyView in
+            if let avg = nHrAvg, let rest = nHrRest, avg > rest {
+                let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
+                let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
+                let hrrNetto = (saubererPuls - rest) / max(1, nHrMax - rest)
+                return calcRow(
+                    label: language == "de" ? "③ Mikro-NEAT (HR-Lücke)" : "③ Micro-NEAT (HR Gap)",
+                    formula: String(format: language == "de"
+                        ? "HR_avg %.0f → bereinigt %.0f · HR_rest %.0f · HR_max %.0f\nHRR %.2f · %.0f min · ×0.10"
+                        : "HR_avg %.0f → adjusted %.0f · HR_rest %.0f · HR_max %.0f\nHRR %.2f · %.0f min · ×0.10",
+                        avg, saubererPuls, rest, nHrMax, hrrNetto, nGapMin),
+                    value: String(format: "%.0f kcal", nMicroKcal)
+                )
+            } else {
+                return calcRow(
+                    label: language == "de" ? "③ Mikro-NEAT (HR-Lücke)" : "③ Micro-NEAT (HR Gap)",
+                    formula: language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data",
+                    value: "0 kcal"
+                )
+            }
+        }()
 
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 20) {
@@ -700,39 +813,26 @@ struct DashboardView: View {
                     title: language == "de" ? "NEAT — 3-Komponenten-Modell" : "NEAT — 3-Component Model",
                     rows: [
                         calcRow(
-                            label: language == "de" ? "① Geh-Kalorien" : "① Walk calories",
-                            formula: "(Schritte÷100÷60) × 2.0 × (BMR/24)",
-                            value: {
-                                let wh = (Double(healthKit.activity.steps) / 100.0) / 60.0
-                                return String(format: "%.0f kcal", wh * 2.0 * (activeFinalBMR / 24.0))
-                            }()
+                            label: language == "de" ? "① Geh-Kalorien" : "① Walk Calories",
+                            formula: String(format: language == "de"
+                                ? "%d Schr ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h"
+                                : "%d steps ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h",
+                                healthKit.activity.steps, nWalkMin, nWalkH, nWalkH, nBmrH),
+                            value: String(format: "%.0f kcal", nStepsKcal)
                         ),
                         calcRow(
-                            label: language == "de" ? "② Steh-Kalorien" : "② Stand calories",
-                            formula: language == "de"
-                                ? "Reine Stehzeit (−Gehzeit) × 0.18 × (BMR/24)"
-                                : "Pure stand time (−walk) × 0.18 × (BMR/24)",
-                            value: {
-                                let walkMin = Double(healthKit.activity.steps) / 100.0
-                                let pureStandH = max(0, healthKit.activity.standTimeMinutes - walkMin) / 60.0
-                                return String(format: "%.0f kcal", pureStandH * 0.18 * (activeFinalBMR / 24.0))
-                            }()
+                            label: language == "de" ? "② Steh-Kalorien" : "② Stand Calories",
+                            formula: String(format: language == "de"
+                                ? "%.0f min Stand − %.0f min Geh = %.0f min rein\n%.2f h × 0.18 × %.1f kcal/h"
+                                : "%.0f min stand − %.0f min walk = %.0f min net\n%.2f h × 0.18 × %.1f kcal/h",
+                                nStandMin, nWalkMin, nPureStandMin, nPureStandH, nBmrH),
+                            value: String(format: "%.0f kcal", nStandKcal)
                         ),
+                        nMicroRow,
                         calcRow(
-                            label: language == "de" ? "③ Mikro-NEAT (Puls-Lücke)" : "③ Micro-NEAT (HR gap)",
-                            formula: "(HR_avg−HR_rest)/(HR_max−HR_rest) × Lückenminuten × k",
-                            value: {
-                                let neat = activityResult.neatKcal
-                                let wh = (Double(healthKit.activity.steps) / 100.0) / 60.0
-                                let pureStandH = max(0, healthKit.activity.standTimeMinutes - Double(healthKit.activity.steps) / 100.0) / 60.0
-                                let stepsKcal = wh * 2.0 * (activeFinalBMR / 24.0)
-                                let standKcal = pureStandH * 0.18 * (activeFinalBMR / 24.0)
-                                return String(format: "%.0f kcal", max(0, neat - stepsKcal - standKcal))
-                            }()
-                        ),
-                        calcRow(
-                            label: language == "de" ? "NEAT gesamt (netto)" : "NEAT total (net)",
-                            formula: "NEAT₁ + NEAT₂ + NEAT₃",
+                            label: language == "de" ? "NEAT gesamt" : "NEAT total",
+                            formula: String(format: "%.0f + %.0f + %.0f kcal",
+                                           nStepsKcal, nStandKcal, nMicroKcal),
                             value: String(format: "%.0f kcal", activityResult.neatKcal)
                         ),
                     ]
@@ -847,6 +947,7 @@ struct DashboardView: View {
         }
         .navigationTitle(language == "de" ? "Berechnungsmethoden" : "Calculation Methods")
         .navigationBarTitleDisplayMode(.large)
+        .task { await healthKit.fetchAll() }
     }
 
     private func calcSection(icon: String, iconColor: Color, title: String, rows: [AnyView]) -> some View {

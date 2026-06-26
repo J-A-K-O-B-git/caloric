@@ -33,6 +33,7 @@ struct MainTabView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var journalStore = JournalStore()
     @State private var healthKit = HealthKitImportService()
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         TabView {
@@ -90,6 +91,9 @@ struct MainTabView: View {
         .ignoresSafeArea()
         .environment(journalStore)
         .environment(healthKit)
-        .task { try? await healthKit.requestAuthorization() }
+        .task {
+            healthKit.modelContext = modelContext
+            try? await healthKit.requestAuthorization()
+        }
     }
 }

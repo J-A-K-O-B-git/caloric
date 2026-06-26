@@ -13,6 +13,7 @@
 
 import Foundation
 import HealthKit
+import SwiftData
 
 // MARK: - Domain Models
 
@@ -74,6 +75,10 @@ final class HealthKitImportService {
 
     // MARK: Private
 
+    /// Injected by MainTabView so cache reads/writes run on the same ModelContext as SwiftData.
+    @ObservationIgnored
+    var modelContext: ModelContext? = nil
+
     private let store = HKHealthStore()
 
     @ObservationIgnored
@@ -101,6 +106,36 @@ final class HealthKitImportService {
         return f
     }()
 
+    // MARK: - SwiftData Cache
+
+    /// Immediately populates `history` from the on-disk SwiftData cache.
+    /// Called before HealthKit authorization so the UI has data right away.
+    func loadCachedHistory() {
+        guard let ctx = modelContext else { return }
+        let entries = (try? ctx.fetch(FetchDescriptor<DayCacheEntry>())) ?? []
+        for entry in entries {
+            history[entry.dateKey] = entry.toDaySnapshot()
+        }
+    }
+
+    /// Persists the current `history` dictionary to SwiftData and prunes entries older than 35 days.
+    /// Called after every `fetchHistory()` completes.
+    func saveHistoryToCache() {
+        guard let ctx = modelContext else { return }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -35, to: Date()) ?? .distantPast
+        let existing = (try? ctx.fetch(FetchDescriptor<DayCacheEntry>())) ?? []
+        for entry in existing {
+            let entryDate = Self.keyFormatter.date(from: entry.dateKey) ?? .distantPast
+            if entryDate < cutoff || history[entry.dateKey] != nil {
+                ctx.delete(entry)
+            }
+        }
+        for (key, snapshot) in history {
+            ctx.insert(DayCacheEntry(dateKey: key, snapshot: snapshot))
+        }
+        try? ctx.save()
+    }
+
     // MARK: - Date Helpers
 
     func daySnapshot(for date: Date) -> DaySnapshot? {
@@ -115,10 +150,12 @@ final class HealthKitImportService {
 
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
+        loadCachedHistory()
         try await store.requestAuthorization(toShare: [], read: Self.readSet)
         isAuthorized = true
         await fetchAll()
         await fetchHistory()
+        saveHistoryToCache()
         startObservers()
     }
 

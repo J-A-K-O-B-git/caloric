@@ -12,6 +12,6 @@ struct caloricApp: App {
         WindowGroup {
             AppRootView()
         }
-        .modelContainer(for: UserProfile.self)
+        .modelContainer(for: [UserProfile.self, DayCacheEntry.self])
     }
 }

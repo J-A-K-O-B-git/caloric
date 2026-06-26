@@ -52,26 +52,41 @@ struct ActivityCalculationService {
 
         // Baustein 3 — NEAT_Micro (HR-based gap filler)
         var neatMicro = 0.0
-        if let hrRest = restingHR, let hrAvg = avgHRWaking,
-           hrRest > 0, hrAvg > hrRest, weightKg > 0 {
-
-            let hrMax   = 220.0 - Double(age)
-            let divisor = hrMax - hrRest
+        if let hrRest = restingHR, let hrAvgAllDay = avgHRWaking,
+           hrRest > 0, hrAvgAllDay > hrRest, weightKg > 0 {
+            
+            // 1. Herzfrequenzreserve-Divisor ermitteln
+            let hrMax    = 220.0 - Double(age)
+            let divisor  = hrMax - hrRest
             guard divisor > 0 else { return max(0, neatSteps + neatStand) }
 
-            let wakeMinutes  = (24.0 - sleepHours) * 60.0
-            let workoutMin   = workoutSeconds / 60.0
-            let gapMinutes   = max(0, wakeMinutes - walkMinutes - standTimeMinutes - workoutMin)
+            // 2. DYNAMISCHE ZEITBERECHNUNG BIS JETZT (Verhindert Zukunfts-Kalorien)
+            let calendar = Calendar.current
+            let now = Date()
+            let currentMinutesInDay = Double(calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now))
+            
+            let sleepMinutes = (sleepHours > 0 ? sleepHours : 8.0) * 60.0
+            let wakeMinutesUntilNow = max(0, currentMinutesInDay - sleepMinutes)
+            
+            let workoutMin = workoutSeconds / 60.0
+            let gapMinutes = max(0, wakeMinutesUntilNow - walkMinutes - standTimeMinutes - workoutMin)
 
-            // Keytel outputs kJ/min — convert to kcal/min, then subtract resting share
-            let k_kJ: Double = isMale
-                ? -55.0969 + 0.6309 * hrMax + 0.1988 * weightKg + 0.2017 * Double(age)
-                : -20.4022 + 0.4472 * hrMax - 0.1263 * weightKg + 0.0740 * Double(age)
-            let k_kcal       = k_kJ / 4.184
+            // 3. PULS-GLÄTTER (Isoliert den Couch-/Büro-Puls vom Sport-Puls)
+            let geschaetzterLückenPuls = min(hrAvgAllDay - (workoutMin > 0 ? 15.0 : 0.0), hrRest + 25.0)
+            let saubererPuls = max(hrRest + 2.0, geschaetzterLückenPuls)
+
+            // 4. MET-KOPPLUNG AN DYNAMISCHEN BMR (Keytel-Ersatz)
             let bmrPerMinute = bmrDynamisch / (24.0 * 60.0)
-            let k_netto      = max(0, k_kcal - bmrPerMinute)
+            let maximalerNettoMetFaktor = 3.0
+            let k_netto = bmrPerMinute * maximalerNettoMetFaktor
 
-            neatMicro = max(0, ((hrAvg - hrRest) / divisor) * gapMinutes * k_netto)
+            // 5. FINALE BERECHNUNG (Ohne doppelten Dämpfer, da k_netto bereits limitiert)
+            let relativeAuslastung = (saubererPuls - hrRest) / divisor
+            let berechnetesMicro = relativeAuslastung * gapMinutes * k_netto
+
+            // 6. SICHERHEITS-CAP (Gedeckelt auf den maximalen Tageswert)
+            neatMicro = min(berechnetesMicro, 500.0)
+            neatMicro = max(0, neatMicro)
         }
 
         return max(0, neatSteps + neatStand + neatMicro)
