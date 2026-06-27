@@ -88,6 +88,7 @@ struct MainTabView: View {
             }
         }
         .tint(accentBlue)
+        .preferredColorScheme(.dark)
         .ignoresSafeArea()
         .environment(journalStore)
         .environment(healthKit)

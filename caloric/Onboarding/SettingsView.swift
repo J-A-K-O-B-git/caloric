@@ -46,7 +46,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Einstellungen" : "Settings")
                             .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                            .foregroundStyle(accentBlue)
+                            .foregroundStyle(Theme.textPrimary)
                         Text(language == "de" ? "Deine Stammdaten" : "Your master data")
                             .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
                             .foregroundStyle(.secondary)
@@ -160,6 +160,7 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ObsidianBackground())
         .sheet(isPresented: Binding(
             get: { editingField != nil },
             set: { if !$0 { editingField = nil } }
@@ -169,8 +170,7 @@ struct SettingsView: View {
     }
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-            .fill(accentBlue.opacity(isDark ? 0.16 : 0.05))
+        GlassCardBackground(cornerRadius: Theme.Radius.card)
     }
 
     // MARK: - Stammdaten-Zeile
@@ -198,7 +198,9 @@ struct SettingsView: View {
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
-                    .fill(Color(.systemBackground).opacity(0.7))
+                    .fill(Color.white.opacity(0.05))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
             )
         }
         .buttonStyle(.plain)
@@ -224,6 +226,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .presentationDetents([.medium])
     }
 

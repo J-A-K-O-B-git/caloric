@@ -128,6 +128,8 @@ struct DailyJournalView: View {
 
     var body: some View {
         ZStack {
+            ObsidianBackground()
+
             journalScrollView
 
             if showSavedBadge {
@@ -659,7 +661,7 @@ struct DailyJournalView: View {
                 HStack {
                     Text("Daily Journal")
                         .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                        .foregroundStyle(accentBlue)
+                        .foregroundStyle(Theme.textPrimary)
                     Spacer()
                 }
                 .padding(.horizontal, 20)
@@ -755,10 +757,7 @@ struct DailyJournalView: View {
     // MARK: - Helpers
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(accentBlue.opacity(isDark ? 0.16 : 0.05))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(accentBlue.opacity(isDark ? 0.22 : 0.10), lineWidth: 1))
+        GlassCardBackground(cornerRadius: 16)
     }
 
     private func mealTile(key: String, name: String) -> some View {

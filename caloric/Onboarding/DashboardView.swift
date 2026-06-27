@@ -297,6 +297,8 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
+            ObsidianBackground()
+
             // Hauptinhalt
             ScrollView(showsIndicators: false) {
             VStack(spacing: 10) {
@@ -306,7 +308,7 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
                             .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                            .foregroundStyle(accentBlue)
+                            .foregroundStyle(Theme.textPrimary)
                     }
                     Spacer()
                 }
@@ -371,7 +373,7 @@ struct DashboardView: View {
                     }
                 }
                 .padding(14)
-                .background(RoundedRectangle(cornerRadius: 18).fill(accentBlue.opacity(isDark ? 0.16 : 0.05)))
+                .background(GlassCardBackground(cornerRadius: 18))
                 .padding(.horizontal, 20)
 
                 adjustCallToAction
@@ -562,123 +564,223 @@ struct DashboardView: View {
 
     // MARK: - Aktivitäts-Aufschlüsselung Sheet
 
-    private var activityBreakdownSheet: some View {
-        NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    Spacer().frame(height: 8)
+    private struct EnergySegment: Identifiable {
+        let id = UUID()
+        let title: String
+        let short: String
+        let subtitle: String
+        let icon: String
+        let color: Color
+        let kcal: Double
+    }
 
-                    breakdownRow(
-                        icon: "moon.zzz.fill",
-                        color: accentBlue,
-                        title: language == "de" ? "Grundumsatz (BMR)" : "Resting Metabolic Rate",
-                        subtitle: language == "de" ? "Basaler Energiebedarf" : "Base energy expenditure",
-                        kcal: Int(tdeeResult.bmrDynamisch)
-                    )
-                    breakdownRow(
-                        icon: "figure.walk",
-                        color: .orange,
-                        title: "NEAT",
-                        subtitle: language == "de"
-                            ? "\(healthKit.activity.steps) Schritte"
-                            : "\(healthKit.activity.steps) steps",
-                        kcal: Int(activityResult.neatKcal)
-                    )
-                    breakdownRow(
-                        icon: "dumbbell.fill",
-                        color: Color(red: 0.20, green: 0.78, blue: 0.35),
-                        title: "EAT",
-                        subtitle: language == "de"
-                            ? "\(healthKit.workouts.count) Workout(s) heute"
-                            : "\(healthKit.workouts.count) workout(s) today",
-                        kcal: Int(activityResult.eatKcal)
-                    )
-                    if tdeeResult.koffeinBonus > 0 {
-                        breakdownRow(
-                            icon: "cup.and.heat.waves.fill",
-                            color: .brown,
-                            title: language == "de" ? "Koffein-Thermogenese" : "Caffeine Thermogenesis",
-                            subtitle: "+15 kcal/100 mg · max. +60 kcal",
-                            kcal: Int(tdeeResult.koffeinBonus)
+    /// Ordered energy-expenditure components that sum to the daily total.
+    private var energySegments: [EnergySegment] {
+        let neat = healthKit.isAuthorized ? activityResult.neatKcal : 0
+        let eat  = healthKit.isAuthorized ? activityResult.eatKcal  : 0
+        var segs: [EnergySegment] = [
+            EnergySegment(
+                title: language == "de" ? "Grundumsatz (BMR)" : "Resting Metabolic Rate",
+                short: "BMR",
+                subtitle: language == "de" ? "Basaler Energiebedarf" : "Base energy expenditure",
+                icon: "moon.zzz.fill", color: Theme.segBMR, kcal: tdeeResult.bmrDynamisch
+            ),
+            EnergySegment(
+                title: "NEAT",
+                short: "NEAT",
+                subtitle: language == "de" ? "Alltagsbewegung · \(healthKit.activity.steps) Schritte"
+                                           : "Daily movement · \(healthKit.activity.steps) steps",
+                icon: "figure.walk", color: Theme.segNEAT, kcal: neat
+            ),
+            EnergySegment(
+                title: "EAT",
+                short: "EAT",
+                subtitle: language == "de" ? "Training · \(healthKit.workouts.count) Workout(s)"
+                                           : "Exercise · \(healthKit.workouts.count) workout(s)",
+                icon: "dumbbell.fill", color: Theme.segEAT, kcal: eat
+            ),
+            EnergySegment(
+                title: language == "de" ? "Thermischer Effekt (TEF)" : "Thermic Effect of Food (TEF)",
+                short: "TEF",
+                subtitle: language == "de" ? "Verdauung · Protein · KH · Fett"
+                                           : "Digestion · Protein · Carbs · Fat",
+                icon: "fork.knife.circle.fill", color: Theme.segTEF, kcal: tdeeResult.tefKcal
+            ),
+        ]
+        if tdeeResult.koffeinBonus > 0 {
+            segs.append(EnergySegment(
+                title: language == "de" ? "Koffein-Thermogenese" : "Caffeine Thermogenesis",
+                short: language == "de" ? "Koffein" : "Caffeine",
+                subtitle: "+15 kcal / 100 mg · max. +60 kcal",
+                icon: "cup.and.heat.waves.fill", color: Theme.segCaf, kcal: tdeeResult.koffeinBonus
+            ))
+        }
+        return segs
+    }
+
+    private func energyStackedBar(_ segs: [EnergySegment], total: Double) -> some View {
+        GeometryReader { geo in
+            HStack(spacing: 2) {
+                ForEach(segs) { s in
+                    Rectangle()
+                        .fill(
+                            LinearGradient(colors: [s.color.opacity(0.85), s.color],
+                                           startPoint: .top, endPoint: .bottom)
                         )
-                    }
-                    if tdeeResult.tefKcal > 0 {
-                        breakdownRow(
-                            icon: "fork.knife.circle.fill",
-                            color: Color(red: 0.60, green: 0.20, blue: 0.80),
-                            title: language == "de" ? "Thermischer Effekt (TEF)" : "Thermic Effect of Food (TEF)",
-                            subtitle: language == "de"
-                                ? "Protein ×1.0 · KH ×0.3 · Fett ×0.135 kcal/g"
-                                : "Protein ×1.0 · Carbs ×0.3 · Fat ×0.135 kcal/g",
-                            kcal: Int(tdeeResult.tefKcal)
-                        )
-                    }
+                        .frame(width: max(s.kcal > 0 ? 3 : 0, geo.size.width * (s.kcal / total)))
+                }
+            }
+        }
+        .frame(height: 14)
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+    }
 
-                    Divider().padding(.horizontal, 20).padding(.vertical, 4)
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(language == "de" ? "Gesamtumsatz" : "Total Expenditure")
-                                .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
-                            Text(language == "de" ? "BMR + NEAT + EAT + Koffein + TEF" : "BMR + NEAT + EAT + Caffeine + TEF")
-                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("\(Int(todayProjected)) kcal")
-                            .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title3))
-                            .foregroundStyle(accentBlue)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+    private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
+        let pct = total > 0 ? s.kcal / total : 0
+        return VStack(spacing: 11) {
+            HStack(spacing: 13) {
+                Image(systemName: s.icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(s.color)
+                    .frame(width: 42, height: 42)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(accentBlue.opacity(isDark ? 0.16 : 0.06))
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(s.color.opacity(0.16))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(s.color.opacity(0.30), lineWidth: 1))
                     )
-                    .padding(.horizontal, 20)
-
-
-                    if !healthKit.isAuthorized {
-                        Text(language == "de"
-                             ? "Verbinde Apple Health für NEAT & EAT Daten."
-                             : "Connect Apple Health for NEAT & EAT data.")
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
-                            .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.title)
+                        .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(s.subtitle)
+                        .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text("\(Int(s.kcal))")
+                            .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text("kcal")
+                            .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                            .foregroundStyle(Theme.textSecondary)
                     }
+                    Text(String(format: "%.0f%%", pct * 100))
+                        .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                        .foregroundStyle(s.color)
+                }
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.07)).frame(height: 6)
+                    Capsule()
+                        .fill(LinearGradient(colors: [s.color.opacity(0.7), s.color],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(s.kcal > 0 ? 6 : 0, geo.size.width * pct), height: 6)
+                }
+            }
+            .frame(height: 6)
+        }
+        .padding(14)
+        .glassCard(16)
+    }
 
-                    NavigationLink {
-                        calcExplanationView
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "function")
-                                .font(.system(size: 15, weight: .medium))
-                            Text(language == "de" ? "Wie wird das berechnet?" : "How is this calculated?")
-                                .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
+    private var activityBreakdownSheet: some View {
+        let segs = energySegments
+        let total = max(segs.reduce(0) { $0 + $1.kcal }, 1)
+        return NavigationStack {
+            ZStack {
+                ObsidianBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 14) {
+                        Spacer().frame(height: 6)
+
+                        // Hero — total + stacked micro-chart
+                        VStack(spacing: 18) {
+                            VStack(spacing: 3) {
+                                Text(language == "de" ? "GESAMTUMSATZ HEUTE" : "TOTAL EXPENDITURE TODAY")
+                                    .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                                    .tracking(1.8)
+                                    .foregroundStyle(Theme.textSecondary)
+                                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                    Text("\(Int(todayProjected))")
+                                        .font(.custom("PingFangSC-Semibold", size: 46, relativeTo: .largeTitle))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("kcal")
+                                        .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .title3))
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                            energyStackedBar(segs, total: total)
+                            // Legend
+                            HStack(spacing: 14) {
+                                ForEach(segs) { s in
+                                    HStack(spacing: 5) {
+                                        Circle().fill(s.color).frame(width: 7, height: 7)
+                                        Text(s.short)
+                                            .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                                            .foregroundStyle(Theme.textSecondary)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .foregroundStyle(accentBlue)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 13)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(accentBlue.opacity(isDark ? 0.12 : 0.06))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(accentBlue.opacity(isDark ? 0.22 : 0.12), lineWidth: 1)
-                                )
-                        )
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                    }
-                    .buttonStyle(.plain)
+                        .padding(20)
+                        .glassCard(22, tint: accentBlue, tintStrength: 0.04)
+                        .padding(.horizontal, 18)
 
-                    Spacer().frame(height: 20)
+                        // Per-component rows with progress bars
+                        VStack(spacing: 10) {
+                            ForEach(segs) { s in
+                                energySegmentRow(s, total: total)
+                            }
+                        }
+                        .padding(.horizontal, 18)
+
+                        if !healthKit.isAuthorized {
+                            HStack(spacing: 8) {
+                                Image(systemName: "heart.text.square.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(accentBlue)
+                                Text(language == "de"
+                                     ? "Verbinde Apple Health für NEAT & EAT Daten."
+                                     : "Connect Apple Health for NEAT & EAT data.")
+                                    .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                            .padding(.horizontal, 30)
+                            .padding(.top, 4)
+                        }
+
+                        NavigationLink {
+                            calcExplanationView
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "function")
+                                    .font(.system(size: 15, weight: .medium))
+                                Text(language == "de" ? "Wie wird das berechnet?" : "How is this calculated?")
+                                    .font(.custom("PingFangSC-Medium", size: 14, relativeTo: .callout))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                            .foregroundStyle(accentBlue)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .glassCard(14, tint: accentBlue, tintStrength: 0.06)
+                            .padding(.horizontal, 18)
+                            .padding(.top, 6)
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer().frame(height: 24)
+                    }
                 }
             }
             .navigationTitle(language == "de" ? "Energieverbrauch" : "Energy Expenditure")
@@ -691,7 +793,9 @@ struct DashboardView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
+        .presentationBackground(Theme.obsidian)
         .task { await healthKit.fetchAll() }
     }
 
@@ -945,6 +1049,7 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 16)
         }
+        .background(ObsidianBackground())
         .navigationTitle(language == "de" ? "Berechnungsmethoden" : "Calculation Methods")
         .navigationBarTitleDisplayMode(.large)
         .task { await healthKit.fetchAll() }
@@ -973,14 +1078,7 @@ struct DashboardView: View {
             }
             .padding(.bottom, 4)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.background.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(.separator.opacity(0.5), lineWidth: 0.5)
-                )
-        )
+        .background(GlassCardBackground(cornerRadius: 18))
     }
 
     private func calcRow(label: String, formula: String, value: String) -> AnyView {
@@ -1072,14 +1170,7 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(accentBlue.opacity(isDark ? 0.14 : 0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(accentBlue.opacity(isDark ? 0.30 : 0.18), lineWidth: 1)
-                    )
-            )
+            .background(GlassCardBackground(cornerRadius: 18))
         }
         .buttonStyle(.plain)
     }
@@ -1229,14 +1320,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
             .padding(.horizontal, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(accentBlue.opacity(isDark ? 0.38 : 0.20))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(accentBlue.opacity(isDark ? 0.65 : 0.45), lineWidth: 1)
-                    )
-            )
+            .background(GlassCardBackground(cornerRadius: 16, tint: accentBlue, tintStrength: 0.10))
         }
         .buttonStyle(.plain)
     }
@@ -1244,77 +1328,91 @@ struct DashboardView: View {
     // MARK: - Kalorien-Ring-Widget (USP)
 
     private var calorieRingWidget: some View {
-        ZStack {
-            Circle()
-                .stroke(accentBlue.opacity(isDark ? 0.16 : 0.10), lineWidth: 14)
+        Button {
+            if isSelectedToday { showActivityBreakdown = true }
+        } label: {
+            VStack(spacing: 0) {
+                ZStack {
+                    // Track
+                    Circle()
+                        .stroke(Color.white.opacity(0.07), lineWidth: 14)
 
-            Circle()
-                .trim(from: 0, to: ringProgress)
-                .stroke(
-                    AngularGradient(
-                        gradient: Gradient(colors: [
-                            accentBlue.opacity(0.55), accentBlue, accentBlue.opacity(0.85)
-                        ]),
-                        center: .center,
-                        startAngle: .degrees(-90),
-                        endAngle: .degrees(270)
-                    ),
-                    style: StrokeStyle(lineWidth: 14, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .shadow(color: accentBlue.opacity(0.35), radius: 8, x: 0, y: 0)
+                    // Progress
+                    Circle()
+                        .trim(from: 0, to: ringProgress)
+                        .stroke(
+                            AngularGradient(
+                                gradient: Gradient(colors: [
+                                    accentBlue.opacity(0.45), accentBlue, accentBlue.opacity(0.9)
+                                ]),
+                                center: .center,
+                                startAngle: .degrees(-90),
+                                endAngle: .degrees(270)
+                            ),
+                            style: StrokeStyle(lineWidth: 14, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: accentBlue.opacity(0.45), radius: 12, x: 0, y: 0)
 
-            Circle()
-                .fill(.white)
-                .frame(width: 7, height: 7)
-                .offset(y: -(ringSize / 2))
-                .rotationEffect(.degrees(ringProgress * 360 - 90))
-                .opacity(ringProgress > 0.02 ? 1 : 0)
+                    // Leading dot
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 7, height: 7)
+                        .offset(y: -(ringSize / 2))
+                        .rotationEffect(.degrees(ringProgress * 360 - 90))
+                        .opacity(ringProgress > 0.02 ? 1 : 0)
 
-            VStack(spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(isSelectedToday ? "\(Int(animatedBurn))" : "–")
-                        .font(.custom("PingFangSC-Semibold", size: 30, relativeTo: .title))
-                        .foregroundStyle(accentBlue)
-                        .contentTransition(.numericText())
-                    Text("kcal")
-                        .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .callout))
-                        .foregroundStyle(accentBlue.opacity(0.6))
-                }
-                Text(language == "de" ? "bis jetzt" : "so far")
-                    .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
-                    .foregroundStyle(.secondary.opacity(0.7))
-            }
-        }
-        .frame(width: ringSize, height: ringSize)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
-        .frame(maxWidth: .infinity)
-        .overlay(alignment: .bottom) {
-            if isSelectedToday {
-                Button {
-                    showActivityBreakdown = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chart.pie.fill")
-                            .font(.system(size: 9, weight: .medium))
-                        Text(language == "de" ? "Aufschlüsselung" : "Breakdown")
-                            .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                    VStack(spacing: 1) {
+                        Text(language == "de" ? "VERBRANNT" : "BURNED")
+                            .font(.custom("PingFangSC-Medium", size: 9, relativeTo: .caption2))
+                            .tracking(1.6)
+                            .foregroundStyle(accentBlue.opacity(0.7))
+                            .padding(.bottom, 2)
+                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                            Text(isSelectedToday ? "\(Int(animatedBurn))" : "–")
+                                .font(.custom("PingFangSC-Semibold", size: 34, relativeTo: .title))
+                                .foregroundStyle(Theme.textPrimary)
+                                .contentTransition(.numericText())
+                            Text("kcal")
+                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .callout))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Text(language == "de" ? "bis jetzt" : "so far")
+                            .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.7))
                     }
-                    .foregroundStyle(accentBlue.opacity(0.7))
-                    .padding(.bottom, 10)
                 }
-                .buttonStyle(.plain)
+                .frame(width: ringSize, height: ringSize)
+                .padding(.top, 20)
+
+                // Tap affordance — whole card opens the breakdown sheet
+                if isSelectedToday {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.pie.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(language == "de" ? "Aufschlüsselung ansehen" : "View breakdown")
+                            .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .opacity(0.6)
+                    }
+                    .foregroundStyle(accentBlue)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(accentBlue.opacity(0.12)))
+                    .overlay(Capsule().strokeBorder(accentBlue.opacity(0.30), lineWidth: 1))
+                    .padding(.top, 16)
+                    .padding(.bottom, 18)
+                } else {
+                    Spacer().frame(height: 22)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous))
+            .glassCard(Theme.Radius.hero, tint: accentBlue, tintStrength: 0.05)
         }
-        .background(
-            RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous)
-                .fill(accentBlue.opacity(isDark ? 0.16 : 0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous)
-                        .strokeBorder(accentBlue.opacity(isDark ? 0.22 : 0.10), lineWidth: 1)
-                )
-        )
+        .buttonStyle(.plain)
+        .disabled(!isSelectedToday)
     }
 
     // MARK: - KPI-Zeile
@@ -1366,15 +1464,13 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 9)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(accent ? accentBlue : accentBlue.opacity(isDark ? 0.16 : 0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            accent ? Color.clear : accentBlue.opacity(isDark ? 0.25 : 0.12),
-                            lineWidth: 1
-                        )
-                )
+            Group {
+                if accent {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(accentBlue)
+                } else {
+                    GlassCardBackground(cornerRadius: 16)
+                }
+            }
         )
     }
 
@@ -1463,6 +1559,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
     }
 
@@ -2023,13 +2120,6 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(accentBlue.opacity(isDark ? 0.16 : 0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(accentBlue.opacity(isDark ? 0.25 : 0.12), lineWidth: 1)
-                )
-        )
+        .background(GlassCardBackground(cornerRadius: 16))
     }
 }
