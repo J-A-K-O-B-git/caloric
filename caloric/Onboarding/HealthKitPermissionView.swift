@@ -221,7 +221,7 @@ struct HealthKitPermissionView: View {
         VStack(spacing: 0) {
             // Gradient fade into button area
             LinearGradient(
-                colors: [Color(.systemBackground).opacity(0), Color(.systemBackground)],
+                colors: [Theme.obsidian.opacity(0), Theme.obsidian],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -289,7 +289,7 @@ struct HealthKitPermissionView: View {
             }
             .padding(.top, 4)
             .padding(.bottom, 16)
-            .background(Color(.systemBackground))
+            .background(Theme.obsidian)
         }
     }
 }

@@ -58,7 +58,7 @@ struct BodyFatHelpView: View {
             VStack(spacing: 25) {
                 Text(t.bodyFatHelpTitle)
                     .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
 
                 Text(t.bodyFatHelpSubtitle)
                     .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
@@ -111,6 +111,8 @@ struct BodyFatHelpView: View {
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showSavedBadge)
         }
+        .preferredColorScheme(.dark)
+        .presentationBackground(Theme.obsidian)
     }
 
     private func estimateWithBadge(_ value: String) {
@@ -193,7 +195,7 @@ struct BodyFatHelpView: View {
                 }
             }
             .padding(20)
-            .background(RoundedRectangle(cornerRadius: 24).fill(Color(.systemBackground)))
+            .background(RoundedRectangle(cornerRadius: 24).fill(Theme.obsidianLift))
             .padding(.horizontal, 24)
             .transition(.scale(scale: 0.85).combined(with: .opacity))
         }

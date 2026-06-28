@@ -30,13 +30,16 @@ struct MainTabView: View {
     @Binding var selectedConditions: Set<String>
     @Binding var metabolismFactor: Double
 
+    @State private var selectedTab: Int = 0
+    @State private var previousTab: Int = 0
+    @State private var showManualDataSheet: Bool = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var journalStore = JournalStore()
     @State private var healthKit = HealthKitImportService()
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             DashboardView(
                 accentBlue: accentBlue,
                 language: language,
@@ -47,6 +50,7 @@ struct MainTabView: View {
                 selectedGender: selectedGender,
                 noConditionText: noConditionText,
                 femaleText: femaleText,
+                accountUsername: $accountUsername,
                 birthDate: $birthDate,
                 weightText: $weightText,
                 weightUnit: $weightUnit,
@@ -59,10 +63,18 @@ struct MainTabView: View {
                 metabolismFactor: $metabolismFactor,
                 selectedDate: $selectedDate
             )
+            .tag(0)
             .tabItem {
                 Label(language == "de" ? "Übersicht" : "Overview",
                       systemImage: "square.grid.2x2.fill")
             }
+
+            Color.clear
+                .tag(1)
+                .tabItem {
+                    Label(language == "de" ? "Meine Daten" : "My Data",
+                          systemImage: "slider.horizontal.3")
+                }
 
             DailyJournalView(
                 accentBlue: accentBlue,
@@ -71,20 +83,36 @@ struct MainTabView: View {
                 femaleText: femaleText,
                 selectedDate: $selectedDate
             )
+            .tag(2)
             .tabItem {
                 Label("Journal", systemImage: "book.pages.fill")
             }
-
-            SettingsView(
+        }
+        .sheet(isPresented: $showManualDataSheet) {
+            ManualDataView(
                 accentBlue: accentBlue,
                 language: language,
+                femaleText: femaleText,
+                noConditionText: noConditionText,
+                selectedGender: selectedGender,
                 userAge: userAge,
-                accountUsername: $accountUsername,
-                birthDate: $birthDate
+                weightText: $weightText,
+                weightUnit: $weightUnit,
+                heightText: $heightText,
+                heightUnit: $heightUnit,
+                bodyFatText: $bodyFatText,
+                knowsBodyFat: $knowsBodyFat,
+                sleepHours: $sleepHours,
+                selectedConditions: $selectedConditions,
+                metabolismFactor: $metabolismFactor
             )
-            .tabItem {
-                Label(language == "de" ? "Einstellungen" : "Settings",
-                      systemImage: "gearshape.fill")
+            .presentationDetents([.medium, .large])
+            .presentationBackground(Theme.obsidian)
+        }
+        .onChange(of: selectedTab) { old, new in
+            if new == 1 {
+                selectedTab = old // Stay on the current tab
+                showManualDataSheet = true
             }
         }
         .tint(accentBlue)

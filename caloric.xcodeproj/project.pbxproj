@@ -24,6 +24,7 @@
 		5DCAF4DE2FE82B6D005AE38A /* HealthKitPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */; };
 		5DCAF4E02FE8324F005AE38A /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DF2FE8324F005AE38A /* UserProfile.swift */; };
 		5DCAF4E22FE8325F005AE38A /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4E12FE8325F005AE38A /* AppRootView.swift */; };
+		5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */; };
 		5DEC7B912FE28406007A1989 /* TDEECalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */; };
 		5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B922FE28407007A1989 /* JournalStore.swift */; };
 /* End PBXBuildFile section */
@@ -48,6 +49,7 @@
 		5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPermissionView.swift; sourceTree = "<group>"; };
 		5DCAF4DF2FE8324F005AE38A /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		5DCAF4E12FE8325F005AE38A /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDataView.swift; sourceTree = "<group>"; };
 		5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TDEECalculationService.swift; sourceTree = "<group>"; };
 		5DEC7B922FE28407007A1989 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -90,6 +92,7 @@
 				5DAA00022FD60001000000A2 /* SettingsView.swift */,
 				5D2AABAD2FDEC7E600BAC18D /* DailyJournalView.swift */,
 				5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */,
+				5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -219,6 +222,7 @@
 				5D2E62B72FCE1AE20057E84D /* Translations.swift in Sources */,
 				5D2E62B82FCE1AE20057E84D /* caloricApp.swift in Sources */,
 				5D0BE1122FD47B480029CE62 /* DashboardView.swift in Sources */,
+				5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */,
 				5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */,
 				5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */,
 				5DAA00032FD60001000000A2 /* SettingsView.swift in Sources */,

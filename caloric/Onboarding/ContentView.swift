@@ -303,11 +303,12 @@ struct ContentView: View {
                 .fontWeight(.semibold)
             }
         }
-        .background(Color(.systemGray6))
+        .background(ObsidianBackground())
         #else
         .background(Color(.windowBackgroundColor))
         #endif
         .ignoresSafeArea()
+        .preferredColorScheme(.dark)
         .environment(healthKit)
         .onChange(of: currentStep) {
             activeField = nil
@@ -380,7 +381,7 @@ struct ContentView: View {
             Spacer()
             Text(t.welcome)
                 .font(.custom("PingFangSC-Semibold", size: 25, relativeTo: .title))
-                .foregroundStyle(accentBlue)
+                .foregroundStyle(Theme.textPrimary)
             Text(t.welcomeSubtitle)
                 .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .subheadline))
                 .italic()
@@ -435,7 +436,7 @@ struct ContentView: View {
         VStack(spacing: 25) {
             Text(t.genderQuestion)
                 .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                .foregroundStyle(accentBlue)
+                .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
             hintBox(t.genderInfo)
             VStack(spacing: 16) {
@@ -455,7 +456,7 @@ struct ContentView: View {
             VStack(spacing: 25) {
                 Text(t.ageQuestion)
                     .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 hintBox(t.ageInfo)
                 DatePicker("Geburtsdatum", selection: $birthDate, in: ...Date.now, displayedComponents: .date)
@@ -483,7 +484,7 @@ struct ContentView: View {
             VStack(spacing: 25) {
                 Text(t.weightQuestion)
                     .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
                 hintBox(t.weightInfo)
                     .frame(minHeight: 115, alignment: .top)
                 Picker("Einheit", selection: $weightUnit) {
@@ -546,7 +547,7 @@ struct ContentView: View {
             VStack(spacing: 25) {
                 Text(t.heightQuestion)
                     .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
                 hintBox(t.heightInfo)
                     .frame(minHeight: 115, alignment: .top)
                 Picker("Einheit", selection: $heightUnit) {
@@ -629,7 +630,7 @@ struct ContentView: View {
             VStack(spacing: 20) {
                 Text(t.bodyFatQuestion)
                     .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
                 hintBox(t.bodyFatInfo)
@@ -738,7 +739,7 @@ struct ContentView: View {
 
                 Text(t.metabolismQuestion)
                     .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
                 hintBox(t.metabolismInfo)
@@ -1061,10 +1062,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(accentBlue.opacity(cardAlpha))
-        )
+        .background(GlassCardBackground(cornerRadius: 16))
         .opacity(showCards ? 1 : 0)
         .offset(y: showCards ? 0 : 20)
         .animation(.spring(response: 0.5, dampingFraction: 0.75).delay(0.35 + delay), value: showCards)
@@ -1094,7 +1092,7 @@ struct ContentView: View {
 
             Text(selectedLanguage == "de" ? "Konto erstellen" : "Create account")
                 .font(.custom("PingFangSC-Semibold", size: 26, relativeTo: .title))
-                .foregroundStyle(accentBlue)
+                .foregroundStyle(Theme.textPrimary)
 
             Spacer().frame(height: 8)
 
@@ -1228,14 +1226,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(accentBlue.opacity(isDark ? 0.14 : 0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(accentBlue.opacity(isDark ? 0.28 : 0.14), lineWidth: 1)
-                )
-        )
+        .background(GlassCardBackground(cornerRadius: 14))
     }
 
     // MARK: - Seite 9: Apple Health
@@ -1339,14 +1330,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(accentBlue.opacity(cardAlpha))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(accentBlue.opacity(borderAlpha), lineWidth: 1)
-                )
-        )
+        .background(GlassCardBackground(cornerRadius: 14, tint: accentBlue, tintStrength: 0.05))
         .padding(.horizontal, 30)
     }
 
@@ -1362,14 +1346,7 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(accentBlue.opacity(cardAlpha))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(accentBlue.opacity(borderAlpha), lineWidth: 1)
-                )
-        )
+        .background(GlassCardBackground(cornerRadius: 14))
     }
 
     private func metabolismChoiceButton(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
