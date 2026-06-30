@@ -779,9 +779,8 @@ struct DashboardView: View {
                         // Hero — total + stacked micro-chart
                         VStack(spacing: 18) {
                             VStack(spacing: 3) {
-                                Text(language == "de" ? "GESAMTUMSATZ HEUTE" : "TOTAL EXPENDITURE TODAY")
+                                Text(language == "de" ? "Dein heutiger Gesamtumsatz" : "Your current total calorie expenditure")
                                     .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
-                                    .tracking(1.8)
                                     .foregroundStyle(Theme.textSecondary)
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                                     Text("\(Int(todayProjected))")
@@ -837,7 +836,7 @@ struct DashboardView: View {
                     }
                 }
             }
-            .navigationTitle(language == "de" ? "Energieverbrauch" : "Energy Expenditure")
+            .navigationTitle(language == "de" ? "Aufschlüsselung" : "Breakdown")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

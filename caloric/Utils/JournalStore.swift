@@ -14,6 +14,12 @@ final class JournalStore {
     typealias SickEnergyLevel = TDEECalculationService.JournalInputs.SickEnergyLevel
     typealias FeverLevel      = TDEECalculationService.JournalInputs.FeverLevel
 
+    struct CustomDrink: Codable, Identifiable, Hashable {
+        let id: UUID
+        var name: String
+        var caffeineMg: Int
+    }
+
     struct DayEntry: Codable {
         var menstruationActive: Bool?            = nil
         var sickActive:         Bool             = false
@@ -26,12 +32,25 @@ final class JournalStore {
     }
 
     private static let storageKey = "journalStore.entries.v1"
+    private static let libraryKey = "journalStore.customDrinks.v1"
     private static let retentionDays = 30
 
     private var entries: [String: DayEntry] = [:]
+    var customDrinks: [CustomDrink] = []
 
     init() {
         load()
+    }
+
+    func addCustomDrink(name: String, caffeineMg: Int) {
+        let drink = CustomDrink(id: UUID(), name: name, caffeineMg: caffeineMg)
+        customDrinks.append(drink)
+        persist()
+    }
+
+    func removeCustomDrink(id: UUID) {
+        customDrinks.removeAll { $0.id == id }
+        persist()
     }
 
     func entry(for date: Date) -> DayEntry {
@@ -63,20 +82,31 @@ final class JournalStore {
     // MARK: - Persistence
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
+        if let data = try? JSONEncoder().encode(entries) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+        if let libData = try? JSONEncoder().encode(customDrinks) {
+            UserDefaults.standard.set(libData, forKey: Self.libraryKey)
+        }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
-              let decoded = try? JSONDecoder().decode([String: DayEntry].self, from: data)
-        else { return }
-        let cutoff = Calendar.current.date(
-            byAdding: .day, value: -Self.retentionDays, to: Calendar.current.startOfDay(for: Date())
-        ) ?? .distantPast
-        entries = decoded.filter { dateKey, _ in
-            guard let date = Self.keyFormatter.date(from: dateKey) else { return false }
-            return date >= cutoff
+        // Load entries
+        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
+           let decoded = try? JSONDecoder().decode([String: DayEntry].self, from: data) {
+            let cutoff = Calendar.current.date(
+                byAdding: .day, value: -Self.retentionDays, to: Calendar.current.startOfDay(for: Date())
+            ) ?? .distantPast
+            entries = decoded.filter { dateKey, _ in
+                guard let date = Self.keyFormatter.date(from: dateKey) else { return false }
+                return date >= cutoff
+            }
+        }
+        
+        // Load custom drinks
+        if let libData = UserDefaults.standard.data(forKey: Self.libraryKey),
+           let decodedLib = try? JSONDecoder().decode([CustomDrink].self, from: libData) {
+            customDrinks = decodedLib
         }
     }
 

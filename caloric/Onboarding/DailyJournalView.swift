@@ -33,7 +33,10 @@ struct DailyJournalView: View {
 
     // Koffein
     @State private var caffeineText: String = "0"
-    @State private var caffeineInfoExpanded = true // Start expanded for the new UI
+    @State private var caffeineInfoExpanded = false 
+    @State private var showAddDrinkSheet = false
+    @State private var newDrinkName = ""
+    @State private var newDrinkCaffeine = ""
     @FocusState private var caffeineFocused: Bool
 
     // Makros
@@ -523,15 +526,28 @@ struct DailyJournalView: View {
 
             // Eingabe-Zeile
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Theme.segCaf.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "cup.and.heat.waves.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.segCaf)
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        caffeineInfoExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle().fill(Theme.segCaf.opacity(0.15)).frame(width: 32, height: 32)
+                            Image(systemName: "cup.and.heat.waves.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Theme.segCaf)
+                        }
+                        Text(language == "de" ? "Koffein" : "Caffeine")
+                            .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                            .foregroundStyle(.white)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(accentBlue.opacity(0.6))
+                            .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
+                    }
                 }
-                Text(language == "de" ? "Koffein" : "Caffeine")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
+                .buttonStyle(.plain)
                 
                 Spacer()
                 
@@ -577,19 +593,53 @@ struct DailyJournalView: View {
                 }
             }
 
-            // Quick-Add Interactive Grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                caffeineQuickAdd(label: language == "de" ? "Espresso" : "Espresso", mg: 80)
-                caffeineQuickAdd(label: language == "de" ? "Kaffee" : "Coffee", mg: 90)
-                caffeineQuickAdd(label: "Energy", mg: 80)
-                caffeineQuickAdd(label: "Mate", mg: 70)
+            // Quick-Add Interactive Grid (Collapsible)
+            if caffeineInfoExpanded {
+                VStack(spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        // Built-in Presets
+                        caffeineQuickAdd(label: language == "de" ? "Espresso" : "Espresso", mg: 80)
+                        caffeineQuickAdd(label: language == "de" ? "Kaffee" : "Coffee", mg: 90)
+                        caffeineQuickAdd(label: language == "de" ? "Schwarztee" : "Black Tea", mg: 50)
+                        caffeineQuickAdd(label: language == "de" ? "Grüntee" : "Green Tea", mg: 30)
+                        caffeineQuickAdd(label: "Energy (250ml)", mg: 80)
+                        caffeineQuickAdd(label: "Monster (500ml)", mg: 160)
+                        caffeineQuickAdd(label: "Mate (330ml)", mg: 70)
+                        caffeineQuickAdd(label: "Cola (330ml)", mg: 35)
+                        caffeineQuickAdd(label: "Pre-Workout", mg: 200)
+                        
+                        // User Custom Drinks
+                        ForEach(store.customDrinks) { drink in
+                            caffeineQuickAdd(label: drink.name, mg: drink.caffeineMg, isCustom: true, id: drink.id)
+                        }
+                    }
+                    
+                    Button {
+                        showAddDrinkSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text(language == "de" ? "Eigenes Getränk erstellen" : "Create custom drink")
+                        }
+                        .font(.custom("PingFangSC-Medium", size: 13))
+                        .foregroundStyle(accentBlue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(accentBlue.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(16)
         .background(cardBackground)
+        .sheet(isPresented: $showAddDrinkSheet) {
+            addDrinkSheet
+        }
     }
 
-    private func caffeineQuickAdd(label: String, mg: Int) -> some View {
+    private func caffeineQuickAdd(label: String, mg: Int, isCustom: Bool = false, id: UUID? = nil) -> some View {
         Button {
             let current = Int(caffeineText) ?? 0
             caffeineText = "\(current + mg)"
@@ -599,14 +649,25 @@ struct DailyJournalView: View {
                     Text(label)
                         .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
                     Text("+\(mg) mg")
                         .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
                         .foregroundStyle(accentBlue)
                 }
                 Spacer()
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(accentBlue.opacity(0.6))
+                if isCustom, let drinkId = id {
+                    Button {
+                        store.removeCustomDrink(id: drinkId)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.3))
+                    }
+                } else {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(accentBlue.opacity(0.6))
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -618,6 +679,72 @@ struct DailyJournalView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var addDrinkSheet: some View {
+        NavigationStack {
+            ZStack {
+                ObsidianBackground()
+                VStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(language == "de" ? "Name des Getränks" : "Drink Name")
+                            .font(.custom("PingFangSC-Medium", size: 14))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField(language == "de" ? "z.B. Mein Special Tee" : "e.g. My Special Tea", text: $newDrinkName)
+                            .font(.custom("PingFangSC-Semibold", size: 18))
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(language == "de" ? "Koffeingehalt (mg)" : "Caffeine content (mg)")
+                            .font(.custom("PingFangSC-Medium", size: 14))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField("0", text: $newDrinkCaffeine)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                            .font(.custom("PingFangSC-Semibold", size: 18))
+                            .padding()
+                            .background(Color.white.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        if let mg = Int(newDrinkCaffeine), !newDrinkName.isEmpty {
+                            store.addCustomDrink(name: newDrinkName, caffeineMg: mg)
+                            newDrinkName = ""
+                            newDrinkCaffeine = ""
+                            showAddDrinkSheet = false
+                        }
+                    } label: {
+                        Text(language == "de" ? "Getränk speichern" : "Save Drink")
+                            .font(.custom("PingFangSC-Semibold", size: 16))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(accentBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .disabled(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil)
+                    .opacity(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil ? 0.5 : 1.0)
+                }
+                .padding(24)
+            }
+            .navigationTitle(language == "de" ? "Neues Getränk" : "New Drink")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(language == "de" ? "Abbrechen" : "Cancel") {
+                        showAddDrinkSheet = false
+                    }
+                    .foregroundStyle(accentBlue)
+                }
+            }
+        }
     }
 
     // MARK: - Makros (Refined Tabs)
