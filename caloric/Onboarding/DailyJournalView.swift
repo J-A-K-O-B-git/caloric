@@ -51,6 +51,7 @@ struct DailyJournalView: View {
     @FocusState private var macroFocus: MacroField?
 
     @State private var showSavedBadge = false
+    @State private var showCalendarPicker = false
 
     @Environment(JournalStore.self) private var store
     @Environment(\.colorScheme) private var colorScheme
@@ -148,31 +149,42 @@ struct DailyJournalView: View {
 
             if showSavedBadge {
                 VStack {
-                    Spacer()
-                    HStack(spacing: 9) {
+                    HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Text(language == "de" ? "Änderungen gespeichert" : "Changes saved")
-                            .font(.custom("PingFangSC-Semibold", size: 14, relativeTo: .callout))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(language == "de" ? "Bestätigt" : "confirmed")
+                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                                .foregroundStyle(.primary)
+                            Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
+                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .background(
                         Capsule()
-                            .fill(accentBlue)
-                            .shadow(color: accentBlue.opacity(0.4), radius: 12, x: 0, y: 4)
+                            .fill(.regularMaterial)
+                            .shadow(color: .black.opacity(0.14), radius: 14, x: 0, y: 6)
                     )
-                    .padding(.bottom, 100)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.top, (UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows.first?.safeAreaInsets.top ?? 50) + 6)
+                    Spacer()
                 }
-                .ignoresSafeArea(edges: .bottom)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { loadFromStore() }
         .onChange(of: selectedDate) { _, _ in loadFromStore() }
+        .sheet(isPresented: $showCalendarPicker) {
+            calendarPickerSheet
+        }
         .onChange(of: menstruationActive) { _, v in
             store.update(for: selectedDate) { $0.menstruationActive = v }
         }
@@ -332,13 +344,7 @@ struct DailyJournalView: View {
 
             // Kopfzeile mit Toggle
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Color.orange.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "thermometer.medium")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.orange)
-                }
-                Text(language == "de" ? "Krankheit / Infekt" : "Illness / Infection")
+                Text(language == "de" ? "Krankheit" : "Illness")
                     .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
                     .foregroundStyle(.white)
                 Spacer()
@@ -365,23 +371,19 @@ struct DailyJournalView: View {
 
                     // Frage 1 – Energetischer Zustand
                     VStack(alignment: .leading, spacing: 10) {
-                        Label(
-                            language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?",
-                            systemImage: "bolt.fill"
-                        )
-                        .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                        .foregroundStyle(Theme.textSecondary)
-                        .labelStyle(.titleAndIcon)
+                        Text(language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?")
+                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .foregroundStyle(Theme.textSecondary)
 
                         HStack(spacing: 8) {
                             energyButton(
                                 label:      language == "de" ? "Leicht angeschlagen" : "Slightly off",
-                                icon:       "figure.walk",
+                                icon:       "",
                                 level:      .mild
                             )
                             energyButton(
                                 label:      language == "de" ? "Platt / Bettruhe" : "Bedridden",
-                                icon:       "bed.double.fill",
+                                icon:       "",
                                 level:      .bedridden
                             )
                         }
@@ -389,15 +391,11 @@ struct DailyJournalView: View {
 
                     // Frage 2 – Fieber
                     VStack(alignment: .leading, spacing: 10) {
-                        Label(
-                            language == "de" ? "Hast du Fieber?" : "Do you have a fever?",
-                            systemImage: "thermometer.medium"
-                        )
-                        .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                        .foregroundStyle(Theme.textSecondary)
-                        .labelStyle(.titleAndIcon)
+                        Text(language == "de" ? "Hast du Fieber?" : "Do you have a fever?")
+                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .foregroundStyle(Theme.textSecondary)
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             feverButton(label: language == "de" ? "Nein"    : "None",
                                         sublabel: nil,
                                         level:    .none,
@@ -463,26 +461,21 @@ struct DailyJournalView: View {
                 sickEnergyLevel = isSelected ? nil : level
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                Text(label)
-                    .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 14)
-            .foregroundStyle(isSelected ? .white : accentBlue)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
-                    )
-            )
+            Text(label)
+                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .foregroundStyle(isSelected ? .white : accentBlue)
+                .padding(.horizontal, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                        )
+                )
         }
         .buttonStyle(.plain)
     }
@@ -495,7 +488,7 @@ struct DailyJournalView: View {
                 feverLevel = isSelected ? nil : level
             }
         } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(label)
                     .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
                 if let sub = sublabel {
@@ -505,7 +498,7 @@ struct DailyJournalView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .frame(height: 44)
             .foregroundStyle(isSelected ? .white : tint)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -723,11 +716,12 @@ struct DailyJournalView: View {
                     } label: {
                         Text(language == "de" ? "Getränk speichern" : "Save Drink")
                             .font(.custom("PingFangSC-Semibold", size: 16))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(accentBlue)
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
-                            .background(accentBlue)
+                            .background(accentBlue.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
                     }
                     .disabled(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil)
                     .opacity(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil ? 0.5 : 1.0)
@@ -788,7 +782,7 @@ struct DailyJournalView: View {
                     )
                     HStack(spacing: 12) {
                         macroInputField(
-                            label: language == "de" ? "KH" : "Carbs",
+                            label: language == "de" ? "Kohlenhydrate" : "Carbs",
                             placeholder: "0",
                             text: Binding(
                                 get: { carbsByMeal[meal] ?? "" },
@@ -850,18 +844,32 @@ struct DailyJournalView: View {
             VStack(spacing: 14) {
                 Spacer().frame(height: 12)
                 
-                HStack {
+                HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Daily Journal")
                             .font(.custom("PingFangSC-Semibold", size: 32, relativeTo: .largeTitle))
                             .foregroundStyle(.white)
-                        Text(selectedDateString)
-                            .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
-                            .foregroundStyle(Theme.textSecondary)
+                        
+                        Button {
+                            showCalendarPicker = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(selectedDateString)
+                                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
+                                    .foregroundStyle(Theme.textSecondary)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SpringyButtonStyle())
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 22)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
                 
                 journalDatePicker
                 
@@ -913,6 +921,72 @@ struct DailyJournalView: View {
         return f.string(from: selectedDate)
     }
 
+    private var calendarPickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                ObsidianBackground()
+                VStack(spacing: 0) {
+                    DatePicker(
+                        "",
+                        selection: $selectedDate,
+                        in: ...Calendar.current.date(byAdding: .day, value: 7, to: Date())!,
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .tint(accentBlue)
+                    .padding()
+                    .glassCard(20)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                            selectedDate = Calendar.current.startOfDay(for: Date())
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.uturn.backward.circle.fill")
+                            Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
+                        }
+                        .font(.custom("PingFangSC-Semibold", size: 16))
+                        .foregroundStyle(accentBlue)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(accentBlue.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    
+                    Spacer()
+                }
+            }
+            .navigationTitle(language == "de" ? "Datum wählen" : "Select Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(language == "de" ? "Fertig" : "Done") {
+                        showCalendarPicker = false
+                    }
+                    .foregroundStyle(accentBlue)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.height(520)])
+        .presentationDragIndicator(.visible)
+    }
+
+    struct SpringyButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+                .opacity(configuration.isPressed ? 0.8 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+        }
+    }
+
     // MARK: - Cards Section
 
     private var cardsSection: some View {
@@ -948,13 +1022,16 @@ struct DailyJournalView: View {
                 Text(language == "de" ? "Tag bestätigen" : "Confirm Day")
                     .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(accentBlue)
             .frame(maxWidth: .infinity)
             .frame(height: 56)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(accentBlue)
-                    .shadow(color: accentBlue.opacity(0.4), radius: 12, x: 0, y: 6)
+                    .fill(accentBlue.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(accentBlue.opacity(0.2), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -971,32 +1048,32 @@ struct DailyJournalView: View {
 
     private func macroInputField(label: String, placeholder: String,
                                   text: Binding<String>, focusValue: MacroField, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.custom("PingFangSC-Medium", size: 13, relativeTo: .caption))
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                .foregroundStyle(Theme.textSecondary)
+            
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
                 TextField(placeholder, text: text)
                     #if os(iOS)
                     .keyboardType(.numberPad)
                     #endif
                     .focused($macroFocus, equals: focusValue)
-                    .font(.custom("PingFangSC-Semibold", size: 32, relativeTo: .title))
+                    .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .body))
                     .foregroundStyle(tint)
                 Text("g")
-                    .font(.custom("PingFangSC-Medium", size: 16, relativeTo: .subheadline))
+                    .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
                     .foregroundStyle(tint.opacity(0.6))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(tint.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(tint.opacity(0.2), lineWidth: 1))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(tint.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(tint.opacity(0.15), lineWidth: 1))
         )
     }
 

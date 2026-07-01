@@ -62,6 +62,7 @@ struct DashboardView: View {
     @State private var selectedPCOSSymptoms: Set<String> = []
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
+    @State private var showCalendarPicker = false
     @Query private var profiles: [UserProfile]
     @Environment(\.modelContext) private var modelContext
     @Environment(JournalStore.self)           private var store
@@ -299,6 +300,78 @@ struct DashboardView: View {
         return "🔄 " + (language == "de" ? "Zuletzt: " : "Updated: ") + time
     }
 
+    private var selectedDateString: String {
+        let f = DateFormatter()
+        f.dateStyle = .full
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        return f.string(from: selectedDate)
+    }
+
+    private var calendarPickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                ObsidianBackground()
+                VStack(spacing: 0) {
+                    DatePicker(
+                        "",
+                        selection: $selectedDate,
+                        in: ...Calendar.current.date(byAdding: .day, value: 7, to: Date())!,
+                        displayedComponents: [.date]
+                    )
+                    .datePickerStyle(.graphical)
+                    .tint(accentBlue)
+                    .padding()
+                    .glassCard(20)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                            selectedDate = Calendar.current.startOfDay(for: Date())
+                        }
+                    } label: {
+                        HStack {
+                            Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
+                        }
+                        .font(.custom("PingFangSC-Semibold", size: 16))
+                        .foregroundStyle(accentBlue)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(accentBlue.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    
+                    Spacer()
+                }
+            }
+            .navigationTitle(language == "de" ? "Datum wählen" : "Select Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(t.done) {
+                        showCalendarPicker = false
+                    }
+                    .foregroundStyle(accentBlue)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.height(520)])
+        .presentationDragIndicator(.visible)
+    }
+
+    struct SpringyButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+                .opacity(configuration.isPressed ? 0.8 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+        }
+    }
+
     init(
         accentBlue: Color,
         language: String,
@@ -356,11 +429,26 @@ struct DashboardView: View {
             VStack(spacing: 10) {
                 Spacer().frame(height: 8)
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                            .foregroundStyle(Theme.textPrimary)
+                            .font(.custom("PingFangSC-Semibold", size: 32, relativeTo: .largeTitle))
+                            .foregroundStyle(.white)
+                        
+                        Button {
+                            showCalendarPicker = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(selectedDateString)
+                                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
+                                    .foregroundStyle(Theme.textSecondary)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SpringyButtonStyle())
                     }
                     Spacer()
 
@@ -375,6 +463,8 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
 
                 datePicker
 
@@ -512,6 +602,9 @@ struct DashboardView: View {
         .onAppear { runBurnAnimation() }
         .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
+        .sheet(isPresented: $showCalendarPicker) {
+            calendarPickerSheet
+        }
         .sheet(isPresented: Binding(
             get: { editingField != nil },
             set: { if !$0 { editingField = nil } }
@@ -552,7 +645,7 @@ struct DashboardView: View {
         let cal = Calendar.current
         let isSelected = cal.isDate(date, inSameDayAs: selectedDate)
         let isToday = cal.isDateInToday(date)
-        let dist = dayDistanceFromToday(date)
+        _ = dayDistanceFromToday(date)
         let day = cal.component(.day, from: date)
 
         let chipW: CGFloat  = isToday ? 38 : isSelected ? 34 : 30
