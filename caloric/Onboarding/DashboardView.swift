@@ -307,6 +307,13 @@ struct DashboardView: View {
         return f.string(from: selectedDate)
     }
 
+    private var currentTimeString: String {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        return f.string(from: Date())
+    }
+
     private var calendarPickerSheet: some View {
         NavigationStack {
             ZStack {
@@ -1399,37 +1406,36 @@ struct DashboardView: View {
         } label: {
             VStack(spacing: 0) {
                 ZStack {
-                    // Track
+                    // Outer targeting track
                     Circle()
-                        .stroke(Color.white.opacity(0.07), lineWidth: 14)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 14)
 
-                    // Progress
+                    // Inner Liquid Fill (The "Burned So Far" representation)
+                    if isSelectedToday {
+                        Circle()
+                            .fill(Color.white.opacity(0.04))
+                            .padding(10)
+                        
+                        LiquidFillView(progress: ringProgress, color: accentBlue)
+                            .clipShape(Circle())
+                            .padding(10)
+                            .blur(radius: 0.5)
+                    }
+
+                    // Progress Ring (Outer Edge)
                     Circle()
                         .trim(from: 0, to: ringProgress)
                         .stroke(
-                            AngularGradient(
-                                gradient: Gradient(colors: [
-                                    accentBlue.opacity(0.45), accentBlue, accentBlue.opacity(0.9)
-                                ]),
-                                center: .center,
-                                startAngle: .degrees(-90),
-                                endAngle: .degrees(270)
+                            LinearGradient(
+                                colors: [accentBlue.opacity(0.6), accentBlue],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
                             ),
                             style: StrokeStyle(lineWidth: 14, lineCap: .round)
                         )
                         .rotationEffect(.degrees(-90))
-                        .shadow(color: accentBlue.opacity(0.45), radius: 12, x: 0, y: 0)
-
-                    // Leading dot
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 7, height: 7)
-                        .offset(y: -(ringSize / 2))
-                        .rotationEffect(.degrees(ringProgress * 360 - 90))
-                        .opacity(ringProgress > 0.02 ? 1 : 0)
+                        .shadow(color: accentBlue.opacity(0.5), radius: 12, x: 0, y: 0)
 
                     VStack(spacing: 1) {
-                
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text(isSelectedToday ? "\(Int(animatedBurn))" : "–")
                                 .font(.custom("PingFangSC-Semibold", size: 34, relativeTo: .title))
@@ -1439,15 +1445,15 @@ struct DashboardView: View {
                                 .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .callout))
                                 .foregroundStyle(Theme.textSecondary)
                         }
-                        Text(language == "de" ? "bis jetzt" : "so far")
+                        Text(currentTimeString)
                             .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
-                            .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.9))
                     }
                 }
                 .frame(width: ringSize, height: ringSize)
-                .padding(.top, 20)
+                .padding(.top, 24)
 
-                // Tap affordance — whole card opens the breakdown sheet
+                // Tap affordance
                 if isSelectedToday {
                     HStack(spacing: 6) {
                         Image(systemName: "chart.pie.fill")
@@ -1463,8 +1469,8 @@ struct DashboardView: View {
                     .padding(.vertical, 7)
                     .background(Capsule().fill(accentBlue.opacity(0.12)))
                     .overlay(Capsule().strokeBorder(accentBlue.opacity(0.30), lineWidth: 1))
-                    .padding(.top, 16)
-                    .padding(.bottom, 18)
+                    .padding(.top, 20)
+                    .padding(.bottom, 22)
                 } else {
                     Spacer().frame(height: 22)
                 }
@@ -1475,6 +1481,70 @@ struct DashboardView: View {
         }
         .buttonStyle(.plain)
         .disabled(!isSelectedToday)
+    }
+
+    // MARK: - Liquid Fill Components
+
+    struct LiquidFillView: View {
+        var progress: Double
+        var color: Color
+        @State private var phase: Double = 0
+        
+        var body: some View {
+            ZStack {
+                // Secondary wave for depth
+                WaveShape(progress: progress, phase: phase + .pi)
+                    .fill(color.opacity(0.15))
+                    .animation(.linear(duration: 3).repeatForever(autoreverses: false), value: phase)
+                
+                // Primary wave
+                WaveShape(progress: progress, phase: phase)
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.3), color.opacity(0.6)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .animation(.linear(duration: 2).repeatForever(autoreverses: false), value: phase)
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                    phase = .pi * 2
+                }
+            }
+        }
+    }
+
+    struct WaveShape: Shape {
+        var progress: Double
+        var phase: Double
+        
+        var animatableData: Double {
+            get { phase }
+            set { phase = newValue }
+        }
+        
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let width = rect.width
+            let height = rect.height
+            let progressHeight = height * (1 - progress)
+            
+            path.move(to: CGPoint(x: 0, y: progressHeight))
+            
+            for x in stride(from: 0, to: width + 1, by: 1) {
+                let relativeX = x / width
+                let sine = sin(relativeX * .pi * 2 + phase)
+                let y = progressHeight + sine * 6 // Wave amplitude
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+            
+            path.addLine(to: CGPoint(x: width, y: height))
+            path.addLine(to: CGPoint(x: 0, y: height))
+            path.closeSubpath()
+            
+            return path
+        }
     }
 
     // MARK: - KPI-Zeile
