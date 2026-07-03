@@ -28,6 +28,8 @@
 		5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */; };
 		5DEC7B912FE28406007A1989 /* TDEECalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */; };
 		5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B922FE28407007A1989 /* JournalStore.swift */; };
+		5DF0280C2FF7922A003E06B9 /* FoodIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF0280B2FF79220003E06B9 /* FoodIntent.swift */; };
+		5DF0280E2FF7924F003E06B9 /* JournalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF0280D2FF7924B003E06B9 /* JournalViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +56,8 @@
 		5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDataView.swift; sourceTree = "<group>"; };
 		5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TDEECalculationService.swift; sourceTree = "<group>"; };
 		5DEC7B922FE28407007A1989 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
+		5DF0280B2FF79220003E06B9 /* FoodIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodIntent.swift; sourceTree = "<group>"; };
+		5DF0280D2FF7924B003E06B9 /* JournalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +115,8 @@
 				5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */,
 				5D1CB62A2FF6F8860052B1A4 /* NEATModel.swift */,
 				5D24FC822FEFCE7F00472E54 /* DayCacheEntry.swift */,
+				5DF0280B2FF79220003E06B9 /* FoodIntent.swift */,
+				5DF0280D2FF7924B003E06B9 /* JournalViewModel.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -216,7 +222,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5DF0280E2FF7924F003E06B9 /* JournalViewModel.swift in Sources */,
 				5D24FC832FEFCE7F00472E54 /* DayCacheEntry.swift in Sources */,
+				5DF0280C2FF7922A003E06B9 /* FoodIntent.swift in Sources */,
 				5D2AABAE2FDEC7E600BAC18D /* DailyJournalView.swift in Sources */,
 				5D8016A12FEB1EC3004446E7 /* ActivityCalculationService.swift in Sources */,
 				5D2E62B62FCE1AE20057E84D /* BodyFatHelpView.swift in Sources */,

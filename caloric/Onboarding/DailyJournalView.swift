@@ -33,7 +33,7 @@ struct DailyJournalView: View {
 
     // Koffein
     @State private var caffeineText: String = "0"
-    @State private var caffeineInfoExpanded = false 
+    @State private var caffeineInfoExpanded = false
     @State private var showAddDrinkSheet = false
     @State private var newDrinkName = ""
     @State private var newDrinkCaffeine = ""
@@ -44,6 +44,11 @@ struct DailyJournalView: View {
     @State private var proteinByMeal:  [String: String] = ["breakfast": "", "lunch": "", "dinner": "", "daily": ""]
     @State private var carbsByMeal:    [String: String] = ["breakfast": "", "lunch": "", "dinner": "", "daily": ""]
     @State private var fatByMeal:      [String: String] = ["breakfast": "", "lunch": "", "dinner": "", "daily": ""]
+
+    // KI-Tracking State
+    @State private var aiInputText: String = ""
+    @State private var aiIsLoading: Bool = false
+    @State private var aiErrorMessage: String? = nil
 
     private enum MacroField: Hashable {
         case protein(String), carbs(String), fat(String)
@@ -252,7 +257,6 @@ struct DailyJournalView: View {
         let cal = Calendar.current
         let isSelected = cal.isDate(date, inSameDayAs: selectedDate)
         let isToday = cal.isDateInToday(date)
-        _ = dayDistanceFromToday(date)
         let day = cal.component(.day, from: date)
 
         let chipW: CGFloat  = isToday ? 38 : isSelected ? 34 : 30
@@ -453,7 +457,6 @@ struct DailyJournalView: View {
         .animation(.spring(response: 0.3,  dampingFraction: 0.82), value: feverLevel)
     }
 
-    // Energielevel-Button (2 Optionen)
     private func energyButton(label: String, icon: String, level: SickEnergyLevel) -> some View {
         let isSelected = sickEnergyLevel == level
         return Button {
@@ -480,7 +483,6 @@ struct DailyJournalView: View {
         .buttonStyle(.plain)
     }
 
-    // Fieber-Button (3 Optionen)
     private func feverButton(label: String, sublabel: String?, level: FeverLevel, tint: Color) -> some View {
         let isSelected = feverLevel == level
         return Button {
@@ -512,12 +514,11 @@ struct DailyJournalView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Koffein (Enhanced with Quick-Add Grid)
+    // MARK: - Koffein
 
     private var caffeineCard: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // Eingabe-Zeile
             HStack(spacing: 12) {
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -586,11 +587,9 @@ struct DailyJournalView: View {
                 }
             }
 
-            // Quick-Add Interactive Grid (Collapsible)
             if caffeineInfoExpanded {
                 VStack(spacing: 16) {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        // Built-in Presets
                         caffeineQuickAdd(label: language == "de" ? "Espresso" : "Espresso", mg: 80)
                         caffeineQuickAdd(label: language == "de" ? "Kaffee" : "Coffee", mg: 90)
                         caffeineQuickAdd(label: language == "de" ? "Schwarztee" : "Black Tea", mg: 50)
@@ -601,7 +600,6 @@ struct DailyJournalView: View {
                         caffeineQuickAdd(label: "Cola (330ml)", mg: 35)
                         caffeineQuickAdd(label: "Pre-Workout", mg: 200)
                         
-                        // User Custom Drinks
                         ForEach(store.customDrinks) { drink in
                             caffeineQuickAdd(label: drink.name, mg: drink.caffeineMg, isCustom: true, id: drink.id)
                         }
@@ -741,7 +739,7 @@ struct DailyJournalView: View {
         }
     }
 
-    // MARK: - Makros (Refined Tabs)
+    // MARK: - Makros (Mit neuem KI Freitext Scanner Endpunkt)
 
     private var macrosCard: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -768,6 +766,60 @@ struct DailyJournalView: View {
             .padding(4)
             .background(Color.white.opacity(0.06))
             .clipShape(Capsule())
+
+            // --- KI FREITEXT SCANNER ROW ---
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    TextField(
+                        language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...",
+                        text: $aiInputText,
+                        axis: .vertical
+                    )
+                    .lineLimit(1...3)
+                    .font(.custom("PingFangSC-Regular", size: 13))
+                    .foregroundColor(.white)
+                    .disabled(aiIsLoading)
+                    
+                    Button {
+                        Task { await analyzeFoodWithAI() }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue)
+                                .frame(width: 32, height: 32)
+                            
+                            if aiIsLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.4) : .white)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(aiInputText.isEmpty || aiIsLoading)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1)
+                )
+                
+                if let error = aiErrorMessage {
+                    Text(error)
+                        .font(.custom("PingFangSC-Regular", size: 11))
+                        .foregroundColor(.red)
+                        .padding(.leading, 4)
+                }
+            }
+            .padding(.vertical, 4)
+            // ---------------------------
 
             if let meal = selectedMeal {
                 VStack(spacing: 12) {
@@ -807,6 +859,7 @@ struct DailyJournalView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedMeal)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: aiIsLoading)
         .padding(16)
         .background(cardBackground)
     }
@@ -893,7 +946,7 @@ struct DailyJournalView: View {
                 
                 cardsSection
                 
-                Spacer().frame(height: 140) // Spacing for sticky footer
+                Spacer().frame(height: 140)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1039,6 +1092,105 @@ struct DailyJournalView: View {
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
     }
+
+    // MARK: - KI-Netzwerk-Logik
+    
+        private func analyzeFoodWithAI() async {
+            let trimmed = aiInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let meal = selectedMeal else { return }
+            
+            aiIsLoading = true
+            aiErrorMessage = nil
+            
+            // 1. Dein funktionierender API-Key aus dem Terminal-Test
+            let apiKey = "AQ.Ab8RN6J3fSyhM1ZIJ57pDydbbXx4XrTFADkY-uSKxQYblUxqQw"
+            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { return }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            // 2. Die exakte JSON-Struktur, die du erfolgreich getestet hast
+            let payload: [String: Any] = [
+                "systemInstruction": [
+                    "parts": [
+                        ["text": "Du bist ein präziser Ernährungsanalyst für die App Caloric. Analysiere die Mahlzeit des Nutzers. Schätze das Gesamtgewicht der Zutaten, falls keine genauen Grammangaben vorhanden sind. Berechne Protein, Kohlenhydrate und Fett in Gramm für die gesamte Mahlzeit. Antworte ausschließlich im vorgegebenen JSON-Schema ohne Erklärungen oder Markdown."]
+                    ]
+                ],
+                "contents": [
+                    ["parts": [["text": trimmed]]]
+                ],
+                "generationConfig": [
+                    "responseMimeType": "application/json",
+                    "responseSchema": [
+                        "type": "OBJECT",
+                        "properties": [
+                            "protein": ["type": "NUMBER"],
+                            "carbs": ["type": "NUMBER"],
+                            "fat": ["type": "NUMBER"]
+                        ],
+                        "required": ["protein", "carbs", "fat"]
+                    ]
+                ]
+            ]
+            
+            request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+            
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    throw URLError(.badServerResponse)
+                }
+                
+                // 3. Google API Wrapper-Strukturen für das Parsing
+                struct GeminiResponse: Codable {
+                    let candidates: [Candidate]
+                }
+                struct Candidate: Codable {
+                    let content: Content
+                }
+                struct Content: Codable {
+                    let parts: [Part]
+                }
+                struct Part: Codable {
+                    let text: String
+                }
+                
+                struct MacroValues: Codable {
+                    let protein: Double
+                    let carbs: Double
+                    let fat: Double
+                }
+                
+                // 4. Verschachteltes JSON decodieren
+                let geminiResult = try JSONDecoder().decode(GeminiResponse.self, from: data)
+                
+                if let jsonString = geminiResult.candidates.first?.content.parts.first?.text,
+                   let jsonData = jsonString.data(using: .utf8) {
+                    
+                    let result = try JSONDecoder().decode(MacroValues.self, from: jsonData)
+                    
+                    await MainActor.run {
+                        // Werte runden und als String in deine TextFields eintragen
+                        proteinByMeal[meal] = "\(Int(result.protein))"
+                        carbsByMeal[meal]   = "\(Int(result.carbs))"
+                        fatByMeal[meal]     = "\(Int(result.fat))"
+                        
+                        aiInputText = "" // Eingabefeld nach Erfolg leeren
+                    }
+                } else {
+                    throw URLError(.cannotParseResponse)
+                }
+            } catch {
+                await MainActor.run {
+                    aiErrorMessage = language == "de" ? "Fehler bei der KI-Schätzung" : "AI analysis failed"
+                }
+            }
+            
+            aiIsLoading = false
+        }
+   
 
     // MARK: - Helpers
 
