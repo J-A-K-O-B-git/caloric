@@ -5,34 +5,40 @@ import HealthKit
 //
 // Design: the math is a PURE, synchronous, testable function (`NEATCalculator.neat`).
 // All HealthKit fetching lives in `HealthKitNEATProvider`, which assembles a
-// `NEATInputs` value. This lets you unit-test the calculation with fixed numbers
-// and swap the data source without touching the model.
+// `NEATInputs` value.
 //
 // IMPORTANT ASSEMBLY CONTRACT:
 //   TDEE = BMR₂₄ₕ + neat(...) + EAT + TEF
-// All three NEAT components are NET (above-basal). BMR for the full 24h must be
-// added exactly ONCE, outside this function. Do not also add basal inside the
-// active minutes, or you double-count.
+// All four NEAT components are NET (above-basal). BMR for the full 24h must be
+// added exactly ONCE, outside this function.
 
 // MARK: - Inputs
 
-/// Structured, (mostly) non-overlapping inputs for NEAT.
-/// Build via `HealthKitNEATProvider` or by hand for tests.
+/// Structured, non-overlapping inputs for NEAT.
 struct NEATInputs {
-    /// Steps taken OUTSIDE workout windows. Workout steps belong to EAT. (Fix #3)
+    /// Steps taken OUTSIDE workout windows. Workout steps belong to EAT.
     var nonWorkoutSteps: Int
     /// Apple stand time in MINUTES (`appleStandTime`) — minutes on feet, includes walking.
     var standTimeMinutes: Double
     /// Resting heart rate (bpm).
     var restingHR: Double?
-    /// Mean HR (bpm) over awake, NON-workout samples — the "gap"/sedentary pulse. (Fix #5)
-    var gapAvgHR: Double?
     /// Total workout duration in seconds (used only for gap subtraction; its energy is EAT).
     var workoutSeconds: Double
-    /// Minute-of-day the user woke (sleep end). e.g. 07:30 -> 450. (Fixes morning wake window)
+    /// Minute-of-day the user woke (sleep end). e.g. 07:30 -> 450.
     var wakeMinuteOfDay: Double
-    /// Minute-of-day up to which we count: `now` if today, else 1440. (Fix #1 — no future calories, works for past days)
+    /// Minute-of-day up to which we count: `now` if today, else 1440.
     var dayEndMinuteOfDay: Double
+    
+    // --- Two-Zone MVPA Buckets (Fix für Radfahren & schwere Alltagslast) ---
+    /// Sitz-/Ruhezeit in Minuten (Normaler Alltag, Büro, Sofa).
+    var sedentaryGapMinutes: Double
+    /// Durchschnittlicher Puls im ruhigen Alltag.
+    var sedentaryAvgHR: Double?
+    /// Ungemeldete Cardio-/Anstrengungszeit in Minuten (z.B. Radfahren ohne Workout-Tracking).
+    var unrecordedCardioMinutes: Double
+    /// Durchschnittlicher Puls während ungemeldeter Anstrengung.
+    var unrecordedCardioAvgHR: Double?
+    
     // Body params
     var age: Int
     var isMale: Bool
@@ -46,10 +52,15 @@ struct NEATInputs {
 enum NEATCalculator {
 
     // Net (above-basal) intensity factors, multiplied by BMR/hour.
-    private static let walkNetFactor  = 2.0   // brisk walking ≈ 3 MET gross → ~2 net
-    private static let standNetFactor = 0.18  // light standing above basal
-    private static let microMaxNetMET = 3.0   // ceiling for micro-movement net intensity
-    private static let microDailyCap  = 500.0 // safety cap (kcal)
+    private static let walkNetFactor    = 2.0   // brisk walking ≈ 3 MET gross → ~2 net
+    private static let standNetFactor   = 0.18  // light standing above basal
+    
+    // Limits für Mikro-Bewegung im Sitzen
+    private static let microMaxNetMET   = 3.0   // ceiling for micro-movement net intensity
+    private static let microDailyCap    = 500.0 // safety cap (kcal) für Büro-Zappeln
+    
+    // Limits für ungemeldetes Cardio (Radfahren, Kisten schleppen)
+    private static let cardioMaxNetMET  = 10.0  // ceiling für ungemeldeten Ausdauersport
 
     static func neat(_ i: NEATInputs) -> Double {
         guard i.bmrDynamisch > 0 else { return 0 }
@@ -59,8 +70,6 @@ enum NEATCalculator {
         // --- Minutes ---
         let walkMinutes = Double(i.nonWorkoutSteps) / 100.0        // ~100 steps/min
         let standMin    = max(0, i.standTimeMinutes)
-        let workoutMin  = i.workoutSeconds / 60.0
-        let awakeMin    = max(0, i.dayEndMinuteOfDay - i.wakeMinuteOfDay)
 
         // --- Baustein 1: Steps (walking) ---
         let neatSteps = (walkMinutes / 60.0) * walkNetFactor * bmrPerHour
@@ -71,46 +80,50 @@ enum NEATCalculator {
         let neatStand = (pureStandMin / 60.0) * standNetFactor * bmrPerHour
 
         // --- Baustein 3: Micro (sedentary gap via HR reserve) ---
-        // Awake time partitions as: walk + pureStand + workout + gap.
-        // Since standTime = walk + pureStand, the sedentary gap is:
-        //     gap = awake − standTime − workout        (Fix #2: no double-subtracting walk)
-        let gapMinutes = max(0, awakeMin - standMin - workoutMin)
-
         var neatMicro = 0.0
-        if let hrRest = i.restingHR, let gapHR = i.gapAvgHR,
-           hrRest > 0, gapMinutes > 0 {
+        if let hrRest = i.restingHR, let sedHR = i.sedentaryAvgHR,
+           hrRest > 0, i.sedentaryGapMinutes > 0 {
 
-            let hrMax   = 208.0 - 0.7 * Double(i.age)   // Tanaka (tighter than 220−age)
+            let hrMax   = 208.0 - 0.7 * Double(i.age)   // Tanaka
             let divisor = hrMax - hrRest
 
             if divisor > 0 {
-                // gapHR is already averaged over awake, non-workout samples, so the
-                // arbitrary "−15 if workout" hack is gone. Just clamp to a plausible
-                // sedentary band to reject residual spikes.
-                let cleanHR = min(max(gapHR, hrRest + 2.0), hrRest + 25.0)
-                let load    = (cleanHR - hrRest) / divisor        // 0…1 HR-reserve utilisation
-                let kNet    = bmrPerMinute * microMaxNetMET       // net kcal/min at full micro load
-                neatMicro   = min(load * gapMinutes * kNet, microDailyCap)
+                // Glättung gegen Kaffee-/Stresspuls im Sitzen (+2 bis +25 bpm über Ruhepuls)
+                let cleanHR = min(max(sedHR, hrRest + 2.0), hrRest + 25.0)
+                let load    = (cleanHR - hrRest) / divisor
+                let kNet    = bmrPerMinute * microMaxNetMET
+                neatMicro   = min(load * i.sedentaryGapMinutes * kNet, microDailyCap)
                 neatMicro   = max(0, neatMicro)
             }
         }
 
-        return max(0, neatSteps + neatStand + neatMicro)
+        // --- Baustein 4: Ungemeldete Anstrengung (Unrecorded MVPA / Fahrrad) ---
+        var neatUnrecordedCardio = 0.0
+        if let hrRest = i.restingHR, let cardioHR = i.unrecordedCardioAvgHR,
+           hrRest > 0, i.unrecordedCardioMinutes > 0 {
+
+            let hrMax   = 208.0 - 0.7 * Double(i.age)
+            let divisor = hrMax - hrRest
+
+            if divisor > 0 {
+                // KEINE Glättung auf +25! Wir erlauben echten Sportpuls (z.B. 160 bpm am Berg)
+                let load = min(max((cardioHR - hrRest) / divisor, 0.0), 1.0)
+                let kNetCardio = bmrPerMinute * cardioMaxNetMET
+                neatUnrecordedCardio = load * i.unrecordedCardioMinutes * kNetCardio
+                neatUnrecordedCardio = max(0, neatUnrecordedCardio)
+            }
+        }
+
+        return max(0, neatSteps + neatStand + neatMicro + neatUnrecordedCardio)
     }
 }
 
 // MARK: - HealthKit provider
 
-/// Fetches raw samples and assembles `NEATInputs`.
-/// Adapt to your existing HealthStore/authorization if you already have one.
 struct HealthKitNEATProvider {
 
     let healthStore: HKHealthStore
 
-    /// Build inputs for a given calendar day.
-    /// - Parameters:
-    ///   - day: any Date within the target day.
-    ///   - profile: values you already collect from the user / profile.
     func makeInputs(
         for day: Date,
         age: Int,
@@ -123,53 +136,66 @@ struct HealthKitNEATProvider {
         let dayStart = calendar.startOfDay(for: day)
         let dayEnd   = calendar.date(byAdding: .day, value: 1, to: dayStart)!
 
-        // 1) Workout windows (to exclude their steps/HR and to subtract their minutes).
+        // 1) Workout windows
         let workouts = try await workouts(start: dayStart, end: dayEnd)
         let workoutWindows: [DateInterval] = workouts.map {
             DateInterval(start: $0.startDate, end: $0.endDate)
         }
         let workoutSeconds = workouts.reduce(0.0) { $0 + $1.duration }
 
-        // 2) Wake time (sleep end of the night ending on this day) → minute of day.
+        // 2) Wake time
         let wakeDate = try await wakeTime(dayStart: dayStart, dayEnd: dayEnd, calendar: calendar)
         let wakeMinuteOfDay = minuteOfDay(wakeDate, dayStart: dayStart)
 
-        // 3) Day-end minute: now if today (no future calories), else full day. (Fix #1)
+        // 3) Day-end minute
         let now = Date()
         let isToday = calendar.isDate(day, inSameDayAs: now)
         let dayEndMinuteOfDay = isToday ? minuteOfDay(now, dayStart: dayStart) : 1440.0
 
-        // 4) Non-workout steps. (Fix #3)
+        // 4) Non-workout steps
         let nonWorkoutSteps = try await nonWorkoutStepCount(
             start: dayStart, end: dayEnd, excluding: workoutWindows)
 
-        // 5) Stand time (minutes on feet), MINUS stand minutes inside workouts.
-        // Those belong to EAT, not NEAT — same double-count fix as steps. (Fix #3, stand side)
+        // 5) Stand time MINUS workouts
         let rawStandMinutes = try await appleStandTimeMinutes(start: dayStart, end: dayEnd)
         let workoutMinutes  = workoutSeconds / 60.0
         let standTimeMinutes = max(0, rawStandMinutes - workoutMinutes)
 
-        // 6) Resting HR.
+        // 6) Resting HR
         let restingHR = try await restingHeartRate(start: dayStart, end: dayEnd)
 
-        // 7) Gap-window average HR: awake, non-workout HR samples. (Fix #5)
-        let gapAvgHR = try await averageGapHeartRate(
-            start: wakeDate, end: isToday ? now : dayEnd, excluding: workoutWindows)
+        // 7) Two-Zone MVPA Split (Analyse der verbleibenden Wachzeit)
+        let awakeMin   = max(0, dayEndMinuteOfDay - wakeMinuteOfDay)
+        let totalGapMin = max(0, awakeMin - standTimeMinutes - workoutMinutes)
+        
+        let gapAnalysis = try await analyzeGapHeartRate(
+            start: wakeDate,
+            end: isToday ? now : dayEnd,
+            restingHR: restingHR ?? 60.0,
+            excluding: workoutWindows
+        )
+        
+        // Die Gap-Minuten proportional aufteilen in Ruhezeit vs. ungemeldetes Cardio
+        let cardioMinutes = totalGapMin * gapAnalysis.cardioRatio
+        let sedentaryMinutes = totalGapMin * (1.0 - gapAnalysis.cardioRatio)
 
         return NEATInputs(
             nonWorkoutSteps: nonWorkoutSteps,
             standTimeMinutes: standTimeMinutes,
             restingHR: restingHR,
-            gapAvgHR: gapAvgHR,
             workoutSeconds: workoutSeconds,
             wakeMinuteOfDay: wakeMinuteOfDay,
             dayEndMinuteOfDay: dayEndMinuteOfDay,
+            sedentaryGapMinutes: sedentaryMinutes,
+            sedentaryAvgHR: gapAnalysis.sedentaryHR,
+            unrecordedCardioMinutes: cardioMinutes,
+            unrecordedCardioAvgHR: gapAnalysis.cardioHR,
             age: age, isMale: isMale, weightKg: weightKg,
             bmrDynamisch: bmrDynamisch
         )
     }
 
-    // MARK: - Individual fetches
+    // MARK: - Individual fetches & MVPA Split
 
     private func workouts(start: Date, end: Date) async throws -> [HKWorkout] {
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [.strictStartDate])
@@ -177,7 +203,6 @@ struct HealthKitNEATProvider {
         return samples.compactMap { $0 as? HKWorkout }
     }
 
-    /// Sum step samples for the day, dropping any sample overlapping a workout window.
     private func nonWorkoutStepCount(start: Date, end: Date, excluding windows: [DateInterval]) async throws -> Int {
         guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return 0 }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
@@ -200,7 +225,6 @@ struct HealthKitNEATProvider {
         guard let type = HKQuantityType.quantityType(forIdentifier: .restingHeartRate) else { return nil }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let unit = HKUnit.count().unitDivided(by: .minute())
-        // Most recent resting HR reading in the day.
         let samples = try await sampleQuery(
             sampleType: type, predicate: predicate,
             sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)],
@@ -208,27 +232,50 @@ struct HealthKitNEATProvider {
         return (samples.first as? HKQuantitySample)?.quantity.doubleValue(for: unit)
     }
 
-    /// Average HR over awake, non-workout samples.
-    private func averageGapHeartRate(start: Date, end: Date, excluding windows: [DateInterval]) async throws -> Double? {
-        guard end > start,
-              let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return nil }
+    /// Teilt die Nicht-Workout-Herzfrequenz in Ruhezeit und ungemeldete Anstrengung (MVPA) auf.
+    private func analyzeGapHeartRate(
+        start: Date, end: Date, restingHR: Double, excluding windows: [DateInterval]
+    ) async throws -> (cardioRatio: Double, sedentaryHR: Double?, cardioHR: Double?) {
+        guard end > start, let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+            return (0.0, nil, nil)
+        }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let samples = try await sampleQuery(sampleType: type, predicate: predicate)
         let unit = HKUnit.count().unitDivided(by: .minute())
-        let values = samples
+        
+        let validSamples = samples
             .compactMap { $0 as? HKQuantitySample }
             .filter { s in !windows.contains { $0.intersects(DateInterval(start: s.startDate, end: s.endDate)) } }
-            .map { $0.quantity.doubleValue(for: unit) }
-        guard !values.isEmpty else { return nil }
-        return values.reduce(0, +) / Double(values.count)
+        
+        guard !validSamples.isEmpty else { return (0.0, nil, nil) }
+        
+        // Schwelle für ungemeldeten Sport: Ruhepuls + 30 bpm (z.B. ab ~85 bpm bei Ruhepuls 55)
+        let cardioThreshold = restingHR + 30.0
+        
+        var sedValues: [Double] = []
+        var cardioValues: [Double] = []
+        
+        for s in validSamples {
+            let hr = s.quantity.doubleValue(for: unit)
+            if hr >= cardioThreshold {
+                cardioValues.append(hr)
+            } else {
+                sedValues.append(hr)
+            }
+        }
+        
+        let totalCount = Double(validSamples.count)
+        let cardioRatio = Double(cardioValues.count) / totalCount
+        
+        let sedHR = sedValues.isEmpty ? nil : sedValues.reduce(0, +) / Double(sedValues.count)
+        let cardioHR = cardioValues.isEmpty ? nil : cardioValues.reduce(0, +) / Double(cardioValues.count)
+        
+        return (cardioRatio, sedHR, cardioHR)
     }
 
-    /// Wake time = end of the last "asleep" sleep block before/at this day's morning.
-    /// Falls back to 07:00 if no sleep data. (Adapt source dedup to your setup.)
     private func wakeTime(dayStart: Date, dayEnd: Date, calendar: Calendar) async throws -> Date {
         let fallback = calendar.date(byAdding: .hour, value: 7, to: dayStart)!
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return fallback }
-        // Look back into the previous night.
         let searchStart = calendar.date(byAdding: .hour, value: -12, to: dayStart)!
         let predicate = HKQuery.predicateForSamples(withStart: searchStart, end: dayEnd, options: [])
         let samples = try await sampleQuery(sampleType: type, predicate: predicate)
@@ -248,7 +295,6 @@ struct HealthKitNEATProvider {
             .compactMap { $0 as? HKCategorySample }
             .filter { asleepValues.contains($0.value) }
 
-        // Wake = latest end among sleep blocks that finish on this morning.
         let wake = asleepBlocks
             .map { $0.endDate }
             .filter { $0 >= dayStart && $0 <= dayEnd }
@@ -257,7 +303,7 @@ struct HealthKitNEATProvider {
         return wake ?? fallback
     }
 
-    // MARK: - Query helpers (continuation wrappers)
+    // MARK: - Query helpers
 
     private func minuteOfDay(_ date: Date, dayStart: Date) -> Double {
         max(0, date.timeIntervalSince(dayStart) / 60.0)
@@ -293,5 +339,3 @@ struct HealthKitNEATProvider {
         }
     }
 }
-
-

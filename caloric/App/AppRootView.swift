@@ -15,7 +15,7 @@ struct AppRootView: View {
     @Query private var profiles: [UserProfile]
 
     var body: some View {
-        if let profile = profiles.first, profile.isOnboardingCompleted {
+        if let profile = profiles.first(where: { $0.isOnboardingCompleted }) {
             ProfileDashboardView(profile: profile)
         } else {
             ContentView()

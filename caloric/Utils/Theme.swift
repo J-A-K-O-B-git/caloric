@@ -132,6 +132,68 @@ struct GlassCardBackground: View {
     }
 }
 
+// MARK: - Premium Instrument Progress Bar
+// A more sophisticated, "technical instrument" style progress bar.
+struct InstrumentProgressBar: View {
+    let progress: Double // 0.0 to 1.0
+    let color: Color
+    var height: CGFloat = 5
+    var showScale: Bool = true
+
+    var body: some View {
+        VStack(spacing: 5) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                let fillWidth = width * min(1.0, max(0, progress))
+                
+                ZStack(alignment: .leading) {
+                    // Track (Recessed look)
+                    Capsule()
+                        .fill(Color.black.opacity(0.25))
+                        .frame(height: height)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                        )
+                    
+                    // Fill (Glowing liquid look)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.5), color],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(width: fillWidth, height: height)
+                        .shadow(color: color.opacity(0.6), radius: 4, x: 0, y: 0)
+                    
+                    // Glow Bead (Indicator)
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: height + 3, height: height + 3)
+                        .shadow(color: color, radius: 5)
+                        .shadow(color: color, radius: 2)
+                        .offset(x: max(0, fillWidth - (height + 3) / 2))
+                }
+            }
+            .frame(height: height + 3)
+            
+            if showScale {
+                // Technical Scale Markings
+                HStack(spacing: 0) {
+                    ForEach(0...10, id: \.self) { i in
+                        Rectangle()
+                            .fill(Color.white.opacity(i % 5 == 0 ? 0.2 : 0.1))
+                            .frame(width: 1, height: i % 5 == 0 ? 4 : 2)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+        }
+    }
+}
+
 extension View {
     /// Wraps a view in the premium glass card surface.
     func glassCard(_ cornerRadius: CGFloat = Theme.Radius.card,
@@ -139,4 +201,24 @@ extension View {
         background(GlassCardBackground(cornerRadius: cornerRadius,
                                        tint: tint, tintStrength: tintStrength))
     }
+}
+
+// MARK: - Responsive Layout Metrics
+// Skaliert UI-Elemente proportional zur Bildschirmhöhe.
+// Referenz: iPhone 14 (844 pt). Minimum: 80 % der Originalgröße.
+enum LayoutMetrics {
+    private static let referenceHeight: CGFloat = 844
+
+    static var scale: CGFloat {
+        let h = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.screen.bounds.height ?? referenceHeight
+        return max(0.80, min(1.0, h / referenceHeight))
+    }
+
+    static var ringSize: CGFloat       { (140 * scale).rounded() }
+    static var chartHeight: CGFloat    { (110 * scale).rounded() }
+    static var cardSpacing: CGFloat    { (10  * scale).rounded() }
+    static var sectionSpacing: CGFloat { (14  * scale).rounded() }
+    static var titleFontSize: CGFloat  { (30  * scale).rounded() }
 }

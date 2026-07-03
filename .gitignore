@@ -1,0 +1,4 @@
+Config.xcconfig
+.DS_Store
+*.xcuserstate
+xcuserdata/caloric/Utils/Secrets.swift

@@ -304,372 +304,84 @@ struct DailyJournalView: View {
         }
     }
 
-    // MARK: - Menstruation
+    // MARK: - Cards Section
 
-    private var menstruationCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Color.pink.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "drop.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.pink)
-                }
-                Text(language == "de" ? "Menstruation" : "Menstruation")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
-                Spacer()
-            }
-            HStack(spacing: 10) {
-                trackingToggle(label: language == "de" ? "Ja" : "Yes",
-                               isSelected: menstruationActive == true,
-                               tint: .pink) {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        menstruationActive = menstruationActive == true ? nil : true
+    private var cardsSection: some View {
+        VStack(spacing: 16) {
+            if selectedGender == femaleText {
+                MenstruationCard(
+                    language: language,
+                    menstruationActive: $menstruationActive,
+                    accentBlue: accentBlue,
+                    cardBackground: AnyView(cardBackground),
+                    trackingToggle: { label, isSelected, tint, action in
+                        AnyView(trackingToggle(label: label, isSelected: isSelected, tint: tint, action: action))
                     }
-                }
-                trackingToggle(label: language == "de" ? "Nein" : "No",
-                               isSelected: menstruationActive == false,
-                               tint: accentBlue) {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        menstruationActive = menstruationActive == false ? nil : false
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(cardBackground)
-    }
-
-    // MARK: - Krankheit
-
-    private var sicknessCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-
-            // Kopfzeile mit Toggle
-            HStack(spacing: 12) {
-                Text(language == "de" ? "Krankheit" : "Illness")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { sickToggle },
-                    set: { newVal in
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
-                            sickToggle = newVal
-                            if !newVal { sickEnergyLevel = nil; feverLevel = nil }
-                        }
-                    }
-                ))
-                .labelsHidden()
-                .tint(accentBlue)
-            }
-
-            // Verschachtelte Abfragen (animiert einblenden)
-            if sickToggle {
-                VStack(alignment: .leading, spacing: 16) {
-
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-                        .padding(.top, 12)
-
-                    // Frage 1 – Energetischer Zustand
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?")
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                            .foregroundStyle(Theme.textSecondary)
-
-                        HStack(spacing: 8) {
-                            energyButton(
-                                label:      language == "de" ? "Leicht angeschlagen" : "Slightly off",
-                                icon:       "",
-                                level:      .mild
-                            )
-                            energyButton(
-                                label:      language == "de" ? "Platt / Bettruhe" : "Bedridden",
-                                icon:       "",
-                                level:      .bedridden
-                            )
-                        }
-                    }
-
-                    // Frage 2 – Fieber
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(language == "de" ? "Hast du Fieber?" : "Do you have a fever?")
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                            .foregroundStyle(Theme.textSecondary)
-
-                        HStack(spacing: 8) {
-                            feverButton(label: language == "de" ? "Nein"    : "None",
-                                        sublabel: nil,
-                                        level:    .none,
-                                        tint:     accentBlue)
-                            feverButton(label: language == "de" ? "Leicht"  : "Low",
-                                        sublabel: "< 38.5 °C",
-                                        level:    .low,
-                                        tint:     .orange)
-                            feverButton(label: language == "de" ? "Hoch"    : "High",
-                                        sublabel: "> 38.5 °C",
-                                        level:    .high,
-                                        tint:     .red)
-                        }
-                    }
-
-                    // Temporärer BMR-Hinweis bei Fieber
-                    if feverLevel == .low || feverLevel == .high {
-                        let isFeverHigh = feverLevel == .high
-                        let tint: Color = isFeverHigh ? .red : .orange
-                        let delta = isFeverHigh ? "+18 %" : "+10 %"
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "info.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(tint)
-                            Text(language == "de"
-                                 ? "Temporärer BMR-Faktor: \(delta)"
-                                 : "Temporary BMR factor: \(delta)")
-                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                                .foregroundStyle(.white.opacity(0.8))
-                            Spacer()
-                            Text(isFeverHigh ? "×1.18" : "×1.10")
-                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .caption))
-                                .foregroundStyle(tint)
-                        }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(tint.opacity(0.12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(tint.opacity(0.25), lineWidth: 1)
-                                )
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .leading)))
-                    }
-                }
-                .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(16)
-        .background(cardBackground)
-        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: sickToggle)
-        .animation(.spring(response: 0.3,  dampingFraction: 0.82), value: feverLevel)
-    }
-
-    private func energyButton(label: String, icon: String, level: SickEnergyLevel) -> some View {
-        let isSelected = sickEnergyLevel == level
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                sickEnergyLevel = isSelected ? nil : level
-            }
-        } label: {
-            Text(label)
-                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .foregroundStyle(isSelected ? .white : accentBlue)
-                .padding(.horizontal, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
-                        )
                 )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func feverButton(label: String, sublabel: String?, level: FeverLevel, tint: Color) -> some View {
-        let isSelected = feverLevel == level
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                feverLevel = isSelected ? nil : level
             }
-        } label: {
-            VStack(spacing: 1) {
-                Text(label)
-                    .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
-                if let sub = sublabel {
-                    Text(sub)
-                        .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
-                        .opacity(0.8)
+            
+            SicknessCard(
+                language: language,
+                sickToggle: $sickToggle,
+                sickEnergyLevel: $sickEnergyLevel,
+                feverLevel: $feverLevel,
+                accentBlue: accentBlue,
+                cardBackground: AnyView(cardBackground),
+                energyButton: { label, level in
+                    AnyView(energyButton(label: label, icon: "", level: level))
+                },
+                feverButton: { label, sublabel, level, tint in
+                    AnyView(feverButton(label: label, sublabel: sublabel, level: level, tint: tint))
                 }
+            )
+
+            CaffeineCard(
+                accentBlue: accentBlue,
+                language: language,
+                caffeineText: $caffeineText,
+                caffeineInfoExpanded: $caffeineInfoExpanded,
+                showAddDrinkSheet: $showAddDrinkSheet,
+                caffeineFocused: $caffeineFocused,
+                store: store,
+                cardBackground: AnyView(cardBackground)
+            )
+            .sheet(isPresented: $showAddDrinkSheet) {
+                addDrinkSheet
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .foregroundStyle(isSelected ? .white : tint)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? tint : tint.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
-                    )
+            
+            MacrosCard(
+                language: language,
+                accentBlue: accentBlue,
+                selectedMeal: $selectedMeal,
+                aiInputText: $aiInputText,
+                aiIsLoading: $aiIsLoading,
+                aiErrorMessage: $aiErrorMessage,
+                proteinByMeal: $proteinByMeal,
+                carbsByMeal: $carbsByMeal,
+                fatByMeal: $fatByMeal,
+                analyzeFoodWithAI: { Task { await analyzeFoodWithAI() } },
+                macroInputField: { label, placeholder, text, focus, tint in
+                    // Need to map AnyHashable back to MacroField or use a generic approach
+                    // For simplicity, we'll handle the mapping here
+                    let field: MacroField
+                    if let f = focus as? MacrosCardMacroField {
+                        switch f {
+                        case .protein(let m): field = .protein(m)
+                        case .carbs(let m):   field = .carbs(m)
+                        case .fat(let m):     field = .fat(m)
+                        }
+                    } else {
+                        field = .protein("") // fallback
+                    }
+                    return AnyView(macroInputField(label: label, placeholder: placeholder, text: text, focusValue: field, tint: tint))
+                },
+                cardBackground: AnyView(cardBackground)
             )
         }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Koffein
-
-    private var caffeineCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-
-            HStack(spacing: 12) {
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        caffeineInfoExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle().fill(Theme.segCaf.opacity(0.15)).frame(width: 32, height: 32)
-                            Image(systemName: "cup.and.heat.waves.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Theme.segCaf)
-                        }
-                        Text(language == "de" ? "Koffein" : "Caffeine")
-                            .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                            .foregroundStyle(.white)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(accentBlue.opacity(0.6))
-                            .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
-                    }
-                }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    Button {
-                        let v = max(0, (Int(caffeineText) ?? 0) - 10)
-                        caffeineText = "\(v)"
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(accentBlue)
-                            .background(Circle().fill(accentBlue.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        TextField("0", text: $caffeineText)
-                            #if os(iOS)
-                            .keyboardType(.numberPad)
-                            #endif
-                            .focused($caffeineFocused)
-                            .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
-                            .foregroundStyle(accentBlue)
-                            .multilineTextAlignment(.center)
-                            .frame(width: 60)
-                        Text("mg")
-                            .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
-                            .foregroundStyle(accentBlue.opacity(0.6))
-                    }
-
-                    Button {
-                        let v = (Int(caffeineText) ?? 0) + 10
-                        caffeineText = "\(v)"
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(accentBlue)
-                            .background(Circle().fill(accentBlue.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            if caffeineInfoExpanded {
-                VStack(spacing: 16) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        caffeineQuickAdd(label: language == "de" ? "Espresso" : "Espresso", mg: 80)
-                        caffeineQuickAdd(label: language == "de" ? "Kaffee" : "Coffee", mg: 90)
-                        caffeineQuickAdd(label: language == "de" ? "Schwarztee" : "Black Tea", mg: 50)
-                        caffeineQuickAdd(label: language == "de" ? "Grüntee" : "Green Tea", mg: 30)
-                        caffeineQuickAdd(label: "Energy (250ml)", mg: 80)
-                        caffeineQuickAdd(label: "Monster (500ml)", mg: 160)
-                        caffeineQuickAdd(label: "Mate (330ml)", mg: 70)
-                        caffeineQuickAdd(label: "Cola (330ml)", mg: 35)
-                        caffeineQuickAdd(label: "Pre-Workout", mg: 200)
-                        
-                        ForEach(store.customDrinks) { drink in
-                            caffeineQuickAdd(label: drink.name, mg: drink.caffeineMg, isCustom: true, id: drink.id)
-                        }
-                    }
-                    
-                    Button {
-                        showAddDrinkSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text(language == "de" ? "Eigenes Getränk erstellen" : "Create custom drink")
-                        }
-                        .font(.custom("PingFangSC-Medium", size: 13))
-                        .foregroundStyle(accentBlue)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(accentBlue.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(16)
-        .background(cardBackground)
-        .sheet(isPresented: $showAddDrinkSheet) {
-            addDrinkSheet
-        }
-    }
-
-    private func caffeineQuickAdd(label: String, mg: Int, isCustom: Bool = false, id: UUID? = nil) -> some View {
-        Button {
-            let current = Int(caffeineText) ?? 0
-            caffeineText = "\(current + mg)"
-        } label: {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(label)
-                        .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text("+\(mg) mg")
-                        .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
-                        .foregroundStyle(accentBlue)
-                }
-                Spacer()
-                if isCustom, let drinkId = id {
-                    Button {
-                        store.removeCustomDrink(id: drinkId)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.3))
-                    }
-                } else {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(accentBlue.opacity(0.6))
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(accentBlue.opacity(0.08))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(accentBlue.opacity(0.15), lineWidth: 1))
-            )
-        }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 20)
+        .disabled(isFutureDate)
+        .opacity(isFutureDate ? 0.45 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isFutureDate)
     }
 
     private var addDrinkSheet: some View {
@@ -739,191 +451,37 @@ struct DailyJournalView: View {
         }
     }
 
-    // MARK: - Makros (Mit neuem KI Freitext Scanner Endpunkt)
-
-    private var macrosCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Theme.segTEF.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "fork.knife")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.segTEF)
-                }
-                Text(language == "de" ? "Makros" : "Macros")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
-                Spacer()
-            }
-
-            // Sleek Tabbed Meal Selector
-            HStack(spacing: 0) {
-                mealTab(key: "breakfast", name: language == "de" ? "Frühstück" : "Breakfast")
-                mealTab(key: "lunch",     name: language == "de" ? "Mittag" : "Lunch")
-                mealTab(key: "dinner",    name: language == "de" ? "Abend" : "Dinner")
-                mealTab(key: "daily",     name: language == "de" ? "Gesamt" : "Total")
-            }
-            .padding(4)
-            .background(Color.white.opacity(0.06))
-            .clipShape(Capsule())
-
-            // --- KI FREITEXT SCANNER ROW ---
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    TextField(
-                        language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...",
-                        text: $aiInputText,
-                        axis: .vertical
-                    )
-                    .lineLimit(1...3)
-                    .font(.custom("PingFangSC-Regular", size: 13))
-                    .foregroundColor(.white)
-                    .disabled(aiIsLoading)
+    private var journalScrollView: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Daily Journal")
+                        .font(.custom("PingFangSC-Semibold", size: LayoutMetrics.titleFontSize, relativeTo: .largeTitle))
+                        .foregroundStyle(.white)
                     
                     Button {
-                        Task { await analyzeFoodWithAI() }
+                        showCalendarPicker = true
                     } label: {
-                        ZStack {
-                            Circle()
-                                .fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue)
-                                .frame(width: 32, height: 32)
-                            
-                            if aiIsLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.8)
-                            } else {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.4) : .white)
-                            }
+                        HStack(spacing: 6) {
+                            Text(selectedDateString)
+                                .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
+                                .foregroundStyle(Theme.textSecondary)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Theme.textSecondary.opacity(0.6))
                         }
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .disabled(aiInputText.isEmpty || aiIsLoading)
+                    .buttonStyle(SpringyButtonStyle())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1)
-                )
-                
-                if let error = aiErrorMessage {
-                    Text(error)
-                        .font(.custom("PingFangSC-Regular", size: 11))
-                        .foregroundColor(.red)
-                        .padding(.leading, 4)
-                }
+                Spacer()
             }
-            .padding(.vertical, 4)
-            // ---------------------------
-
-            if let meal = selectedMeal {
-                VStack(spacing: 12) {
-                    macroInputField(
-                        label: "Protein", placeholder: "0",
-                        text: Binding(
-                            get: { proteinByMeal[meal] ?? "" },
-                            set: { proteinByMeal[meal] = $0 }
-                        ),
-                        focusValue: .protein(meal),
-                        tint: Theme.segNEAT
-                    )
-                    HStack(spacing: 12) {
-                        macroInputField(
-                            label: language == "de" ? "Kohlenhydrate" : "Carbs",
-                            placeholder: "0",
-                            text: Binding(
-                                get: { carbsByMeal[meal] ?? "" },
-                                set: { carbsByMeal[meal] = $0 }
-                            ),
-                            focusValue: .carbs(meal),
-                            tint: accentBlue
-                        )
-                        macroInputField(
-                            label: language == "de" ? "Fett" : "Fat",
-                            placeholder: "0",
-                            text: Binding(
-                                get: { fatByMeal[meal] ?? "" },
-                                set: { fatByMeal[meal] = $0 }
-                            ),
-                            focusValue: .fat(meal),
-                            tint: .orange
-                        )
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedMeal)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: aiIsLoading)
-        .padding(16)
-        .background(cardBackground)
-    }
-
-    private func mealTab(key: String, name: String) -> some View {
-        let isSelected = selectedMeal == key
-        return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                selectedMeal = key
-            }
-        } label: {
-            Text(name)
-                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
-                .foregroundStyle(isSelected ? .white : Theme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    ZStack {
-                        if isSelected {
-                            Capsule()
-                                .fill(accentBlue)
-                                .shadow(color: accentBlue.opacity(0.3), radius: 4, x: 0, y: 2)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                    }
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Journal Scroll View
-
-    private var journalScrollView: some View {
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 4)
+            
         ScrollView {
-            VStack(spacing: 14) {
-                Spacer().frame(height: 12)
-                
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Daily Journal")
-                            .font(.custom("PingFangSC-Semibold", size: 32, relativeTo: .largeTitle))
-                            .foregroundStyle(.white)
-                        
-                        Button {
-                            showCalendarPicker = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(selectedDateString)
-                                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
-                                    .foregroundStyle(Theme.textSecondary)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(SpringyButtonStyle())
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 16)
-                .padding(.bottom, 4)
-                
+            VStack(spacing: LayoutMetrics.sectionSpacing) {
                 journalDatePicker
                 
                 if isFutureDate {
@@ -946,7 +504,7 @@ struct DailyJournalView: View {
                 
                 cardsSection
                 
-                Spacer().frame(height: 140)
+                Spacer().frame(height: (140 * LayoutMetrics.scale).rounded())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -965,6 +523,8 @@ struct DailyJournalView: View {
                 .foregroundStyle(accentBlue)
             }
         }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var selectedDateString: String {
@@ -1040,23 +600,6 @@ struct DailyJournalView: View {
         }
     }
 
-    // MARK: - Cards Section
-
-    private var cardsSection: some View {
-        VStack(spacing: 16) {
-            if selectedGender == femaleText {
-                menstruationCard
-            }
-            sicknessCard
-            caffeineCard
-            macrosCard
-        }
-        .padding(.horizontal, 20)
-        .disabled(isFutureDate)
-        .opacity(isFutureDate ? 0.45 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isFutureDate)
-    }
-
     // MARK: - Confirm Button (Sticky)
 
     private var confirmButton: some View {
@@ -1103,7 +646,7 @@ struct DailyJournalView: View {
             aiErrorMessage = nil
             
             // 1. Dein funktionierender API-Key aus dem Terminal-Test
-            let apiKey = "AQ.Ab8RN6J3fSyhM1ZIJ57pDydbbXx4XrTFADkY-uSKxQYblUxqQw"
+            let apiKey = Secrets.apiKey
             guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { return }
             
             var request = URLRequest(url: url)
@@ -1217,6 +760,12 @@ struct DailyJournalView: View {
                     .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
                     .foregroundStyle(tint.opacity(0.6))
             }
+            
+            // Integrated mini instrument bar for feedback
+            let val = Double(text.wrappedValue.replacingOccurrences(of: ",", with: ".")) ?? 0
+            let ref: Double = label.contains("Protein") ? 150 : (label.contains("Fat") || label.contains("Fett") ? 80 : 300)
+            InstrumentProgressBar(progress: min(1.0, val / ref), color: tint, height: 3, showScale: false)
+                .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
@@ -1227,6 +776,63 @@ struct DailyJournalView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(tint.opacity(0.15), lineWidth: 1))
         )
+    }
+
+    private func energyButton(label: String, icon: String, level: SickEnergyLevel) -> some View {
+        let isSelected = sickEnergyLevel == level
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                sickEnergyLevel = isSelected ? nil : level
+            }
+        } label: {
+            Text(label)
+                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .foregroundStyle(isSelected ? .white : accentBlue)
+                .padding(.horizontal, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func feverButton(label: String, sublabel: String?, level: FeverLevel, tint: Color) -> some View {
+        let isSelected = feverLevel == level
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                feverLevel = isSelected ? nil : level
+            }
+        } label: {
+            VStack(spacing: 1) {
+                Text(label)
+                    .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                if let sub = sublabel {
+                    Text(sub)
+                        .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                        .opacity(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .foregroundStyle(isSelected ? .white : tint)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? tint : tint.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func trackingToggle(label: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {

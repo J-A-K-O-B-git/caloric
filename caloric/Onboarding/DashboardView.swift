@@ -14,7 +14,9 @@ struct CalorieSlot: Identifiable {
     let id = UUID()
     let hour: Double
     let calories: Double
+    let workoutKcal: Double
     let isSleep: Bool
+    var total: Double { calories + workoutKcal }
 }
 
 struct DashboardView: View {
@@ -70,7 +72,7 @@ struct DashboardView: View {
 
 
 
-    private var ringSize: CGFloat { 140 }
+    private var ringSize: CGFloat { LayoutMetrics.ringSize }
 
     private var topSafeArea: CGFloat {
         UIApplication.shared.connectedScenes
@@ -190,7 +192,7 @@ struct DashboardView: View {
                 default:          mult = 1.0
                 }
             }
-            return CalorieSlot(hour: hour, calories: hourlyBMR * 0.5 * mult, isSleep: sleeping)
+            return CalorieSlot(hour: hour, calories: hourlyBMR * 0.5 * mult, workoutKcal: 0, isSleep: sleeping)
         }
     }
 
@@ -219,7 +221,9 @@ struct DashboardView: View {
             steps:            healthKit.activity.steps,
             standTimeMinutes: healthKit.activity.standTimeMinutes,
             restingHR:        healthKit.activity.restingHeartRate,
-            avgHRWaking:      healthKit.activity.avgHeartRateWaking,
+            sedentaryAvgHR:   healthKit.activity.sedentaryAvgHR,
+            unrecordedCardioAvgHR: healthKit.activity.unrecordedCardioAvgHR,
+            cardioRatio:      healthKit.activity.cardioRatio,
             vo2Max:           healthKit.vo2Max,
             workouts:         healthKit.workouts,
             weightKg:         weightInKg,
@@ -259,7 +263,9 @@ struct DashboardView: View {
                 steps:            snap.activity.steps,
                 standTimeMinutes: snap.activity.standTimeMinutes,
                 restingHR:        snap.activity.restingHeartRate,
-                avgHRWaking:      snap.activity.avgHeartRateWaking,
+                sedentaryAvgHR:   snap.activity.sedentaryAvgHR,
+                unrecordedCardioAvgHR: snap.activity.unrecordedCardioAvgHR,
+                cardioRatio:      snap.activity.cardioRatio,
                 vo2Max:           healthKit.vo2Max,
                 workouts:         snap.workouts,
                 weightKg:         weightInKg,
@@ -432,14 +438,11 @@ struct DashboardView: View {
             ObsidianBackground()
 
             // Hauptinhalt
-            ScrollView(showsIndicators: false) {
-            VStack(spacing: 10) {
-                Spacer().frame(height: 8)
-
+            VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.custom("PingFangSC-Semibold", size: 32, relativeTo: .largeTitle))
+                            .font(.custom("PingFangSC-Semibold", size: LayoutMetrics.titleFontSize, relativeTo: .largeTitle))
                             .foregroundStyle(.white)
                         
                         Button {
@@ -470,9 +473,11 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.top, 4)
                 .padding(.bottom, 4)
 
+            ScrollView(showsIndicators: false) {
+            VStack(spacing: LayoutMetrics.cardSpacing) {
                 datePicker
 
                 calorieRingWidget
@@ -501,7 +506,7 @@ struct DashboardView: View {
                             .cornerRadius(3)
                         }
                     }
-                    .frame(height: 110)
+                    .frame(height: LayoutMetrics.chartHeight)
                     .chartXScale(domain: 0...24)
                     .chartXAxis {
                         AxisMarks(values: [0, 6, 12, 18, 24]) { value in
@@ -549,6 +554,7 @@ struct DashboardView: View {
                         showRefreshBadge = false
                     }
                 }
+            }
             }
 
             // Abdunkelung beim Öffnen der Leiste
@@ -734,7 +740,7 @@ struct DashboardView: View {
         let type: EnergySegmentType
         let title: String
         let short: String
-        let subtitle: String
+        let subtitle: String?
         let icon: String
         let color: Color
         let kcal: Double
@@ -747,33 +753,32 @@ struct DashboardView: View {
         var segs: [EnergySegment] = [
             EnergySegment(
                 type: .bmr,
-                title: language == "de" ? "Grundumsatz (BMR)" : "Resting Metabolic Rate",
+                title: language == "de" ? "BMR" : "Resting Metabolic Rate",
                 short: "BMR",
-                subtitle: language == "de" ? "Basaler Energiebedarf" : "Base energy expenditure",
+                subtitle: language == "de" ? "Grundumsatz" : "Basal Metabolic Rate",
                 icon: "moon.zzz.fill", color: Theme.segBMR, kcal: tdeeResult.bmrDynamisch
             ),
             EnergySegment(
                 type: .neat,
                 title: "NEAT",
                 short: "NEAT",
-                subtitle: language == "de" ? "Alltagsbewegung · \(healthKit.activity.steps) Schritte"
-                                           : "Daily movement · \(healthKit.activity.steps) steps",
+                subtitle: language == "de" ? "Non-Exercise Activity Thermogenesis" : "Non-Exercise Activity Thermogenesis",
                 icon: "figure.walk", color: Theme.segNEAT, kcal: neat
             ),
             EnergySegment(
                 type: .eat,
                 title: "EAT",
                 short: "EAT",
-                subtitle: language == "de" ? "Training · \(healthKit.workouts.count) Workout(s)"
-                                           : "Exercise · \(healthKit.workouts.count) workout(s)",
+                subtitle: language == "de" ? "Exercise Activity Thermogenesis"
+                                           : "Exercise Activity Thermogenesis",
                 icon: "dumbbell.fill", color: Theme.segEAT, kcal: eat
             ),
             EnergySegment(
                 type: .tef,
-                title: language == "de" ? "Thermischer Effekt (TEF)" : "Thermic Effect of Food (TEF)",
+                title: language == "de" ? "TEF" : "TEF",
                 short: "TEF",
-                subtitle: language == "de" ? "Verdauung · Protein · KH · Fett"
-                                           : "Digestion · Protein · Carbs · Fat",
+                subtitle: language == "de" ? "Thermische Wirkung der Ernährung"
+                                           : "Thermic Effect of Food",
                 icon: "fork.knife.circle.fill", color: Theme.segTEF, kcal: tdeeResult.tefKcal
             ),
         ]
@@ -782,7 +787,7 @@ struct DashboardView: View {
                 type: .caffeine,
                 title: language == "de" ? "Koffein-Thermogenese" : "Caffeine Thermogenesis",
                 short: language == "de" ? "Koffein" : "Caffeine",
-                subtitle: "+15 kcal / 100 mg · max. +60 kcal",
+                subtitle: nil,
                 icon: "cup.and.heat.waves.fill", color: Theme.segCaf, kcal: tdeeResult.koffeinBonus
             ))
         }
@@ -790,21 +795,41 @@ struct DashboardView: View {
     }
 
     private func energyStackedBar(_ segs: [EnergySegment], total: Double) -> some View {
-        GeometryReader { geo in
-            HStack(spacing: 2) {
-                ForEach(segs) { s in
-                    Rectangle()
-                        .fill(
-                            LinearGradient(colors: [s.color.opacity(0.85), s.color],
-                                           startPoint: .top, endPoint: .bottom)
-                        )
-                        .frame(width: max(s.kcal > 0 ? 3 : 0, geo.size.width * (s.kcal / total)))
+        VStack(spacing: 6) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                HStack(spacing: 1.5) {
+                    ForEach(segs) { s in
+                        let w = max(s.kcal > 0 ? 2 : 0, width * (s.kcal / total))
+                        Rectangle()
+                            .fill(
+                                LinearGradient(colors: [s.color.opacity(0.8), s.color],
+                                               startPoint: .top, endPoint: .bottom)
+                            )
+                            .frame(width: w)
+                            .shadow(color: s.color.opacity(0.3), radius: 2)
+                    }
                 }
             }
+            .frame(height: 12)
+            .clipShape(Capsule())
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.2))
+                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+            )
+            
+            // Faint scale below
+            HStack(spacing: 0) {
+                ForEach(0...10, id: \.self) { i in
+                    Rectangle()
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 1, height: 3)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 2)
         }
-        .frame(height: 14)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
     }
 
     private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
@@ -828,11 +853,13 @@ struct DashboardView: View {
                         Text(s.title)
                             .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
                             .foregroundStyle(Theme.textPrimary)
-                        Text(s.subtitle)
-                            .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption))
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                        if let subtitle = s.subtitle {
+                            Text(subtitle)
+                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption))
+                                .foregroundStyle(Theme.textSecondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 1) {
@@ -849,16 +876,8 @@ struct DashboardView: View {
                             .foregroundStyle(s.color)
                     }
                 }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.07)).frame(height: 6)
-                        Capsule()
-                            .fill(LinearGradient(colors: [s.color.opacity(0.7), s.color],
-                                                 startPoint: .leading, endPoint: .trailing))
-                            .frame(width: max(s.kcal > 0 ? 6 : 0, geo.size.width * pct), height: 6)
-                    }
-                }
-                .frame(height: 6)
+                InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
+                    .frame(height: 12)
             }
             .padding(14)
             .glassCard(16)
@@ -879,8 +898,8 @@ struct DashboardView: View {
                         // Hero — total + stacked micro-chart
                         VStack(spacing: 18) {
                             VStack(spacing: 3) {
-                                Text(language == "de" ? "Dein heutiger Gesamtumsatz" : "Your current total calorie expenditure")
-                                    .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                                Text(language == "de" ? "Dein hochgerechneter täglicher Gesamtumsatz" : "Your estimated total daily calorie expenditure")
+                                    .font(.custom("PingFangSC-Medium", size: 9, relativeTo: .caption2))
                                     .foregroundStyle(Theme.textSecondary)
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                                     Text("\(Int(todayProjected))")
@@ -1456,8 +1475,6 @@ struct DashboardView: View {
                 // Tap affordance
                 if isSelectedToday {
                     HStack(spacing: 6) {
-                        Image(systemName: "chart.pie.fill")
-                            .font(.system(size: 10, weight: .semibold))
                         Text(language == "de" ? "Aufschlüsselung ansehen" : "View breakdown")
                             .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
                         Image(systemName: "chevron.right")

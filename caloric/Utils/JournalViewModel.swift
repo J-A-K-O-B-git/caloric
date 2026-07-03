@@ -23,7 +23,7 @@ class JournalViewModel {
     var errorMessage: String? = nil
     
     // 2. Setze hier deinen funktionierenden API-Key ein
-    private let apiKey = "AQ.Ab8RN6J3fSyhM1ZIJ57pDydbbXx4XrTFADkY-uSKxQYblUxqQw"
+    private let apiKey = Secrets.apiKey
     
     private var apiURL: URL {
         URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)")!
@@ -40,7 +40,6 @@ class JournalViewModel {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // 3. Die exakte Payload-Struktur aus deinem erfolgreichen Terminal-Test
         let payload: [String: Any] = [
             "systemInstruction": [
                 "parts": [

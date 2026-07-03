@@ -79,7 +79,9 @@ struct ActivityCalculationService {
         steps: Int,
         standTimeMinutes: Double,
         restingHR: Double?,
-        avgHRWaking: Double?,
+        sedentaryAvgHR: Double?,
+        unrecordedCardioAvgHR: Double?,
+        cardioRatio: Double,
         vo2Max: Double?,
         workouts: [HKWorkoutSnapshot],
         weightKg: Double,
@@ -102,15 +104,24 @@ struct ActivityCalculationService {
         let dayStart  = calendar.startOfDay(for: referenceDate)
         let dayEndMin = isToday ? referenceDate.timeIntervalSince(dayStart) / 60.0 : 1440.0
         let wakeMin   = (sleepHours > 0 ? sleepHours : 8.0) * 60.0
+        
+        let awakeMin   = max(0, dayEndMin - wakeMin)
+        let totalGapMin = max(0, awakeMin - netStandMin - workoutMin)
+        
+        let cardioMinutes = totalGapMin * cardioRatio
+        let sedentaryMinutes = totalGapMin * (1.0 - cardioRatio)
 
         let inputs = NEATInputs(
             nonWorkoutSteps: steps,        // aggregate steps; see note below
             standTimeMinutes: netStandMin,
             restingHR: restingHR,
-            gapAvgHR: avgHRWaking,         // clamp [rest+2, rest+25] isolates the sedentary pulse
             workoutSeconds: workoutSeconds,
             wakeMinuteOfDay: wakeMin,
             dayEndMinuteOfDay: max(wakeMin, dayEndMin),
+            sedentaryGapMinutes: sedentaryMinutes,
+            sedentaryAvgHR: sedentaryAvgHR,
+            unrecordedCardioMinutes: cardioMinutes,
+            unrecordedCardioAvgHR: unrecordedCardioAvgHR,
             age: age, isMale: isMale, weightKg: weightKg,
             bmrDynamisch: bmrDynamisch
         )

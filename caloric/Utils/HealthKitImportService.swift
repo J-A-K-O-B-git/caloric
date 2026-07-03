@@ -37,6 +37,10 @@ struct HKActivitySnapshot: Sendable {
     let standTimeMinutes: Double
     let restingHeartRate: Double?
     let avgHeartRateWaking: Double?
+    
+    let sedentaryAvgHR: Double?
+    let unrecordedCardioAvgHR: Double?
+    let cardioRatio: Double
 }
 
 struct HKSleepSnapshot: Sendable {
@@ -65,7 +69,8 @@ final class HealthKitImportService {
 
     var workouts: [HKWorkoutSnapshot] = []
     var activity   = HKActivitySnapshot(steps: 0, distanceMeters: 0, fetchedAt: Date(),
-                                        standTimeMinutes: 0, restingHeartRate: nil, avgHeartRateWaking: nil)
+                                        standTimeMinutes: 0, restingHeartRate: nil, avgHeartRateWaking: nil,
+                                        sedentaryAvgHR: nil, unrecordedCardioAvgHR: nil, cardioRatio: 0.0)
     var sleep: HKSleepSnapshot? = nil
     var isAuthorized = false
     /// Most recent VO2max estimate from Apple Health (mL/kg·min). Nil if not available.
@@ -285,6 +290,14 @@ final class HealthKitImportService {
         async let stand   = hkSum(.appleStandTime,         unit: .minute(), predicate: predicate)
         async let resting = fetchRestingHeartRate(for: date)
         async let avgHR   = fetchAvgHeartRate(from: wakeStart, to: end)
+        
+        // Fetch workouts for this date to exclude them from gap analysis
+        let workouts = await fetchWorkoutsData(for: date)
+        let workoutWindows = workouts.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        
+        // Perform Gap Analysis (sedentary vs unrecorded cardio)
+        let restHRForAnalysis = await resting ?? 60.0
+        let gapAnalysis = await analyzeGapHeartRate(start: wakeStart, end: end, restingHR: restHRForAnalysis, excluding: workoutWindows)
 
         return await HKActivitySnapshot(
             steps:              Int(steps ?? 0),
@@ -292,8 +305,50 @@ final class HealthKitImportService {
             fetchedAt:          date,
             standTimeMinutes:   stand ?? 0,
             restingHeartRate:   resting,
-            avgHeartRateWaking: avgHR
+            avgHeartRateWaking: avgHR,
+            sedentaryAvgHR:     gapAnalysis.sedentaryHR,
+            unrecordedCardioAvgHR: gapAnalysis.cardioHR,
+            cardioRatio:        gapAnalysis.cardioRatio
         )
+    }
+
+    private func analyzeGapHeartRate(
+        start: Date, end: Date, restingHR: Double, excluding windows: [DateInterval]
+    ) async -> (cardioRatio: Double, sedentaryHR: Double?, cardioHR: Double?) {
+        guard end > start, let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+            return (0.0, nil, nil)
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let samples: [HKQuantitySample] = await hkSamples(type: type, predicate: predicate, sort: NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true))
+        let unit = HKUnit.count().unitDivided(by: .minute())
+        
+        let validSamples = samples
+            .filter { s in !windows.contains { $0.intersects(DateInterval(start: s.startDate, end: s.endDate)) } }
+        
+        guard !validSamples.isEmpty else { return (0.0, nil, nil) }
+        
+        // Schwelle für ungemeldeten Sport: Ruhepuls + 30 bpm
+        let cardioThreshold = restingHR + 30.0
+        
+        var sedValues: [Double] = []
+        var cardioValues: [Double] = []
+        
+        for s in validSamples {
+            let hr = s.quantity.doubleValue(for: unit)
+            if hr >= cardioThreshold {
+                cardioValues.append(hr)
+            } else {
+                sedValues.append(hr)
+            }
+        }
+        
+        let totalCount = Double(validSamples.count)
+        let cardioRatio = Double(cardioValues.count) / totalCount
+        
+        let sedHR = sedValues.isEmpty ? nil : sedValues.reduce(0, +) / Double(sedValues.count)
+        let cardioHR = cardioValues.isEmpty ? nil : cardioValues.reduce(0, +) / Double(cardioValues.count)
+        
+        return (cardioRatio, sedHR, cardioHR)
     }
 
     private func fetchRestingHeartRate(for date: Date) async -> Double? {

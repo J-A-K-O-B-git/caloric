@@ -75,36 +75,37 @@ struct ManualDataView: View {
                             : "Synced automatically via Apple Health."
                     )
                     if healthKit.isAuthorized {
-                        hkStatsGrid
+                        hkStatsList
                     }
                 }
 
                 // 2) MANUELL
-                VStack(spacing: 4) {
+                VStack(spacing: 8) {
                     panelSectionHeader(
                         title: language == "de" ? "Manuell" : "Manual",
                         subtitle: language == "de"
                             ? "Bitte aktuell halten, wenn sich etwas ändert."
                             : "Please keep up to date when something changes."
                     )
-                    LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                        spacing: 12
-                    ) {
-                        adjustTile(icon: "scalemass",
+                    VStack(spacing: 12) {
+                        adjustRow(icon: "scalemass",
                                    label: language == "de" ? "Gewicht" : "Weight",
                                    value: "\(weightText) \(weightUnit)",
                                    field: "weight")
-                        adjustTile(icon: "ruler",
+                        adjustRow(icon: "ruler",
                                    label: language == "de" ? "Größe" : "Height",
                                    value: "\(heightText) \(heightUnit)",
                                    field: "height")
-                        adjustTile(icon: "percent",
+                        
+                        let bf = Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
+                        adjustRow(icon: "percent",
                                    label: "KFA / BF%",
                                    value: bodyFatText.isEmpty ? "–" : "\(bodyFatText) %",
-                                   field: "bodyFat")
-                        adjustTile(icon: "waveform.path.ecg",
-                                   label: language == "de" ? "Besonder-\nheiten" : "Conditions",
+                                   field: "bodyFat",
+                                   progress: min(1.0, bf / 40.0))
+                        
+                        adjustRow(icon: "waveform.path.ecg",
+                                   label: language == "de" ? "Stoffwechsel" : "Conditions",
                                    value: {
                                        let active = selectedConditions.filter { $0 != noConditionText }
                                        if active.isEmpty { return "100 %" }
@@ -140,54 +141,103 @@ struct ManualDataView: View {
         .padding(.horizontal, 22)
     }
 
-    private func adjustTile(icon: String, label: String, value: String, field: String) -> some View {
+    private func adjustRow(icon: String, label: String, value: String, field: String, progress: Double? = nil) -> some View {
         Button {
             editingField = field
         } label: {
-            VStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(accentBlue)
-                Text(value)
-                    .font(.custom("PingFangSC-Semibold", size: 14, relativeTo: .callout))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 12) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(accentBlue.opacity(0.12))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: icon)
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(accentBlue)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label)
+                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .foregroundStyle(Theme.textSecondary)
+                        Text(value)
+                            .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(accentBlue.opacity(0.4))
+                }
+                
+                if let p = progress {
+                    InstrumentProgressBar(progress: p, color: accentBlue, height: 4, showScale: false)
+                        .padding(.top, 4)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .padding(.horizontal, 8)
-            .background(GlassCardBackground(cornerRadius: 16, tint: accentBlue, tintStrength: 0.10))
+            .padding(14)
+            .background(GlassCardBackground(cornerRadius: 18))
         }
         .buttonStyle(.plain)
     }
 
-    private var hkStatsGrid: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-            spacing: 12
-        ) {
-            hkStatTile(icon: "figure.walk", iconColor: .orange, value: "\(healthKit.activity.steps)", unit: language == "de" ? "Schritte" : "Steps")
-            hkStatTile(icon: "map", iconColor: accentBlue, value: String(format: "%.1f", healthKit.activity.distanceMeters / 1000), unit: "km")
-            hkStatTile(icon: "moon.zzz.fill", iconColor: Color(red: 0.42, green: 0.35, blue: 0.95), value: healthKit.sleep.map { String(format: "%.1fh", $0.durationSeconds / 3600) } ?? "–", unit: language == "de" ? "Schlaf" : "Sleep")
-            hkStatTile(icon: "dumbbell.fill", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35), value: "\(healthKit.workouts.count)", unit: "Workouts")
+    private var hkStatsList: some View {
+        VStack(spacing: 12) {
+            let steps = Double(healthKit.activity.steps)
+            dataRow(icon: "figure.walk", iconColor: .orange, label: language == "de" ? "Schritte" : "Steps", value: "\(healthKit.activity.steps)", unit: "", progress: min(1.0, steps / 10000))
+            
+            let dist = healthKit.activity.distanceMeters / 1000
+            dataRow(icon: "map", iconColor: accentBlue, label: language == "de" ? "Distanz" : "Distance", value: String(format: "%.1f", dist), unit: "km", progress: min(1.0, dist / 8.0))
+            
+            let sleepH = (healthKit.sleep?.durationSeconds ?? 0) / 3600
+            dataRow(icon: "moon.zzz.fill", iconColor: Color(red: 0.42, green: 0.35, blue: 0.95), label: language == "de" ? "Schlaf" : "Sleep", value: healthKit.sleep != nil ? String(format: "%.1f", sleepH) : "–", unit: "h", progress: min(1.0, sleepH / 8.0))
+            
+            let workouts = Double(healthKit.workouts.count)
+            dataRow(icon: "dumbbell.fill", iconColor: Color(red: 0.20, green: 0.78, blue: 0.35), label: "Workouts", value: "\(Int(workouts))", unit: "", progress: min(1.0, workouts / 2.0))
         }
         .padding(.horizontal, 16)
     }
 
-    private func hkStatTile(icon: String, iconColor: Color, value: String, unit: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 18, weight: .medium)).foregroundStyle(iconColor)
-            Text(value).font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline)).foregroundStyle(.primary).minimumScaleFactor(0.7).lineLimit(1)
-            Text(unit).font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2)).foregroundStyle(.secondary)
+    private func dataRow(icon: String, iconColor: Color, label: String, value: String, unit: String, progress: Double? = nil) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                        .foregroundStyle(Theme.textSecondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(value)
+                            .font(.custom("PingFangSC-Semibold", size: 18, relativeTo: .headline))
+                            .foregroundStyle(Theme.textPrimary)
+                        if !unit.isEmpty {
+                            Text(unit)
+                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    }
+                }
+                
+                Spacer()
+            }
+            
+            if let p = progress {
+                InstrumentProgressBar(progress: p, color: iconColor, height: 4, showScale: true)
+                    .padding(.top, 4)
+            }
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 14).background(GlassCardBackground(cornerRadius: 16))
+        .padding(14)
+        .background(GlassCardBackground(cornerRadius: 18))
     }
 
     @ViewBuilder
