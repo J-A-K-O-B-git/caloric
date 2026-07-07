@@ -202,7 +202,10 @@ struct DashboardView: View {
     }
 
     private var burnedSoFar: Double {
-        calorieSlots.filter { $0.hour < nowFraction }.reduce(0) { $0 + $1.calories }
+        let bmrSoFar = calorieSlots.filter { $0.hour < nowFraction }.reduce(0) { $0 + $1.calories }
+        let activeKcal = healthKit.isAuthorized ? activityResult.totalActiveKcal : 0
+        let fractionalBonuses = (tdeeResult.tefKcal + tdeeResult.koffeinBonus) * (nowFraction / 24.0)
+        return bmrSoFar + activeKcal + fractionalBonuses
     }
 
     private var tdeeResult: TDEECalculationService.TDEEResult {
@@ -235,15 +238,33 @@ struct DashboardView: View {
     }
 
     private var burnProgress: Double {
-        let target = tdeeResult.tdeeTotal
+        let target = todayProjected
         guard target > 0 else { return 0 }
         return min(1.0, burnedSoFar / target)
     }
 
     private var isSelectedToday: Bool { Calendar.current.isDateInToday(selectedDate) }
     private var isSelectedFuture: Bool { selectedDate > Calendar.current.startOfDay(for: Date()) }
-    private var displayBurnedSoFar: Double { isSelectedToday ? burnedSoFar : 0 }
-    private var displayBurnProgress: Double { isSelectedToday ? burnProgress : 0 }
+    
+    private var displayBurnedSoFar: Double {
+        if isSelectedToday {
+            return burnedSoFar
+        } else if isSelectedFuture {
+            return 0
+        } else {
+            return todayProjected
+        }
+    }
+    
+    private var displayBurnProgress: Double {
+        if isSelectedToday {
+            return burnProgress
+        } else if isSelectedFuture {
+            return 0
+        } else {
+            return 1.0
+        }
+    }
 
     private var todayProjected: Double {
         tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal + (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
@@ -1421,61 +1442,83 @@ struct DashboardView: View {
 
     private var calorieRingWidget: some View {
         Button {
-            if isSelectedToday { showActivityBreakdown = true }
+            if !isSelectedFuture { showActivityBreakdown = true }
         } label: {
             VStack(spacing: 0) {
                 ZStack {
-                    // Outer targeting track
+                    // 1. Technical Scale (Background Arc)
                     Circle()
-                        .stroke(Color.white.opacity(0.14), lineWidth: 14)
-
-                    // Inner Liquid Fill (The "Burned So Far" representation)
-                    if isSelectedToday {
+                        .trim(from: 0, to: 0.75)
+                        .stroke(
+                            Color.white.opacity(0.08),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .butt, dash: [2, 5])
+                        )
+                        .rotationEffect(.degrees(135))
+                    
+                    // 2. Active Progress Arc (Glowing)
+                    if !isSelectedFuture {
                         Circle()
-                            .fill(Color.white.opacity(0.04))
-                            .padding(10)
+                            .trim(from: 0, to: ringProgress * 0.75)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [accentBlue.opacity(0.5), accentBlue],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                ),
+                                style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(135))
+                            .shadow(color: accentBlue.opacity(0.4), radius: 8, x: 0, y: 0)
                         
-                        LiquidFillView(progress: ringProgress, color: accentBlue)
-                            .clipShape(Circle())
-                            .padding(10)
-                            .blur(radius: 0.5)
+                        // Small Indicator Bead only today
+                        if isSelectedToday {
+                            GeometryReader { geo in
+                                let angle = Double(ringProgress * 0.75 * 360 + 135)
+                                let rad = angle * .pi / 180
+                                let radius = geo.size.width / 2
+                                let x = radius + radius * cos(rad)
+                                let y = radius + radius * sin(rad)
+                                
+                                Circle()
+                                    .fill(.white)
+                                    .frame(width: 6, height: 6)
+                                    .shadow(color: accentBlue, radius: 4)
+                                    .position(x: x, y: y)
+                            }
+                        }
                     }
 
-                    // Progress Ring (Outer Edge)
-                    Circle()
-                        .trim(from: 0, to: ringProgress)
-                        .stroke(
-                            LinearGradient(
-                                colors: [accentBlue.opacity(0.6), accentBlue],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ),
-                            style: StrokeStyle(lineWidth: 14, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .shadow(color: accentBlue.opacity(0.5), radius: 12, x: 0, y: 0)
-
-                    VStack(spacing: 1) {
-                        HStack(alignment: .firstTextBaseline, spacing: 3) {
-                            Text(isSelectedToday ? "\(Int(animatedBurn))" : "–")
-                                .font(.custom("PingFangSC-Semibold", size: 34, relativeTo: .title))
-                                .foregroundStyle(Theme.textPrimary)
-                                .contentTransition(.numericText())
+                    // 3. Center Instrument Data
+                    VStack(spacing: 2) {
+                        Text(!isSelectedFuture ? "\(Int(animatedBurn))" : "–")
+                            .font(.custom("PingFangSC-Semibold", size: 38, relativeTo: .title))
+                            .foregroundStyle(Theme.textPrimary)
+                            .contentTransition(.numericText())
+                        
+                        HStack(spacing: 3) {
                             Text("kcal")
                                 .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .callout))
                                 .foregroundStyle(Theme.textSecondary)
+                            
+                            if isSelectedToday {
+                                Text("•")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(accentBlue.opacity(0.5))
+                                
+                                Text(currentTimeString)
+                                    .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.8))
+                            }
                         }
-                        Text(currentTimeString)
-                            .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
-                            .foregroundStyle(Theme.textSecondary.opacity(0.9))
                     }
+                    .offset(y: -4) // Slight upward shift to center visually in the open arc
                 }
                 .frame(width: ringSize, height: ringSize)
-                .padding(.top, 24)
+                .padding(.top, 28)
 
-                // Tap affordance
-                if isSelectedToday {
+                // Tap affordance / Status
+                if !isSelectedFuture {
                     HStack(spacing: 6) {
-                        Text(language == "de" ? "Aufschlüsselung ansehen" : "View breakdown")
+                        Text(language == "de" ? "Instrumenten-Details" : "Instrument Details")
                             .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
@@ -1486,7 +1529,7 @@ struct DashboardView: View {
                     .padding(.vertical, 7)
                     .background(Capsule().fill(accentBlue.opacity(0.12)))
                     .overlay(Capsule().strokeBorder(accentBlue.opacity(0.30), lineWidth: 1))
-                    .padding(.top, 20)
+                    .padding(.top, 24)
                     .padding(.bottom, 22)
                 } else {
                     Spacer().frame(height: 22)
@@ -1497,71 +1540,7 @@ struct DashboardView: View {
             .glassCard(Theme.Radius.hero, tint: accentBlue, tintStrength: 0.05)
         }
         .buttonStyle(.plain)
-        .disabled(!isSelectedToday)
-    }
-
-    // MARK: - Liquid Fill Components
-
-    struct LiquidFillView: View {
-        var progress: Double
-        var color: Color
-        @State private var phase: Double = 0
-        
-        var body: some View {
-            ZStack {
-                // Secondary wave for depth
-                WaveShape(progress: progress, phase: phase + .pi)
-                    .fill(color.opacity(0.15))
-                    .animation(.linear(duration: 3).repeatForever(autoreverses: false), value: phase)
-                
-                // Primary wave
-                WaveShape(progress: progress, phase: phase)
-                    .fill(
-                        LinearGradient(
-                            colors: [color.opacity(0.3), color.opacity(0.6)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .animation(.linear(duration: 2).repeatForever(autoreverses: false), value: phase)
-            }
-            .onAppear {
-                withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                    phase = .pi * 2
-                }
-            }
-        }
-    }
-
-    struct WaveShape: Shape {
-        var progress: Double
-        var phase: Double
-        
-        var animatableData: Double {
-            get { phase }
-            set { phase = newValue }
-        }
-        
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            let width = rect.width
-            let height = rect.height
-            let progressHeight = height * (1 - progress)
-            
-            path.move(to: CGPoint(x: 0, y: progressHeight))
-            
-            for x in stride(from: 0, to: width + 1, by: 1) {
-                let relativeX = x / width
-                let sine = sin(relativeX * .pi * 2 + phase)
-                let y = progressHeight + sine * 6 // Wave amplitude
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-            
-            path.addLine(to: CGPoint(x: width, y: height))
-            path.addLine(to: CGPoint(x: 0, y: height))
-            path.closeSubpath()
-            
-            return path
-        }
+        .disabled(isSelectedFuture)
     }
 
     // MARK: - KPI-Zeile
