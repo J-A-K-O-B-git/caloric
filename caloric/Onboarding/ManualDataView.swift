@@ -256,7 +256,8 @@ struct ManualDataView: View {
                 }
             }
         }
-        .preferredColorScheme(.light).presentationDetents([.medium, .large])
+        .caloricAppearance()
+        .presentationDetents([.medium, .large])
     }
 
     private var weightEditView: some View {

@@ -308,7 +308,7 @@ struct ContentView: View {
         .background(Color(.windowBackgroundColor))
         #endif
         .ignoresSafeArea()
-        .preferredColorScheme(.light)
+        
         .environment(healthKit)
         .onChange(of: currentStep) {
             activeField = nil

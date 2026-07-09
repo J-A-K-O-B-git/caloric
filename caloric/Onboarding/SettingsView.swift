@@ -106,6 +106,27 @@ struct SettingsView: View {
                 .background(cardBackground)
                 .padding(.horizontal, Theme.Space.l)
 
+                // Darstellung-Karte
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(language == "de" ? "Darstellung" : "Appearance")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                        .padding(.bottom, 2)
+
+                    AppearancePicker(language: language, accent: accentBlue)
+
+                    Text(language == "de"
+                         ? "System folgt automatisch dem Gerätemodus."
+                         : "System automatically follows your device mode.")
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                }
+                .padding(Theme.Space.m)
+                .background(cardBackground)
+                .padding(.horizontal, Theme.Space.l)
+
                 // Fundament-Hinweis (Platzhalter für künftige Settings)
                 VStack(spacing: 8) {
                     Image(systemName: "gearshape.2")
@@ -226,7 +247,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(.light)
+        .caloricAppearance()
         .presentationDetents([.medium])
     }
 
