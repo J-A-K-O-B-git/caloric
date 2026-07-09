@@ -107,7 +107,7 @@ struct MainTabView: View {
                 metabolismFactor: $metabolismFactor
             )
             .presentationDetents([.medium, .large])
-            .presentationBackground(Theme.obsidian)
+            .presentationBackground(Theme.canvas)
         }
         .onChange(of: selectedTab) { old, new in
             if new == 1 {
@@ -116,7 +116,7 @@ struct MainTabView: View {
             }
         }
         .tint(accentBlue)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .ignoresSafeArea()
         .environment(journalStore)
         .environment(healthKit)

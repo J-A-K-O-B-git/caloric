@@ -23,8 +23,8 @@ struct MenstruationCard: View {
                         .foregroundStyle(.pink)
                 }
                 Text(language == "de" ? "Menstruation" : "Menstruation")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
             }
             HStack(spacing: 10) {
@@ -60,8 +60,8 @@ struct SicknessCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 Text(language == "de" ? "Krankheit" : "Illness")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
                 Toggle("", isOn: $sickToggle.animation(.spring(response: 0.38, dampingFraction: 0.85)))
                     .labelsHidden()
@@ -74,12 +74,12 @@ struct SicknessCard: View {
             if sickToggle {
                 VStack(alignment: .leading, spacing: 16) {
                     Divider()
-                        .background(Color.white.opacity(0.1))
+                        .background(Theme.divider)
                         .padding(.top, 12)
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?")
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
 
                         HStack(spacing: 8) {
@@ -90,7 +90,7 @@ struct SicknessCard: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(language == "de" ? "Hast du Fieber?" : "Do you have a fever?")
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
 
                         HStack(spacing: 8) {
@@ -110,11 +110,11 @@ struct SicknessCard: View {
                                 .font(.system(size: 14))
                                 .foregroundStyle(tint)
                             Text(language == "de" ? "Temporärer BMR-Faktor: \(delta)" : "Temporary BMR factor: \(delta)")
-                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                                .foregroundStyle(.white.opacity(0.8))
+                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .foregroundStyle(Theme.textPrimary.opacity(0.85))
                             Spacer()
                             Text(isFeverHigh ? "×1.18" : "×1.10")
-                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .caption))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundStyle(tint)
                         }
                         .padding(10)
@@ -165,8 +165,8 @@ struct CaffeineCard: View {
                                 .foregroundStyle(Theme.segCaf)
                         }
                         Text(language == "de" ? "Koffein" : "Caffeine")
-                            .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.textPrimary)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(accentBlue.opacity(0.6))
@@ -196,12 +196,12 @@ struct CaffeineCard: View {
                             .keyboardType(.numberPad)
                             #endif
                             .focused($caffeineFocused)
-                            .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .multilineTextAlignment(.center)
                             .frame(width: 60)
                         Text("mg")
-                            .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                            .font(.system(size: 14, weight: .regular, design: .rounded))
                             .foregroundStyle(accentBlue.opacity(0.6))
                     }
 
@@ -244,7 +244,7 @@ struct CaffeineCard: View {
                             Image(systemName: "plus.circle.fill")
                             Text(language == "de" ? "Eigenes Getränk erstellen" : "Create custom drink")
                         }
-                        .font(.custom("PingFangSC-Medium", size: 13))
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -267,11 +267,11 @@ struct CaffeineCard: View {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(label)
-                        .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Text("+\(mg) mg")
-                        .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                        .font(.system(size: 10, weight: .regular, design: .rounded))
                         .foregroundStyle(accentBlue)
                 }
                 Spacer()
@@ -281,7 +281,7 @@ struct CaffeineCard: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .foregroundStyle(Theme.ink.opacity(0.25))
                     }
                 } else {
                     Image(systemName: "plus.circle.fill")
@@ -327,8 +327,8 @@ struct MacrosCard: View {
                         .foregroundStyle(Theme.segTEF)
                 }
                 Text(language == "de" ? "Makros" : "Macros")
-                    .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
             }
 
@@ -339,15 +339,15 @@ struct MacrosCard: View {
                 mealTab(key: "daily",     name: language == "de" ? "Gesamt" : "Total")
             }
             .padding(4)
-            .background(Color.white.opacity(0.06))
+            .background(Theme.fieldFill)
             .clipShape(Capsule())
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     TextField(language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...", text: $aiInputText, axis: .vertical)
                         .lineLimit(1...3)
-                        .font(.custom("PingFangSC-Regular", size: 13))
-                        .foregroundColor(.white)
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(Theme.textPrimary)
                         .disabled(aiIsLoading)
                     
                     Button { analyzeFoodWithAI() } label: {
@@ -363,11 +363,11 @@ struct MacrosCard: View {
                     .buttonStyle(.plain)
                     .disabled(aiInputText.isEmpty || aiIsLoading)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8).background(Color.white.opacity(0.04)).clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 12).padding(.vertical, 8).background(Theme.fieldFill).clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
                 
                 if let error = aiErrorMessage {
-                    Text(error).font(.custom("PingFangSC-Regular", size: 11)).foregroundColor(.red).padding(.leading, 4)
+                    Text(error).font(.system(size: 11, weight: .regular, design: .rounded)).foregroundColor(.red).padding(.leading, 4)
                 }
             }
             .padding(.vertical, 4)
@@ -413,17 +413,17 @@ struct MacrosCard: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.orange.opacity(0.8))
                 Text("\(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
-                    .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textSecondary)
                 Spacer()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(Theme.fieldFill)
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+                        .strokeBorder(Theme.divider, lineWidth: 1))
             )
         }
     }
@@ -431,14 +431,14 @@ struct MacrosCard: View {
     private func macroTotalPill(label: String, value: Int, unit: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text("\(value)")
-                    .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .body))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(color)
                 Text(unit)
-                    .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(color.opacity(0.6))
             }
         }
@@ -461,7 +461,7 @@ struct MacrosCard: View {
             }
         } label: {
             Text(name)
-                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(isSelected ? .white : Theme.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)

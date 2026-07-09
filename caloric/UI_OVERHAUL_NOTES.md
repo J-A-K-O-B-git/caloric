@@ -1,44 +1,46 @@
-# caloric — Premium Dark UI Overhaul
+# caloric — UI-Redesign "Caloric Ice" (helles Fitness-Design)
 
-A visual-only overhaul of the Dashboard, Daily Journal, and Settings. **No state
-variables, bindings, calculations, or logic were changed** — only the visual shell,
-plus one new presentation feature (the energy breakdown sheet).
+Komplettes visuelles Redesign von Dashboard, Daily Journal, Settings und
+Onboarding. **Keine State-Variablen, Bindings, Berechnungen oder Logik wurden
+verändert** — nur die visuelle Hülle. Die Informationsarchitektur (Tabs,
+Screens, Sheets, Flows) ist unverändert.
 
-## Where these files go
-Drop these back into your Xcode project's source group (`caloric/caloric/…`),
-replacing the existing files. Folder structure is unchanged.
+## Designsystem
 
-## Files changed
-- **Utils/Theme.swift** — added the premium dark design system: `obsidian` palette,
-  `ObsidianBackground`, `GlassCardBackground` + `.glassCard()` modifier, and the
-  harmonious energy-segment accent colors. Your `accentBlue` (#66CCFF) is untouched
-  and still drives every ring, value, and selected state.
-- **Onboarding/MainTabView.swift** — the signed-in app now runs as a forced dark
-  experience (`.preferredColorScheme(.dark)`).
-- **Onboarding/ContentView.swift** — the full onboarding flow is now premium dark:
-  obsidian background, forced dark scheme, white step headings, and glassmorphic
-  surfaces (hint boxes, questionnaire cards, result metric cards, account fields).
-  Every step, input, picker, validation, and the entire BMR/metabolism calculation
-  is byte-for-byte unchanged — only the visual shell.
-- **Onboarding/HealthKitPermissionView.swift** — CTA footer now blends into the
-  obsidian background instead of pure black; feature cards already used glass.
-- **Onboarding/BodyFatHelpView.swift** — body-fat estimator sheet pinned to dark
-  with an obsidian presentation background; white title.
-- **Onboarding/DashboardView.swift**
-  - Obsidian background + glassmorphic cards everywhere (blue-tinted fills → frosted
-    glass with hairline strokes).
-  - Reworked calorie ring: crisp white value, blue progress ring with glow, "BURNED"
-    label.
-  - **Burned-calories card is now fully tappable** (the whole card, not just a small
-    link) → opens the breakdown sheet.
-  - **Rebuilt breakdown sheet** — big total, a stacked micro-chart of all components,
-    and per-component cards (BMR / NEAT / EAT / TEF / Caffeine) each with kcal, % of
-    total, and a thin horizontal progress bar. "How is this calculated?" still links
-    through to the full formula view, now on an obsidian backdrop.
-- **Onboarding/DailyJournalView.swift** — obsidian background, white title, glass
-  cards. Every input, toggle, and field is preserved exactly.
-- **Onboarding/SettingsView.swift** — obsidian background, glass cards, dark edit sheets.
+- **Helle Fläche:** kühler Eis-Verlauf (`#FBFDFF → #EFF6FB`) mit weichem
+  Caloric-Blau-Halo am oberen Rand (`CaloricBackground`).
+- **Caloric-Blau-Familie:** `accentSky #66CCFF` (Original-Markenton, für
+  Verläufe/Halos) → `accentBlue #119BE8` (interaktiver Primärton, lesbar auf
+  Weiß) → `accentDeep #0B7BC4`. Der Signatur-Verlauf Sky→Azure zieht sich durch
+  Ring, CTAs, Avatar-Chip und Auswahl-Zustände.
+- **Karten:** Weiß, Hairline-Kontur, weicher blau getönter Schatten
+  (`GlassCardBackground` — API unverändert, alle `.glassCard()`-Call-Sites
+  profitieren automatisch).
+- **Typografie:** komplett auf **SF Rounded** umgestellt (sportlicher
+  Fitness-Charakter, kräftige Zahlen). Alle `PingFangSC`-Fonts ersetzt.
+- **Text:** Tinte `#0E212E` / Slate `#5D7183` statt Weiß-Abstufungen.
+- **Energie-Farben:** auf hellem Grund nachjustiert (satteres Grün/Indigo/
+  Violett/Amber), BMR = Caloric-Azure.
 
-## Untouched
-all `Utils/*` services, `UserProfile`, `JournalStore`, HealthKit import,
-calculations, and every data binding.
+## Struktur-Änderungen (visuell)
+
+- **Dashboard-Header:** Datum jetzt als weiße Pill mit Kalender-Icon,
+  Profil-Button als Verlaufs-Chip.
+- **Kalorienring:** heller runder Track, Fortschritt im Sky→Azure-Verlauf,
+  neuer gefüllter CTA "Aufschlüsselung ansehen".
+- **Onboarding-Welcome:** zentriertes Brand-Hero (Logo im Blau-Halo, große
+  Headline, Verlaufs-CTA).
+- **Journal-Header:** gleiche Datum-Pill wie im Dashboard.
+- **Profil-Panel & Sheets:** helle Flächen (`Theme.canvas`), keine erzwungene
+  Dark-Appearance mehr — App läuft durchgängig mit `.light`.
+
+## Kompatibilität
+
+`Theme.obsidian`/`obsidianLift`/`glassFill`/`glassStroke` existieren als
+Aliasse auf die neuen hellen Tokens; `ObsidianBackground` ist ein Typalias auf
+`CaloricBackground`. Bestehende Call-Sites kompilieren unverändert.
+
+## Unangetastet
+
+Alle `Utils/*`-Services, `UserProfile`, `JournalStore`, HealthKit-Import,
+Gemini-Integration, Berechnungen und sämtliche Daten-Bindings.

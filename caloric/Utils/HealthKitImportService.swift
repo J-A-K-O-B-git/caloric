@@ -17,7 +17,7 @@ import SwiftData
 
 // MARK: - Domain Models
 
-struct HKWorkoutSnapshot: Identifiable, Sendable {
+struct HKWorkoutSnapshot: Identifiable, Sendable, Equatable {
     let id: UUID
     let activityType: HKWorkoutActivityType
     let startDate: Date

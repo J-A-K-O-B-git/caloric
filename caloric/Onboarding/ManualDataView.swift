@@ -56,10 +56,10 @@ struct ManualDataView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Meine Daten" : "My Data")
-                            .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                         Text(language == "de" ? "Aktivität & manuelle Werte" : "Activity & manual values")
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -119,7 +119,7 @@ struct ManualDataView: View {
                 Spacer().frame(height: 40)
             }
         }
-        .background(ObsidianBackground())
+        .background(CaloricBackground())
         .sheet(isPresented: Binding(
             get: { editingField != nil },
             set: { if !$0 { editingField = nil } }
@@ -131,10 +131,10 @@ struct ManualDataView: View {
     private func panelSectionHeader(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .headline))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
             Text(subtitle)
-                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                .font(.system(size: 12, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,10 +158,10 @@ struct ManualDataView: View {
                     
                     VStack(alignment: .leading, spacing: 2) {
                         Text(label)
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
                         Text(value)
-                            .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                     }
                     
@@ -214,15 +214,15 @@ struct ManualDataView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                        .font(.system(size: 12, weight: .regular, design: .rounded))
                         .foregroundStyle(Theme.textSecondary)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(value)
-                            .font(.custom("PingFangSC-Semibold", size: 18, relativeTo: .headline))
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                         if !unit.isEmpty {
                             Text(unit)
-                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                                .font(.system(size: 12, weight: .regular, design: .rounded))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -256,7 +256,7 @@ struct ManualDataView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark).presentationDetents([.medium, .large])
+        .preferredColorScheme(.light).presentationDetents([.medium, .large])
     }
 
     private var weightEditView: some View {
@@ -273,7 +273,7 @@ struct ManualDataView: View {
                 .onChange(of: weightUnit == "kg" ? editWeightKg : editWeightLb) { 
                     weightText = weightUnit == "kg" ? "\(editWeightKg)" : "\(editWeightLb)"
                 }
-                Text(weightUnit).font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2)).foregroundStyle(accentBlue).frame(width: 36, alignment: .leading)
+                Text(weightUnit).font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(accentBlue).frame(width: 36, alignment: .leading)
                 Spacer()
             }
         }
@@ -289,7 +289,7 @@ struct ManualDataView: View {
                 Picker("", selection: $editHeightCm) { ForEach(100...230, id: \.self) { v in Text("\(v)").tag(v) } }
                 .pickerStyle(.wheel).frame(width: 110, height: 180).clipped()
                 .onChange(of: editHeightCm) { heightText = "\(editHeightCm)" }
-                Text("cm").font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2)).foregroundStyle(accentBlue).frame(width: 44, alignment: .leading)
+                Text("cm").font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(accentBlue).frame(width: 44, alignment: .leading)
                 Spacer()
             }
         }

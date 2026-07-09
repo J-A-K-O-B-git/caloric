@@ -303,12 +303,12 @@ struct ContentView: View {
                 .fontWeight(.semibold)
             }
         }
-        .background(ObsidianBackground())
+        .background(CaloricBackground())
         #else
         .background(Color(.windowBackgroundColor))
         #endif
         .ignoresSafeArea()
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .environment(healthKit)
         .onChange(of: currentStep) {
             activeField = nil
@@ -353,13 +353,13 @@ struct ContentView: View {
                                     .foregroundStyle(.white)
                             } else {
                                 Text("\(index + 1)")
-                                    .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.white)
                             }
                         }
                         .shadow(color: isReached ? accentBlue.opacity(0.3) : .clear, radius: 6, y: 3)
                         Text(t.stepLabels[index])
-                            .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
                             .foregroundStyle(isReached ? accentBlue : accentBlue.opacity(0.4))
                             .fixedSize()
                     }
@@ -379,34 +379,43 @@ struct ContentView: View {
     private var welcomePage: some View {
         VStack(spacing: 0) {
             Spacer()
+
+            // Brand-Hero: Logo in weichem Caloric-Blau-Halo
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(colors: [Theme.accentSky.opacity(0.30), .clear],
+                                       center: .center, startRadius: 0, endRadius: 110)
+                    )
+                    .frame(width: 200, height: 200)
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 76)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: Theme.accentBlue.opacity(0.25), radius: 18, x: 0, y: 10)
+            }
+            .padding(.bottom, 4)
+
             Text(t.welcome)
-                .font(.custom("PingFangSC-Semibold", size: 25, relativeTo: .title))
+                .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.textPrimary)
-            Text(t.welcomeSubtitle)
-                .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .subheadline))
-                .italic()
-                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 30)
-                .padding(.top, 8)
+            Text(t.welcomeSubtitle)
+                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 34)
+                .padding(.top, 10)
             Button(t.getStarted) {
                 navigate(to: 1)
             }
-            .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
             .buttonStyle(.caloricPrimary)
-            .padding(.top, 20)
+            .padding(.top, 28)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .topLeading) {
-            Image("Logo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 35)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(.leading, 20)
-                .padding(.top, 90)
-        }
         .overlay(alignment: .topTrailing) {
             Menu {
                 Button { selectedLanguage = "de" } label: {
@@ -418,7 +427,7 @@ struct ContentView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "globe").font(.system(size: 14))
-                    Text(selectedLanguage.uppercased()).font(.custom("PingFangSC-Medium", size: 14, relativeTo: .callout))
+                    Text(selectedLanguage.uppercased()).font(.system(size: 14, weight: .medium, design: .rounded))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -435,7 +444,7 @@ struct ContentView: View {
     private var genderPage: some View {
         VStack(spacing: 25) {
             Text(t.genderQuestion)
-                .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
             hintBox(t.genderInfo)
@@ -455,7 +464,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.ageQuestion)
-                    .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 hintBox(t.ageInfo)
@@ -467,7 +476,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 3)
                 }
-                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                .font(.system(size: 18, weight: .medium, design: .rounded))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -483,7 +492,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.weightQuestion)
-                    .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.weightInfo)
                     .frame(minHeight: 115, alignment: .top)
@@ -522,7 +531,7 @@ struct ContentView: View {
                         .onChange(of: weightLb) { weightText = "\(weightLb)" }
                     }
                     Text(weightUnit)
-                        .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                         .frame(width: 36, alignment: .leading)
                     Spacer()
@@ -530,7 +539,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 4)
                 }
-                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                .font(.system(size: 18, weight: .medium, design: .rounded))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -546,7 +555,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.heightQuestion)
-                    .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.heightInfo)
                     .frame(minHeight: 115, alignment: .top)
@@ -578,7 +587,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightCm) { heightText = "\(heightCm)" }
                         Text("cm")
-                            .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .frame(width: 44, alignment: .leading)
                         Spacer()
@@ -594,7 +603,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightFeet) { heightText = "\(heightFeet)'\(heightInches)\"" }
                         Text("ft")
-                            .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                         Picker("", selection: $heightInches) {
                             ForEach(0...11, id: \.self) { v in Text("\(v)").tag(v) }
@@ -604,7 +613,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightInches) { heightText = "\(heightFeet)'\(heightInches)\"" }
                         Text("in")
-                            .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                         Spacer()
                     }
@@ -612,7 +621,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 5)
                 }
-                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                .font(.system(size: 18, weight: .medium, design: .rounded))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -629,7 +638,7 @@ struct ContentView: View {
 
             VStack(spacing: 20) {
                 Text(t.bodyFatQuestion)
-                    .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
@@ -649,7 +658,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "checkmark.circle.fill").font(.system(size: 24))
-                            Text(t.yes).font(.custom("PingFangSC-Medium", size: 20, relativeTo: .title3))
+                            Text(t.yes).font(.system(size: 20, weight: .medium, design: .rounded))
                             Spacer()
                         }
                         .padding(.horizontal, 24)
@@ -671,24 +680,24 @@ struct ContentView: View {
                                 #if os(iOS)
                                 .keyboardType(.decimalPad)
                                 #endif
-                                .font(.custom("PingFangSC-Semibold", size: 48, relativeTo: .largeTitle))
+                                .font(.system(size: 48, weight: .semibold, design: .rounded))
                                 .foregroundStyle(accentBlue)
                                 .multilineTextAlignment(.center)
                                 .frame(width: 140)
                                 Text("%")
-                                    .font(.custom("PingFangSC-Regular", size: 22, relativeTo: .title2))
+                                    .font(.system(size: 22, weight: .regular, design: .rounded))
                                     .foregroundStyle(accentBlue.opacity(0.6))
                             }
                             if let error = bodyFatError {
                                 Text(error)
-                                    .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
                                     .foregroundStyle(.red)
                                     .multilineTextAlignment(.center)
                             }
                             Button(t.next) {
                                 navigate(to: 6)
                             }
-                            .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
                             .buttonStyle(.caloricPrimary)
                             .disabled(!isBodyFatValid)
                         }
@@ -702,7 +711,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "xmark.circle.fill").font(.system(size: 24))
-                            Text(t.no).font(.custom("PingFangSC-Medium", size: 20, relativeTo: .title3))
+                            Text(t.no).font(.system(size: 20, weight: .medium, design: .rounded))
                             Spacer()
                         }
                         .padding(.horizontal, 24)
@@ -738,7 +747,7 @@ struct ContentView: View {
                 Spacer().frame(height: 20)
 
                 Text(t.metabolismQuestion)
-                    .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
@@ -895,7 +904,7 @@ struct ContentView: View {
                     metabolismFactor = computedMetabolismFactor
                     navigate(to: 7)
                 }
-                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                .font(.system(size: 18, weight: .medium, design: .rounded))
                 .buttonStyle(.caloricPrimary)
                 .disabled(!isReadyToCalculate)
                 .padding(.top, 20)
@@ -937,12 +946,12 @@ struct ContentView: View {
 
                     VStack(spacing: 2) {
                         Text("\(Int(animatedBMR))")
-                            .font(.custom("PingFangSC-Semibold", size: 84, relativeTo: .largeTitle))
+                            .font(.system(size: 84, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .contentTransition(.numericText())
 
                         Text(t.resultUnit)
-                            .font(.custom("PingFangSC-Regular", size: 17, relativeTo: .headline))
+                            .font(.system(size: 17, weight: .regular, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -952,7 +961,7 @@ struct ContentView: View {
 
                 // Untertitel direkt unter der Zahl
                 Text(selectedLanguage == "de" ? "dein persönlicher Wert" : "your personal value")
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary.opacity(0.55))
                     .opacity(showResult ? 1 : 0)
                     .offset(y: showResult ? 0 : 8)
@@ -987,7 +996,7 @@ struct ContentView: View {
 
                 // Info-Text
                 Text(t.resultInfo)
-                    .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
                     .italic()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1002,7 +1011,7 @@ struct ContentView: View {
                 Button(t.resultContinue) {
                     navigate(to: 8)
                 }
-                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                .font(.system(size: 18, weight: .medium, design: .rounded))
                 .buttonStyle(.caloricPrimary)
                 .opacity(showCards ? 1 : 0)
                 .offset(y: showCards ? 0 : 12)
@@ -1049,12 +1058,12 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(accentBlue)
             Text(value)
-                .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .title3))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(accentBlue)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(unit)
-                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -1091,7 +1100,7 @@ struct ContentView: View {
             .padding(.bottom, 22)
 
             Text(selectedLanguage == "de" ? "Konto erstellen" : "Create account")
-                .font(.custom("PingFangSC-Semibold", size: 26, relativeTo: .title))
+                .font(.system(size: 26, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer().frame(height: 8)
@@ -1099,7 +1108,7 @@ struct ContentView: View {
             Text(selectedLanguage == "de"
                  ? "Damit dein Profil nicht verloren geht."
                  : "So your profile doesn't get lost.")
-                .font(.custom("PingFangSC-Regular", size: 15, relativeTo: .subheadline))
+                .font(.system(size: 15, weight: .regular, design: .rounded))
                 .italic()
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -1114,7 +1123,7 @@ struct ContentView: View {
                         Image(systemName: "apple.logo")
                             .font(.system(size: 17, weight: .semibold))
                         Text(selectedLanguage == "de" ? "Mit Apple anmelden" : "Sign in with Apple")
-                            .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
@@ -1133,7 +1142,7 @@ struct ContentView: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
                         Text(selectedLanguage == "de" ? "Mit Google anmelden" : "Sign in with Google")
-                            .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary)
                     }
                     .frame(maxWidth: .infinity)
@@ -1153,7 +1162,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Rectangle().fill(.secondary.opacity(0.22)).frame(height: 1)
                     Text(selectedLanguage == "de" ? "oderrrrrr" : "orrrrrrrr")
-                        .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                     Rectangle().fill(.secondary.opacity(0.22)).frame(height: 1)
                 }
@@ -1183,7 +1192,7 @@ struct ContentView: View {
                             Image(systemName: "envelope.fill")
                                 .font(.system(size: 17))
                             Text(selectedLanguage == "de" ? "Mit E-Mail anmelden" : "Sign up with Email")
-                                .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
@@ -1214,10 +1223,10 @@ struct ContentView: View {
                 .frame(width: 22)
             if secure {
                 SecureField(placeholder, text: text)
-                    .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .subheadline))
+                    .font(.system(size: 16, weight: .regular, design: .rounded))
             } else {
                 TextField(placeholder, text: text)
-                    .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .subheadline))
+                    .font(.system(size: 16, weight: .regular, design: .rounded))
                     #if os(iOS)
                     .autocapitalization(.none)
                     #endif
@@ -1300,7 +1309,7 @@ struct ContentView: View {
         } label: {
             HStack(spacing: 16) {
                 Image(systemName: icon).font(.system(size: 32))
-                Text(title).font(.custom("PingFangSC-Medium", size: 20, relativeTo: .title3))
+                Text(title).font(.system(size: 20, weight: .medium, design: .rounded))
                 Spacer()
             }
             .padding(.horizontal, 24)
@@ -1319,10 +1328,10 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Good to Know")
-                    .font(.custom("PingFangSC-Semibold", size: 12, relativeTo: .caption))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(accentBlue)
                 Text(text)
-                    .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1340,7 +1349,7 @@ struct ContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
             content()
         }
@@ -1353,7 +1362,7 @@ struct ContentView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -1375,7 +1384,7 @@ struct ContentView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()

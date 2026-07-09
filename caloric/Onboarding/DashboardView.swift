@@ -344,7 +344,7 @@ struct DashboardView: View {
     private var calendarPickerSheet: some View {
         NavigationStack {
             ZStack {
-                ObsidianBackground()
+                CaloricBackground()
                 VStack(spacing: 0) {
                     DatePicker(
                         "",
@@ -367,7 +367,7 @@ struct DashboardView: View {
                         HStack {
                             Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
                         }
-                        .font(.custom("PingFangSC-Semibold", size: 16))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -383,6 +383,9 @@ struct DashboardView: View {
             }
             .navigationTitle(language == "de" ? "Datum wählen" : "Select Date")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: EnergySegmentType.self) { type in
+                calculationDetailView(for: type)
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(t.done) {
@@ -456,28 +459,39 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
-            ObsidianBackground()
+            CaloricBackground()
 
             // Hauptinhalt
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.custom("PingFangSC-Semibold", size: LayoutMetrics.titleFontSize, relativeTo: .largeTitle))
-                            .foregroundStyle(.white)
+                            .font(.system(size: LayoutMetrics.titleFontSize, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.textPrimary)
                         
                         Button {
                             showCalendarPicker = true
                         } label: {
                             HStack(spacing: 6) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(accentBlue)
                                 Text(selectedDateString)
-                                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
                                     .foregroundStyle(Theme.textSecondary)
                                 Image(systemName: "chevron.down")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 9, weight: .bold))
                                     .foregroundStyle(Theme.textSecondary.opacity(0.6))
                             }
-                            .contentShape(Rectangle())
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Theme.card)
+                                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+                            )
+                            .contentShape(Capsule())
                         }
                         .buttonStyle(SpringyButtonStyle())
                     }
@@ -488,9 +502,18 @@ struct DashboardView: View {
                             showProfileSidebar = true
                         }
                     } label: {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 26))
-                            .foregroundStyle(accentBlue)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(
+                                Circle()
+                                    .fill(
+                                        LinearGradient(colors: [Theme.accentSky, accentBlue],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    )
+                                    .shadow(color: accentBlue.opacity(0.30), radius: 8, x: 0, y: 4)
+                            )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -507,60 +530,7 @@ struct DashboardView: View {
                 kpiRow
                     .padding(.horizontal, 20)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(language == "de" ? "Kalorien im Tagesverlauf" : "Calories Throughout the Day")
-                            .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
-                            .foregroundStyle(accentBlue)
-                        Text(language == "de" ? "kcal pro 30 Minuten" : "kcal per 30 minutes")
-                            .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Chart {
-                        ForEach(calorieSlots) { slot in
-                            BarMark(
-                                x: .value("Zeit", slot.hour),
-                                y: .value("kcal", slot.calories)
-                            )
-                            .foregroundStyle(accentBlue.opacity(slot.isSleep ? (isDark ? 0.45 : 0.28) : 0.9))
-                            .cornerRadius(3)
-                        }
-                    }
-                    .frame(height: LayoutMetrics.chartHeight)
-                    .chartXScale(domain: 0...24)
-                    .chartXAxis {
-                        AxisMarks(values: [0, 6, 12, 18, 24]) { value in
-                            AxisValueLabel {
-                                if let d = value.as(Double.self) {
-                                    Text("\(Int(d))h")
-                                        .font(.custom("PingFangSC-Regular", size: 8, relativeTo: .caption2))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
-                        }
-                    }
-                    .chartYAxis {
-                        AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
-                            AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
-                            AxisValueLabel()
-                                .font(.custom("PingFangSC-Regular", size: 8, relativeTo: .caption2))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    HStack(spacing: 16) {
-                        legendItem(color: accentBlue.opacity(isDark ? 0.45 : 0.28),
-                                   label: language == "de" ? "Schlaf" : "Sleep")
-                        legendItem(color: accentBlue,
-                                   label: language == "de" ? "Wachphase" : "Awake")
-                    }
-                }
-                .padding(14)
-                .background(GlassCardBackground(cornerRadius: 18))
-                .padding(.horizontal, 20)
-
+                caloriesChartSection
             }
             .frame(maxWidth: .infinity)
             }
@@ -611,10 +581,10 @@ struct DashboardView: View {
                             .foregroundStyle(.green)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(language == "de" ? "Alles aktuell" : "All up to date")
-                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.primary)
                             Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
-                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                .font(.system(size: 11, weight: .regular, design: .rounded))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -636,6 +606,8 @@ struct DashboardView: View {
         .onAppear { runBurnAnimation() }
         .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
+        .onChange(of: healthKit.activity.fetchedAt) { _, _ in runBurnAnimation() }
+        .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
         }
@@ -695,9 +667,9 @@ struct DashboardView: View {
         } label: {
             VStack(spacing: 2) {
                 Text(weekdayAbbrev(for: date))
-                    .font(.custom("PingFangSC-Regular", size: weekFS, relativeTo: .caption2))
+                    .font(.system(size: weekFS, weight: .regular, design: .rounded))
                 Text("\(day)")
-                    .font(.custom("PingFangSC-Semibold", size: dayFS, relativeTo: .caption))
+                    .font(.system(size: dayFS, weight: .semibold, design: .rounded))
                 Circle()
                     .fill(isToday && !isSelected ? accentBlue : Color.clear)
                     .frame(width: 4, height: 4)
@@ -752,7 +724,7 @@ struct DashboardView: View {
 
     @State private var selectedEnergySegment: EnergySegment? = nil
 
-    private enum EnergySegmentType {
+    private enum EnergySegmentType: Hashable {
         case bmr, neat, eat, tef, caffeine
     }
 
@@ -836,15 +808,15 @@ struct DashboardView: View {
             .clipShape(Capsule())
             .background(
                 Capsule()
-                    .fill(Color.black.opacity(0.2))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                    .fill(Theme.trackFill)
+                    .overlay(Capsule().stroke(Theme.cardStroke, lineWidth: 0.5))
             )
             
             // Faint scale below
             HStack(spacing: 0) {
                 ForEach(0...10, id: \.self) { i in
                     Rectangle()
-                        .fill(Color.white.opacity(0.1))
+                        .fill(Theme.ink.opacity(0.08))
                         .frame(width: 1, height: 3)
                         .frame(maxWidth: .infinity)
                 }
@@ -855,9 +827,7 @@ struct DashboardView: View {
 
     private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
         let pct = total > 0 ? s.kcal / total : 0
-        return Button {
-            selectedEnergySegment = s
-        } label: {
+        return NavigationLink(value: s.type) {
             VStack(spacing: 11) {
                 HStack(spacing: 13) {
                     Image(systemName: s.icon)
@@ -872,11 +842,11 @@ struct DashboardView: View {
                         )
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.title)
-                            .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                         if let subtitle = s.subtitle {
                             Text(subtitle)
-                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption))
+                                .font(.system(size: 11, weight: .regular, design: .rounded))
                                 .foregroundStyle(Theme.textSecondary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.85)
@@ -886,14 +856,14 @@ struct DashboardView: View {
                     VStack(alignment: .trailing, spacing: 1) {
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text("\(Int(s.kcal))")
-                                .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Theme.textPrimary)
                             Text("kcal")
-                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                .font(.system(size: 11, weight: .regular, design: .rounded))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                         Text(String(format: "%.0f%%", pct * 100))
-                            .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(s.color)
                     }
                 }
@@ -906,12 +876,177 @@ struct DashboardView: View {
         .buttonStyle(.plain)
     }
 
+    private func calculationDetailView(for type: EnergySegmentType) -> some View {
+        let lbm = weightInKg * (1.0 - bodyFatPercent / 100.0)
+        let baseBMR = 370 + 21.6 * lbm
+        let isMale = selectedGender != femaleText
+        
+        let nWalkMin      = Double(healthKit.activity.steps) / 100.0
+        let nWalkH        = nWalkMin / 60.0
+        let nBmrH         = activeFinalBMR / 24.0
+        let nStepsKcal    = nWalkH * 2.0 * nBmrH
+        let nStandMin     = healthKit.activity.standTimeMinutes
+        let nPureStandMin = max(0, nStandMin - nWalkMin)
+        let nPureStandH   = nPureStandMin / 60.0
+        let nStandKcal    = nPureStandH * 0.18 * nBmrH
+        let nHrMax        = 208.0 - 0.7 * Double(userAge)
+        let nWorkoutMin   = healthKit.workouts.reduce(0.0) { $0 + $1.duration } / 60.0
+        let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
+        let nWakeMin      = (24.0 - nEffSleepH) * 60.0
+        let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
+        let nHrAvg        = healthKit.activity.avgHeartRateWaking
+        let nHrRest       = healthKit.activity.restingHeartRate
+
+        let nMicroKcal: Double = {
+            guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
+            let divisor = nHrMax - rest
+            guard divisor > 0 else { return 0 }
+            let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
+            let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
+            let kJ: Double = isMale
+                ? -55.0969 + 0.6309 * nHrMax + 0.1988 * weightInKg + 0.2017 * Double(userAge)
+                : -20.4022 + 0.4472 * nHrMax - 0.1263 * weightInKg + 0.0740 * Double(userAge)
+            let kNetto = max(0, kJ / 4.184 - activeFinalBMR / (24.0 * 60.0))
+            let micro = ((saubererPuls - rest) / divisor) * nGapMin * kNetto * 0.10
+            return min(max(0, micro), 500.0)
+        }()
+
+        return ZStack {
+            CaloricBackground()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    Spacer().frame(height: 10)
+                    
+                    switch type {
+                    case .bmr:
+                        calcSection(
+                            icon: "moon.zzz.fill", iconColor: Theme.segBMR,
+                            title: "BMR — Katch-McArdle",
+                            rows: [
+                                calcRow(label: language == "de" ? "Magermasse (LBM)" : "Lean Body Mass",
+                                        formula: "Gewicht × (1 − Fett%)", value: String(format: "%.1f kg", lbm)),
+                                calcRow(label: "BMR Basis", formula: "370 + 21.6 × LBM", value: String(format: "%.0f kcal", baseBMR)),
+                                calcRow(label: language == "de" ? "Altersfaktor" : "Age factor",
+                                        formula: "Stoffwechsel-Anpassung", value: String(format: "×%.3f", activeFinalBMR / (baseBMR * metabolismFactor))),
+                                calcRow(label: language == "de" ? "Stoffwechselfaktor" : "Metabolism factor",
+                                        formula: language == "de" ? "Benutzerdefiniert" : "User-defined", value: String(format: "×%.2f", metabolismFactor)),
+                                calcRow(label: language == "de" ? "Schlafkorrektur" : "Sleep correction",
+                                        formula: "Wach/Schlaf-Verhältnis", value: String(format: "%.0f kcal", activeFinalBMR))
+                            ]
+                        )
+                        
+                    case .neat:
+                        calcSection(
+                            icon: "figure.walk", iconColor: Theme.segNEAT,
+                            title: "NEAT — 3-Komponenten",
+                            rows: [
+                                calcRow(label: language == "de" ? "① Geh-Kalorien" : "① Walk Calories",
+                                        formula: String(format: "%d Schr · ×2.0 MET", healthKit.activity.steps),
+                                        value: String(format: "%.0f kcal", nStepsKcal)),
+                                calcRow(label: language == "de" ? "② Steh-Kalorien" : "② Stand Calories",
+                                        formula: String(format: "%.0f min reines Stehen", nPureStandMin),
+                                        value: String(format: "%.0f kcal", nStandKcal)),
+                                {
+                                    if let avg = nHrAvg, let rest = nHrRest, avg > rest {
+                                        let hrr = (min(avg, rest + 25) - rest) / max(1, nHrMax - rest)
+                                        return calcRow(label: language == "de" ? "③ Mikro-NEAT (HR)" : "③ Micro-NEAT (HR)",
+                                                formula: String(format: "HRR %.2f · %.0f min · ×0.1", hrr, nGapMin),
+                                                value: String(format: "%.0f kcal", nMicroKcal))
+                                    } else {
+                                        return calcRow(label: "③ Mikro-NEAT", formula: "Keine HR-Daten", value: "0 kcal")
+                                    }
+                                }()
+                            ]
+                        )
+                        
+                    case .eat:
+                        calcSection(
+                            icon: "dumbbell.fill", iconColor: Theme.segEAT,
+                            title: "EAT — Keytel-Formel",
+                            rows: {
+                                var r: [AnyView] = [
+                                    calcRow(label: "EPOC / Nachbrenneffekt", formula: "Kraft: +20% · Cardio: variabel", value: "")
+                                ]
+                                if healthKit.workouts.isEmpty {
+                                    r.append(calcRow(label: language == "de" ? "Keine Workouts" : "No workouts", formula: "–", value: "0 kcal"))
+                                } else {
+                                    for w in healthKit.workouts {
+                                        let kcal = ActivityCalculationService.eat(workout: w, weightKg: weightInKg, vo2Max: healthKit.vo2Max, hrRest: healthKit.activity.restingHeartRate, age: userAge, isMale: isMale)
+                                        r.append(calcRow(label: workoutActivityName(w.activityType), formula: String(format: "%.0f min · Ø %.0f bpm", w.duration/60, w.averageHeartRate ?? 0), value: String(format: "%.0f kcal", kcal)))
+                                    }
+                                }
+                                return r
+                            }()
+                        )
+                        
+                    case .tef:
+                        calcSection(
+                            icon: "fork.knife.circle.fill", iconColor: Theme.segTEF,
+                            title: "TEF — Thermogenese",
+                            rows: [
+                                calcRow(label: "Proteine", formula: "25% thermische Last", value: String(format: "%.0f kcal", tdeeResult.tefKcal * 0.7)),
+                                calcRow(label: "Kohlenhydrate", formula: "7.5% thermische Last", value: String(format: "%.0f kcal", tdeeResult.tefKcal * 0.2)),
+                                calcRow(label: "Fette", formula: "1.5% thermische Last", value: String(format: "%.0f kcal", tdeeResult.tefKcal * 0.1))
+                            ]
+                        )
+                        
+                    case .caffeine:
+                        calcSection(
+                            icon: "cup.and.heat.waves.fill", iconColor: Theme.segCaf,
+                            title: "Koffein-Effekt",
+                            rows: [
+                                calcRow(label: "Stimulation", formula: "+15 kcal / 100 mg", value: String(format: "+%.0f kcal", tdeeResult.koffeinBonus)),
+                                calcRow(label: "Limitierung", formula: "Gedeckelt bei 400 mg", value: "")
+                            ]
+                        )
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(language == "de" ? "Wissenschaftlicher Hintergrund" : "Scientific Background")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(accentBlue)
+                        Text(infoText(for: type))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineSpacing(4)
+                    }
+                    .padding(20)
+                    .glassCard(20)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+            }
+        }
+        .navigationTitle(typeTitle(for: type))
+    }
+
+    private func typeTitle(for type: EnergySegmentType) -> String {
+        switch type {
+        case .bmr: return "BMR Details"
+        case .neat: return "NEAT Details"
+        case .eat: return "EAT Details"
+        case .tef: return "TEF Details"
+        case .caffeine: return "Caffeine Details"
+        }
+    }
+
+    private func infoText(for type: EnergySegmentType) -> String {
+        switch type {
+        case .bmr: return language == "de" ? "Der Grundumsatz (BMR) basiert auf der Katch-McArdle Formel, die besonders präzise ist, da sie deine fettfreie Körpermasse berücksichtigt." : "The Basal Metabolic Rate (BMR) is based on the Katch-McArdle formula, which is particularly precise as it accounts for your lean body mass."
+        case .neat: return language == "de" ? "NEAT umfasst alle Alltagsbewegungen. Wir berechnen dies über ein 3-Stufen-Modell aus Schritten, Stehzeit und der Herzfrequenz-Varianz in Ruhephasen." : "NEAT includes all daily movements. We calculate this using a 3-component model of steps, standing time, and heart rate variance during rest periods."
+        case .eat: return language == "de" ? "EAT misst die Energie während geplanter Workouts. Hier nutzen wir die Keytel-Formel, die Alter, Gewicht und Herzfrequenz kombiniert." : "EAT measures energy during planned workouts. We use the Keytel formula, which combines age, weight, and heart rate."
+        case .tef: return language == "de" ? "TEF ist die Energie, die dein Körper für die Verdauung aufwendet. Proteine haben hierbei mit ca. 25% den höchsten Effekt." : "TEF is the energy your body spends on digestion. Protein has the highest effect at approximately 25%."
+        case .caffeine: return language == "de" ? "Koffein steigert die Thermogenese und den Stoffwechsel kurzfristig. Wir berechnen einen moderaten Bonus von 15 kcal pro 100 mg." : "Caffeine increases thermogenesis and metabolism in the short term. We calculate a moderate bonus of 15 kcal per 100 mg."
+        }
+    }
+
     private var activityBreakdownSheet: some View {
         let segs = energySegments
         let total = max(segs.reduce(0) { $0 + $1.kcal }, 1)
         return NavigationStack {
             ZStack {
-                ObsidianBackground()
+                CaloricBackground()
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 14) {
                         Spacer().frame(height: 6)
@@ -920,14 +1055,14 @@ struct DashboardView: View {
                         VStack(spacing: 18) {
                             VStack(spacing: 3) {
                                 Text(language == "de" ? "Dein hochgerechneter täglicher Gesamtumsatz" : "Your estimated total daily calorie expenditure")
-                                    .font(.custom("PingFangSC-Medium", size: 9, relativeTo: .caption2))
+                                    .font(.system(size: 9, weight: .medium, design: .rounded))
                                     .foregroundStyle(Theme.textSecondary)
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                                     Text("\(Int(todayProjected))")
-                                        .font(.custom("PingFangSC-Semibold", size: 46, relativeTo: .largeTitle))
+                                        .font(.system(size: 46, weight: .semibold, design: .rounded))
                                         .foregroundStyle(Theme.textPrimary)
                                     Text("kcal")
-                                        .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .title3))
+                                        .font(.system(size: 16, weight: .regular, design: .rounded))
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                             }
@@ -938,7 +1073,7 @@ struct DashboardView: View {
                                     HStack(spacing: 5) {
                                         Circle().fill(s.color).frame(width: 7, height: 7)
                                         Text(s.short)
-                                            .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                                            .font(.system(size: 10, weight: .regular, design: .rounded))
                                             .foregroundStyle(Theme.textSecondary)
                                     }
                                 }
@@ -965,7 +1100,7 @@ struct DashboardView: View {
                                 Text(language == "de"
                                      ? "Verbinde Apple Health für NEAT & EAT Daten."
                                      : "Connect Apple Health for NEAT & EAT data.")
-                                    .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                                    .font(.system(size: 12, weight: .regular, design: .rounded))
                                     .foregroundStyle(Theme.textSecondary)
                             }
                             .padding(.horizontal, 30)
@@ -986,9 +1121,9 @@ struct DashboardView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .presentationDetents([.medium, .large])
-        .presentationBackground(Theme.obsidian)
+        .presentationBackground(Theme.canvas)
         .task { await healthKit.fetchAll() }
     }
 
@@ -1242,7 +1377,7 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 16)
         }
-        .background(ObsidianBackground())
+        .background(CaloricBackground())
         .navigationTitle(language == "de" ? "Berechnungsmethoden" : "Calculation Methods")
         .navigationBarTitleDisplayMode(.large)
         .task { await healthKit.fetchAll() }
@@ -1255,7 +1390,7 @@ struct DashboardView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(iconColor)
                 Text(title)
-                    .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
             }
             .padding(.horizontal, 16)
@@ -1279,7 +1414,7 @@ struct DashboardView: View {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .footnote))
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                     Text(formula)
                         .font(.system(size: 11, design: .monospaced))
@@ -1289,7 +1424,7 @@ struct DashboardView: View {
                 if !value.isEmpty {
                     Spacer()
                     Text(value)
-                        .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .footnote))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.trailing)
                 }
@@ -1311,14 +1446,14 @@ struct DashboardView: View {
                 )
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                 Text(subtitle)
-                    .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Text("\(kcal) kcal")
-                .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .callout))
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 20)
@@ -1340,10 +1475,10 @@ struct DashboardView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(language == "de" ? "Dein Profil" : "Your Profile")
-                        .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                     Text(language == "de" ? "Passe hier deinen Namen und dein Geburtsdatum an." : "Adjust your name and birth date here.")
-                        .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -1374,11 +1509,11 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue)
                                     .frame(width: 28)
                                 Text(language == "de" ? "Vorname" : "First Name")
-                                    .font(.custom("PingFangSC-Regular", size: 15))
+                                    .font(.system(size: 15, weight: .regular, design: .rounded))
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 TextField("", text: $accountUsername)
-                                    .font(.custom("PingFangSC-Semibold", size: 15))
+                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.primary)
                                     .multilineTextAlignment(.trailing)
                                     .submitLabel(.done)
@@ -1394,7 +1529,7 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue)
                                     .frame(width: 28)
                                 Text(language == "de" ? "Geburtsdatum" : "Birth Date")
-                                    .font(.custom("PingFangSC-Regular", size: 15))
+                                    .font(.system(size: 15, weight: .regular, design: .rounded))
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 DatePicker("", selection: $birthDate, displayedComponents: .date)
@@ -1410,7 +1545,7 @@ struct DashboardView: View {
 
                     VStack(spacing: 12) {
                         Text(language == "de" ? "Informationen" : "Information")
-                            .font(.custom("PingFangSC-Semibold", size: 14))
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 6)
@@ -1418,7 +1553,7 @@ struct DashboardView: View {
                         Text(language == "de" 
                              ? "Dein Geburtsdatum wird verwendet, um dein Alter für die Stoffwechselberechnungen (BMR) präzise zu bestimmen."
                              : "Your birth date is used to accurately determine your age for metabolic calculations (BMR).")
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundStyle(.secondary)
                             .padding(16)
                             .background(GlassCardBackground(cornerRadius: 16))
@@ -1429,7 +1564,7 @@ struct DashboardView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial)
+        .background(Theme.canvasLift)
         .clipShape(UnevenRoundedRectangle(
             topLeadingRadius: 28, bottomLeadingRadius: 0,
             bottomTrailingRadius: 0, topTrailingRadius: 28,
@@ -1450,8 +1585,8 @@ struct DashboardView: View {
                     Circle()
                         .trim(from: 0, to: 0.75)
                         .stroke(
-                            Color.white.opacity(0.08),
-                            style: StrokeStyle(lineWidth: 10, lineCap: .butt, dash: [2, 5])
+                            Theme.trackFill,
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
                         )
                         .rotationEffect(.degrees(135))
                     
@@ -1461,7 +1596,7 @@ struct DashboardView: View {
                             .trim(from: 0, to: ringProgress * 0.75)
                             .stroke(
                                 LinearGradient(
-                                    colors: [accentBlue.opacity(0.5), accentBlue],
+                                    colors: [Theme.accentSky, accentBlue],
                                     startPoint: .topLeading, endPoint: .bottomTrailing
                                 ),
                                 style: StrokeStyle(lineWidth: 12, lineCap: .round)
@@ -1480,8 +1615,9 @@ struct DashboardView: View {
                                 
                                 Circle()
                                     .fill(.white)
-                                    .frame(width: 6, height: 6)
-                                    .shadow(color: accentBlue, radius: 4)
+                                    .overlay(Circle().strokeBorder(accentBlue, lineWidth: 1.5))
+                                    .frame(width: 8, height: 8)
+                                    .shadow(color: accentBlue.opacity(0.5), radius: 3)
                                     .position(x: x, y: y)
                             }
                         }
@@ -1490,13 +1626,13 @@ struct DashboardView: View {
                     // 3. Center Instrument Data
                     VStack(spacing: 2) {
                         Text(!isSelectedFuture ? "\(Int(animatedBurn))" : "–")
-                            .font(.custom("PingFangSC-Semibold", size: 38, relativeTo: .title))
+                            .font(.system(size: 38, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                             .contentTransition(.numericText())
                         
                         HStack(spacing: 3) {
                             Text("kcal")
-                                .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .callout))
+                                .font(.system(size: 12, weight: .regular, design: .rounded))
                                 .foregroundStyle(Theme.textSecondary)
                             
                             if isSelectedToday {
@@ -1505,7 +1641,7 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue.opacity(0.5))
                                 
                                 Text(currentTimeString)
-                                    .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                    .font(.system(size: 11, weight: .regular, design: .rounded))
                                     .foregroundStyle(Theme.textSecondary.opacity(0.8))
                             }
                         }
@@ -1518,17 +1654,22 @@ struct DashboardView: View {
                 // Tap affordance / Status
                 if !isSelectedFuture {
                     HStack(spacing: 6) {
-                        Text(language == "de" ? "Instrumenten-Details" : "Instrument Details")
-                            .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                        Text(language == "de" ? "Aufschlüsselung ansehen" : "View breakdown")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
-                            .opacity(0.6)
+                            .opacity(0.8)
                     }
-                    .foregroundStyle(accentBlue)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(Capsule().fill(accentBlue.opacity(0.12)))
-                    .overlay(Capsule().strokeBorder(accentBlue.opacity(0.30), lineWidth: 1))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule().fill(
+                            LinearGradient(colors: [Theme.accentSky, accentBlue],
+                                           startPoint: .leading, endPoint: .trailing)
+                        )
+                        .shadow(color: accentBlue.opacity(0.30), radius: 8, x: 0, y: 4)
+                    )
                     .padding(.top, 24)
                     .padding(.bottom, 22)
                 } else {
@@ -1544,6 +1685,62 @@ struct DashboardView: View {
     }
 
     // MARK: - KPI-Zeile
+
+    private var caloriesChartSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(language == "de" ? "Kalorien im Tagesverlauf" : "Calories Throughout the Day")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(accentBlue)
+                Text(language == "de" ? "kcal pro 30 Minuten" : "kcal per 30 minutes")
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Chart {
+                ForEach(calorieSlots) { slot in
+                    BarMark(
+                        x: .value("Zeit", slot.hour),
+                        y: .value("kcal", slot.calories)
+                    )
+                    .foregroundStyle(accentBlue.opacity(slot.isSleep ? (isDark ? 0.45 : 0.28) : 0.9))
+                    .cornerRadius(3)
+                }
+            }
+            .frame(height: LayoutMetrics.chartHeight)
+            .chartXScale(domain: 0...24)
+            .chartXAxis {
+                AxisMarks(values: [0, 6, 12, 18, 24]) { value in
+                    AxisValueLabel {
+                        if let d = value.as(Double.self) {
+                            Text("\(Int(d))h")
+                                .font(.system(size: 8, weight: .regular, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                    AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
+                    AxisValueLabel()
+                        .font(.system(size: 8, weight: .regular, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 16) {
+                legendItem(color: accentBlue.opacity(isDark ? 0.45 : 0.28),
+                           label: language == "de" ? "Schlaf" : "Sleep")
+                legendItem(color: accentBlue,
+                           label: language == "de" ? "Wachphase" : "Awake")
+            }
+        }
+        .padding(14)
+        .background(GlassCardBackground(cornerRadius: 18))
+        .padding(.horizontal, 20)
+    }
 
     private var kpiRow: some View {
         HStack(spacing: 10) {
@@ -1580,12 +1777,12 @@ struct DashboardView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(fg)
             Text(value)
-                .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .title3))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(valueFg)
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
             Text(unit)
-                .font(.custom("PingFangSC-Regular", size: 9, relativeTo: .caption2))
+                .font(.system(size: 9, weight: .regular, design: .rounded))
                 .foregroundStyle(unitFg)
                 .lineLimit(1)
         }
@@ -1660,7 +1857,7 @@ struct DashboardView: View {
                 .fill(color)
                 .frame(width: 14, height: 9)
             Text(label)
-                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
         }
     }
@@ -1687,7 +1884,7 @@ struct DashboardView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .presentationDetents([.medium, .large])
     }
 
@@ -1731,7 +1928,7 @@ struct DashboardView: View {
                     .onChange(of: editWeightLb) { weightText = "\(editWeightLb)" }
                 }
                 Text(weightUnit)
-                    .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundStyle(accentBlue)
                     .frame(width: 36, alignment: .leading)
                 Spacer()
@@ -1783,7 +1980,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightCm) { heightText = "\(editHeightCm)" }
                     Text("cm")
-                        .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                         .frame(width: 44, alignment: .leading)
                     Spacer()
@@ -1799,7 +1996,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightFeet) { heightText = "\(editHeightFeet)'\(editHeightInches)\"" }
                     Text("ft")
-                        .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                     Picker("", selection: $editHeightInches) {
                         ForEach(0...11, id: \.self) { v in Text("\(v)").tag(v) }
@@ -1809,7 +2006,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightInches) { heightText = "\(editHeightFeet)'\(editHeightInches)\"" }
                     Text("in")
-                        .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                     Spacer()
                 }
@@ -1846,7 +2043,7 @@ struct DashboardView: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 24))
                         Text(t.yes)
-                            .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
                         Spacer()
                     }
                     .padding(.horizontal, 24)
@@ -1865,12 +2062,12 @@ struct DashboardView: View {
                                 #if os(iOS)
                                 .keyboardType(.decimalPad)
                                 #endif
-                                .font(.custom("PingFangSC-Semibold", size: 56, relativeTo: .largeTitle))
+                                .font(.system(size: 56, weight: .semibold, design: .rounded))
                                 .foregroundStyle(accentBlue)
                                 .multilineTextAlignment(.center)
                                 .frame(width: 140)
                             Text("%")
-                                .font(.custom("PingFangSC-Regular", size: 22, relativeTo: .title2))
+                                .font(.system(size: 22, weight: .regular, design: .rounded))
                                 .foregroundStyle(accentBlue.opacity(0.6))
                         }
                     }
@@ -1884,7 +2081,7 @@ struct DashboardView: View {
                     HStack {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 24))
                         Text(t.no)
-                            .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
                         Spacer()
                     }
                     .padding(.horizontal, 24)
@@ -2069,7 +2266,7 @@ struct DashboardView: View {
                     editingField = nil
                 } label: {
                     Text(language == "de" ? "Übernehmen" : "Apply")
-                        .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
@@ -2111,7 +2308,7 @@ struct DashboardView: View {
                         .foregroundStyle(isSelected ? .white : accentBlue)
                 }
                 Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 15, relativeTo: .subheadline))
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundStyle(isSelected ? .white : .primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -2137,7 +2334,7 @@ struct DashboardView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
             content()
         }
@@ -2157,7 +2354,7 @@ struct DashboardView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -2179,7 +2376,7 @@ struct DashboardView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()

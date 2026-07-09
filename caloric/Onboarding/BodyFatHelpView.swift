@@ -57,11 +57,11 @@ struct BodyFatHelpView: View {
         NavigationStack {
             VStack(spacing: 25) {
                 Text(t.bodyFatHelpTitle)
-                    .font(.custom("PingFangSC-Semibold", size: 24, relativeTo: .title2))
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
 
                 Text(t.bodyFatHelpSubtitle)
-                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
                     .italic()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -99,7 +99,7 @@ struct BodyFatHelpView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 16))
                         Text(t.language == "de" ? "Gespeichert!" : "Saved!")
-                            .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
@@ -111,8 +111,8 @@ struct BodyFatHelpView: View {
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showSavedBadge)
         }
-        .preferredColorScheme(.dark)
-        .presentationBackground(Theme.obsidian)
+        .preferredColorScheme(.light)
+        .presentationBackground(Theme.canvas)
     }
 
     private func estimateWithBadge(_ value: String) {
@@ -159,7 +159,7 @@ struct BodyFatHelpView: View {
                 }
 
                 Text("~\(percent)%")
-                    .font(.custom("PingFangSC-Semibold", size: 30, relativeTo: .title))
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
                     .foregroundStyle(accentBlue)
 
                 HStack(spacing: 20) {
@@ -176,7 +176,7 @@ struct BodyFatHelpView: View {
                     }
 
                     Button(t.calcUseResult) { estimateWithBadge("\(percent)") }
-                        .font(.custom("PingFangSC-Semibold", size: 16, relativeTo: .subheadline))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .buttonStyle(.borderedProminent)
                         .tint(accentBlue)
                         .controlSize(.large)
@@ -195,7 +195,11 @@ struct BodyFatHelpView: View {
                 }
             }
             .padding(20)
-            .background(RoundedRectangle(cornerRadius: 24).fill(Theme.obsidianLift))
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(Theme.card)
+                    .shadow(color: Theme.ink.opacity(0.16), radius: 24, x: 0, y: 10)
+            )
             .padding(.horizontal, 24)
             .transition(.scale(scale: 0.85).combined(with: .opacity))
         }
@@ -255,10 +259,10 @@ struct BodyFatHelpView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("~\(percent)%")
-                        .font(.custom("PingFangSC-Semibold", size: 18, relativeTo: .headline))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                     Text(t.language == "de" ? "Tippen zum Vergrößern" : "Tap to expand")
-                        .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
 
@@ -307,10 +311,10 @@ struct BodyFatHelpView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("~\(percent)%")
-                        .font(.custom("PingFangSC-Semibold", size: 18, relativeTo: .headline))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                     Text(t.language == "de" ? "Tippen zum Vergrößern" : "Tap to expand")
-                        .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
 
@@ -337,7 +341,7 @@ struct BodyFatHelpView: View {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.left.and.right").font(.system(size: 12))
                 Text("\(t.inBetween) (~\(midStr)%)")
-                    .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
             }
             .foregroundStyle(accentBlue.opacity(0.7))
             .frame(maxWidth: .infinity)
@@ -361,7 +365,7 @@ struct BodyFatHelpView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isShown ? "chevron.up" : "chevron.down").font(.system(size: 11))
-                    Text(label).font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                    Text(label).font(.system(size: 13, weight: .regular, design: .rounded))
                 }
                 .foregroundStyle(accentBlue.opacity(0.7))
                 .frame(maxWidth: .infinity)
@@ -378,12 +382,12 @@ struct BodyFatHelpView: View {
                             #if os(iOS)
                             .keyboardType(.decimalPad)
                             #endif
-                            .font(.custom("PingFangSC-Semibold", size: 26, relativeTo: .title))
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .multilineTextAlignment(.center)
                             .frame(width: 70)
                         Text("%")
-                            .font(.custom("PingFangSC-Regular", size: 18, relativeTo: .headline))
+                            .font(.system(size: 18, weight: .regular, design: .rounded))
                             .foregroundStyle(accentBlue.opacity(0.6))
                     }
                     Spacer()
@@ -391,7 +395,7 @@ struct BodyFatHelpView: View {
                         let val = text.wrappedValue.replacingOccurrences(of: ",", with: ".")
                         if !val.isEmpty { estimateWithBadge(val) }
                     }
-                    .font(.custom("PingFangSC-Medium", size: 15, relativeTo: .subheadline))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .buttonStyle(.borderedProminent)
                     .tint(accentBlue)
                     .controlSize(.regular)
@@ -410,10 +414,10 @@ struct BodyFatHelpView: View {
     private func infoBox(header: String, body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(header)
-                .font(.custom("PingFangSC-Semibold", size: 12, relativeTo: .caption))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(accentBlue)
             Text(body)
-                .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                .font(.system(size: 13, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -434,7 +438,7 @@ struct BodyFatHelpView: View {
 
                     if heightInCm <= 0 {
                         Text(t.calcHeightMissing)
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
@@ -456,7 +460,7 @@ struct BodyFatHelpView: View {
                         #endif
                         showCalcResult = true
                     }
-                    .font(.custom("PingFangSC-Medium", size: 17, relativeTo: .headline))
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
                     .buttonStyle(.borderedProminent)
                     .tint(accentBlue)
                     .controlSize(.large)
@@ -466,23 +470,23 @@ struct BodyFatHelpView: View {
                         if let bf = calculatedBF {
                             VStack(spacing: 6) {
                                 Text(t.calcResult)
-                                    .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                                    .font(.system(size: 14, weight: .regular, design: .rounded))
                                     .foregroundStyle(.secondary)
                                 Text(String(format: "%.1f%%", bf))
-                                    .font(.custom("PingFangSC-Semibold", size: 48, relativeTo: .largeTitle))
+                                    .font(.system(size: 48, weight: .semibold, design: .rounded))
                                     .foregroundStyle(accentBlue)
                             }
                             .padding(.top, 4)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                             Button(t.calcUseResult) { estimateWithBadge(String(format: "%.1f", bf)) }
-                                .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+                                .font(.system(size: 18, weight: .medium, design: .rounded))
                                 .buttonStyle(.borderedProminent)
                                 .tint(accentBlue)
                                 .controlSize(.large)
                                 .id("calcResult")
                         } else {
                             Text(t.calcInvalidInput)
-                                .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                                .font(.system(size: 13, weight: .regular, design: .rounded))
                                 .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 20)
@@ -508,18 +512,18 @@ struct BodyFatHelpView: View {
     private func circumferenceField(label: String, placeholder: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                .font(.system(size: 13, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 TextField(placeholder, text: text)
                     #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
-                    .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(accentBlue)
                     .multilineTextAlignment(.trailing)
                 Text("cm")
-                    .font(.custom("PingFangSC-Regular", size: 16, relativeTo: .subheadline))
+                    .font(.system(size: 16, weight: .regular, design: .rounded))
                     .foregroundStyle(accentBlue.opacity(0.6))
             }
             .padding(.horizontal, 16)

@@ -45,10 +45,10 @@ struct SettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Einstellungen" : "Settings")
-                            .font(.custom("PingFangSC-Semibold", size: 28, relativeTo: .title))
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.textPrimary)
                         Text(language == "de" ? "Deine Stammdaten" : "Your master data")
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -65,11 +65,11 @@ struct SettingsView: View {
                             .strokeBorder(accentBlue.opacity(isDark ? 0.34 : 0.18), lineWidth: 1)
                             .frame(width: 88, height: 88)
                         Text(initial)
-                            .font(.custom("PingFangSC-Semibold", size: 36, relativeTo: .largeTitle))
+                            .font(.system(size: 36, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                     }
                     Text(displayName)
-                        .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .title3))
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity)
@@ -78,7 +78,7 @@ struct SettingsView: View {
                 // Stammdaten-Karte
                 VStack(alignment: .leading, spacing: 10) {
                     Text(language == "de" ? "Persönliche Daten" : "Personal data")
-                        .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .subheadline))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                         .padding(.bottom, 2)
@@ -114,7 +114,7 @@ struct SettingsView: View {
                     Text(language == "de"
                          ? "Weitere Einstellungen folgen bald."
                          : "More settings coming soon.")
-                        .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -136,7 +136,7 @@ struct SettingsView: View {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 13, weight: .medium))
                         Text(language == "de" ? "Datenbank zurücksetzen" : "Reset database")
-                            .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                     }
                     .foregroundStyle(.secondary.opacity(0.55))
                 }
@@ -160,7 +160,7 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ObsidianBackground())
+        .background(CaloricBackground())
         .sheet(isPresented: Binding(
             get: { editingField != nil },
             set: { if !$0 { editingField = nil } }
@@ -184,11 +184,11 @@ struct SettingsView: View {
                     .foregroundStyle(accentBlue)
                     .frame(width: 26)
                 Text(label)
-                    .font(.custom("PingFangSC-Medium", size: 16, relativeTo: .subheadline))
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(.primary)
                 Spacer()
                 Text(value)
-                    .font(.custom("PingFangSC-Regular", size: 15, relativeTo: .subheadline))
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundStyle(isPlaceholder ? accentBlue.opacity(0.7) : .secondary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
@@ -198,9 +198,9 @@ struct SettingsView: View {
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
-                    .fill(Color.white.opacity(0.05))
+                    .fill(Theme.fieldFill)
                     .overlay(RoundedRectangle(cornerRadius: Theme.Radius.pill, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
+                        .strokeBorder(Theme.divider, lineWidth: 1))
             )
         }
         .buttonStyle(.plain)
@@ -226,7 +226,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .presentationDetents([.medium])
     }
 
@@ -247,7 +247,7 @@ struct SettingsView: View {
                 .autocapitalization(.words)
                 #endif
                 .disableAutocorrection(true)
-                .font(.custom("PingFangSC-Semibold", size: 26, relativeTo: .title))
+                .font(.system(size: 26, weight: .semibold, design: .rounded))
                 .foregroundStyle(accentBlue)
                 .multilineTextAlignment(.center)
                 .onChange(of: nameDraft) { accountUsername = nameDraft }

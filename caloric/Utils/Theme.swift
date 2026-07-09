@@ -4,28 +4,63 @@
 //
 //  Zentrale Farb- und Stil-Definitionen
 //
+//  Designsystem "Caloric Ice" — helles, sportliches UI:
+//  kühler Eis-Hintergrund, weiße Karten mit weichen blauen Schatten,
+//  SF Rounded für den Fitness-Charakter und das Caloric-Blau als
+//  durchgängiger Akzent (Sky #66CCFF → Azure #119BE8).
+//
 
 import SwiftUI
 
 enum Theme {
-    static let accentBlue = Color(red: 0x66/255, green: 0xCC/255, blue: 0xFF/255)
 
-    // MARK: - Premium Dark Shell ("obsidian")
-    // Deep, slightly-cool near-black base with a subtle top lift, plus a
-    // harmonious cool accent set for the energy-expenditure breakdown.
-    static let obsidian      = Color(red: 0.043, green: 0.047, blue: 0.055)   // ~#0B0C0E
-    static let obsidianLift  = Color(red: 0.082, green: 0.090, blue: 0.106)   // ~#15171B
-    static let glassFill     = Color.white.opacity(0.045)
-    static let glassStroke   = Color.white.opacity(0.10)
-    static let textPrimary   = Color.white
-    static let textSecondary = Color.white.opacity(0.58)
+    // MARK: - Caloric-Blau Familie
+    /// Primärer, interaktiver Caloric-Blauton (lesbar auf Weiß).
+    static let accentBlue = Color(red: 0x11/255, green: 0x9B/255, blue: 0xE8/255)   // #119BE8
+    /// Original-Markenton — für Gradients, Halos und Highlights.
+    static let accentSky  = Color(red: 0x66/255, green: 0xCC/255, blue: 0xFF/255)   // #66CCFF
+    /// Dunkler Verlauf-Endpunkt / Pressed-States.
+    static let accentDeep = Color(red: 0x0B/255, green: 0x7B/255, blue: 0xC4/255)   // #0B7BC4
 
-    /// Energy-expenditure segment hues — shared chroma / high lightness.
-    static let segBMR  = accentBlue                                            // #66CCFF
-    static let segNEAT = Color(red: 0.36, green: 0.82, blue: 0.69)             // mint  #5CD1B0
-    static let segEAT  = Color(red: 0.49, green: 0.55, blue: 1.00)             // peri  #7E8CFF
-    static let segTEF  = Color(red: 0.76, green: 0.55, blue: 1.00)             // lilac #C28CFF
-    static let segCaf  = Color(red: 1.00, green: 0.72, blue: 0.38)             // amber #FFB861
+    /// Signatur-Verlauf der App (Ringe, CTAs, aktive Flächen).
+    static let accentGradient = LinearGradient(
+        colors: [accentSky, accentBlue],
+        startPoint: .topLeading, endPoint: .bottomTrailing
+    )
+
+    // MARK: - Helle Oberfläche ("Ice")
+    static let canvas     = Color(red: 0.937, green: 0.965, blue: 0.984)   // #EFF6FB
+    static let canvasLift = Color(red: 0.984, green: 0.992, blue: 1.000)   // #FBFDFF
+    static let card       = Color.white
+    static let ink        = Color(red: 0.055, green: 0.129, blue: 0.180)   // #0E212E
+    static let slate      = Color(red: 0.365, green: 0.443, blue: 0.514)   // #5D7183
+
+    static let textPrimary   = ink
+    static let textSecondary = slate
+
+    /// Hairline-Kontur für Karten & Kapseln.
+    static let cardStroke = ink.opacity(0.06)
+    /// Fläche für Eingabefelder / eingelassene Flächen.
+    static let fieldFill  = ink.opacity(0.04)
+    /// Trennlinien.
+    static let divider    = ink.opacity(0.08)
+    /// Fortschritts-Tracks.
+    static let trackFill  = ink.opacity(0.06)
+    /// Weicher, blau getönter Kartenschatten.
+    static let cardShadow = accentDeep.opacity(0.10)
+
+    // Kompatibilitäts-Aliasse (ehem. Dark-Shell) — zeigen auf die helle Fläche.
+    static let obsidian     = canvas
+    static let obsidianLift = canvasLift
+    static let glassFill    = ink.opacity(0.03)
+    static let glassStroke  = ink.opacity(0.07)
+
+    /// Energie-Komponenten — auf hellem Grund abgestimmte, satte Töne.
+    static let segBMR  = accentBlue                                        // Azure
+    static let segNEAT = Color(red: 0.07, green: 0.71, blue: 0.53)         // Grün   #12B587
+    static let segEAT  = Color(red: 0.36, green: 0.42, blue: 0.94)         // Indigo #5C6BF0
+    static let segTEF  = Color(red: 0.60, green: 0.36, blue: 0.94)         // Violett #9A5CF0
+    static let segCaf  = Color(red: 0.95, green: 0.60, blue: 0.07)         // Amber  #F29912
 
     // MARK: - Wiederverwendbare Spacing-Tokens (Onboarding & Dashboard)
     enum Space {
@@ -40,16 +75,14 @@ enum Theme {
 
     enum Radius {
         static let control: CGFloat = 16
-        static let card: CGFloat = 20
-        static let hero: CGFloat = 24
+        static let card: CGFloat = 22
+        static let hero: CGFloat = 26
         static let pill: CGFloat = 12
     }
 }
 
-// MARK: - Premium Primär-Button
-// Einheitlicher CTA-Stil über das gesamte Onboarding hinweg.
-// Inhaltsgrößen-basiert (kein erzwungenes Full-Width), damit bestehende
-// Layouts nicht verschoben werden. Reiner optischer Feinschliff.
+// MARK: - Primär-Button (Caloric-Verlauf)
+// Einheitlicher CTA-Stil über die gesamte App hinweg.
 struct CaloricPrimaryButtonStyle: ButtonStyle {
     var tint: Color = Theme.accentBlue
     var fullWidth: Bool = false
@@ -57,15 +90,20 @@ struct CaloricPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.custom("PingFangSC-Medium", size: 18, relativeTo: .headline))
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
             .foregroundStyle(.white)
             .padding(.horizontal, 34)
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: 54)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
-                    .fill(tint)
-                    .shadow(color: tint.opacity(isEnabled ? 0.28 : 0), radius: 14, x: 0, y: 6)
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.accentSky, tint],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: tint.opacity(isEnabled ? 0.32 : 0), radius: 14, x: 0, y: 7)
             )
             .opacity(isEnabled ? (configuration.isPressed ? 0.88 : 1) : 0.4)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -80,60 +118,53 @@ extension ButtonStyle where Self == CaloricPrimaryButtonStyle {
     }
 }
 
-// MARK: - Obsidian Background
-// Full-bleed premium dark backdrop with a soft radial accent halo.
-struct ObsidianBackground: View {
+// MARK: - Heller App-Hintergrund
+// Kühler Eis-Verlauf mit einem weichen Caloric-Blau-Halo am oberen Rand.
+struct CaloricBackground: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Theme.obsidianLift, Theme.obsidian],
+                colors: [Theme.canvasLift, Theme.canvas],
                 startPoint: .top, endPoint: .bottom
             )
             RadialGradient(
-                colors: [Theme.accentBlue.opacity(0.10), .clear],
-                center: .top, startRadius: 0, endRadius: 460
+                colors: [Theme.accentSky.opacity(0.18), .clear],
+                center: .top, startRadius: 0, endRadius: 420
             )
         }
         .ignoresSafeArea()
     }
 }
 
-// MARK: - Glassmorphic Card Surface
-// Frosted translucent panel with a hairline light-to-dark edge stroke.
-// Drop-in replacement for the old blue-tinted card fills.
+/// Kompatibilitäts-Alias: alte Call-Sites der Dark-Shell rendern jetzt hell.
+typealias ObsidianBackground = CaloricBackground
+
+// MARK: - Karten-Oberfläche
+// Weiße Karte mit Hairline-Kontur und weichem, blau getöntem Schatten.
+// Drop-in-Ersatz für die frühere Glas-Optik (API unverändert).
 struct GlassCardBackground: View {
     var cornerRadius: CGFloat = Theme.Radius.card
-    /// Optional accent wash — used for the hero/active surfaces.
+    /// Optionale Akzent-Tönung — für Hero-/aktive Flächen.
     var tint: Color = .clear
     var tintStrength: Double = 0.0
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Theme.glassFill)
-            )
+            .fill(Theme.card)
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(tint.opacity(tintStrength))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.16), Color.white.opacity(0.03)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    .strokeBorder(Theme.cardStroke, lineWidth: 1)
             )
-            .environment(\.colorScheme, .dark)
+            .shadow(color: Theme.cardShadow, radius: 18, x: 0, y: 8)
     }
 }
 
-// MARK: - Premium Instrument Progress Bar
-// A more sophisticated, "technical instrument" style progress bar.
+// MARK: - Fortschrittsbalken
+// Heller, eingelassener Track mit Verlaufsfüllung und Indikator-Punkt.
 struct InstrumentProgressBar: View {
     let progress: Double // 0.0 to 1.0
     let color: Color
@@ -145,45 +176,40 @@ struct InstrumentProgressBar: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 let fillWidth = width * min(1.0, max(0, progress))
-                
+
                 ZStack(alignment: .leading) {
-                    // Track (Recessed look)
+                    // Track (eingelassen)
                     Capsule()
-                        .fill(Color.black.opacity(0.25))
+                        .fill(Theme.trackFill)
                         .frame(height: height)
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                        )
-                    
-                    // Fill (Glowing liquid look)
+
+                    // Füllung (Verlauf)
                     Capsule()
                         .fill(
                             LinearGradient(
-                                colors: [color.opacity(0.5), color],
+                                colors: [color.opacity(0.55), color],
                                 startPoint: .leading, endPoint: .trailing
                             )
                         )
                         .frame(width: fillWidth, height: height)
-                        .shadow(color: color.opacity(0.6), radius: 4, x: 0, y: 0)
-                    
-                    // Glow Bead (Indicator)
+
+                    // Indikator-Punkt
                     Circle()
                         .fill(Color.white)
-                        .frame(width: height + 3, height: height + 3)
-                        .shadow(color: color, radius: 5)
-                        .shadow(color: color, radius: 2)
-                        .offset(x: max(0, fillWidth - (height + 3) / 2))
+                        .overlay(Circle().strokeBorder(color, lineWidth: 1.5))
+                        .frame(width: height + 4, height: height + 4)
+                        .shadow(color: color.opacity(0.35), radius: 3, x: 0, y: 1)
+                        .offset(x: max(0, fillWidth - (height + 4) / 2))
                 }
             }
-            .frame(height: height + 3)
-            
+            .frame(height: height + 4)
+
             if showScale {
-                // Technical Scale Markings
+                // Feine Skalen-Markierungen
                 HStack(spacing: 0) {
                     ForEach(0...10, id: \.self) { i in
                         Rectangle()
-                            .fill(Color.white.opacity(i % 5 == 0 ? 0.2 : 0.1))
+                            .fill(Theme.ink.opacity(i % 5 == 0 ? 0.14 : 0.07))
                             .frame(width: 1, height: i % 5 == 0 ? 4 : 2)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -195,7 +221,7 @@ struct InstrumentProgressBar: View {
 }
 
 extension View {
-    /// Wraps a view in the premium glass card surface.
+    /// Legt die Standard-Kartenoberfläche hinter eine View.
     func glassCard(_ cornerRadius: CGFloat = Theme.Radius.card,
                    tint: Color = .clear, tintStrength: Double = 0.0) -> some View {
         background(GlassCardBackground(cornerRadius: cornerRadius,

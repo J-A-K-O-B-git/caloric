@@ -130,7 +130,7 @@ struct DailyJournalView: View {
 
     var body: some View {
         ZStack {
-            ObsidianBackground()
+            CaloricBackground()
 
             journalScrollView
 
@@ -141,7 +141,7 @@ struct DailyJournalView: View {
                     // Glass background for the sticky footer
                     Rectangle()
                         .fill(.ultraThinMaterial)
-                        .overlay(Theme.obsidian.opacity(0.4))
+                        .overlay(Theme.canvas.opacity(0.4))
                         .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
                         .ignoresSafeArea()
                         .frame(height: 180)
@@ -160,10 +160,10 @@ struct DailyJournalView: View {
                             .foregroundStyle(.green)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(language == "de" ? "Bestätigt" : "confirmed")
-                                .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.primary)
                             Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
-                                .font(.custom("PingFangSC-Regular", size: 11, relativeTo: .caption2))
+                                .font(.system(size: 11, weight: .regular, design: .rounded))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -272,9 +272,9 @@ struct DailyJournalView: View {
         } label: {
             VStack(spacing: 2) {
                 Text(journalWeekdayAbbrev(for: date))
-                    .font(.custom("PingFangSC-Regular", size: weekFS, relativeTo: .caption2))
+                    .font(.system(size: weekFS, weight: .regular, design: .rounded))
                 Text("\(day)")
-                    .font(.custom("PingFangSC-Semibold", size: dayFS, relativeTo: .caption))
+                    .font(.system(size: dayFS, weight: .semibold, design: .rounded))
                 Circle()
                     .fill(isToday && !isSelected ? accentBlue : Color.clear)
                     .frame(width: 4, height: 4)
@@ -387,30 +387,30 @@ struct DailyJournalView: View {
     private var addDrinkSheet: some View {
         NavigationStack {
             ZStack {
-                ObsidianBackground()
+                CaloricBackground()
                 VStack(spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(language == "de" ? "Name des Getränks" : "Drink Name")
-                            .font(.custom("PingFangSC-Medium", size: 14))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
                         TextField(language == "de" ? "z.B. Mein Special Tee" : "e.g. My Special Tea", text: $newDrinkName)
-                            .font(.custom("PingFangSC-Semibold", size: 18))
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .padding()
-                            .background(Color.white.opacity(0.05))
+                            .background(Theme.fieldFill)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text(language == "de" ? "Koffeingehalt (mg)" : "Caffeine content (mg)")
-                            .font(.custom("PingFangSC-Medium", size: 14))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
                         TextField("0", text: $newDrinkCaffeine)
                             #if os(iOS)
                             .keyboardType(.numberPad)
                             #endif
-                            .font(.custom("PingFangSC-Semibold", size: 18))
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .padding()
-                            .background(Color.white.opacity(0.05))
+                            .background(Theme.fieldFill)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     
@@ -425,7 +425,7 @@ struct DailyJournalView: View {
                         }
                     } label: {
                         Text(language == "de" ? "Getränk speichern" : "Save Drink")
-                            .font(.custom("PingFangSC-Semibold", size: 16))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(accentBlue)
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
@@ -456,21 +456,32 @@ struct DailyJournalView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Daily Journal")
-                        .font(.custom("PingFangSC-Semibold", size: LayoutMetrics.titleFontSize, relativeTo: .largeTitle))
-                        .foregroundStyle(.white)
+                        .font(.system(size: LayoutMetrics.titleFontSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.textPrimary)
                     
                     Button {
                         showCalendarPicker = true
                     } label: {
                         HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(accentBlue)
                             Text(selectedDateString)
-                                .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .subheadline))
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .foregroundStyle(Theme.textSecondary)
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Theme.textSecondary.opacity(0.6))
                         }
-                        .contentShape(Rectangle())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Theme.card)
+                                .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+                        )
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(SpringyButtonStyle())
                 }
@@ -492,7 +503,7 @@ struct DailyJournalView: View {
                         Text(language == "de"
                              ? "Einträge für zukünftige Tage gesperrt"
                              : "Entries locked for future dates")
-                            .font(.custom("PingFangSC-Medium", size: 14, relativeTo: .callout))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .padding(.vertical, 20)
@@ -512,14 +523,14 @@ struct DailyJournalView: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Text(macroKeyboardLabel)
-                    .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(accentBlue)
                 Spacer()
                 Button(language == "de" ? "Fertig" : "Done") {
                     macroFocus = nil
                     caffeineFocused = false
                 }
-                .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(accentBlue)
             }
         }
@@ -537,7 +548,7 @@ struct DailyJournalView: View {
     private var calendarPickerSheet: some View {
         NavigationStack {
             ZStack {
-                ObsidianBackground()
+                CaloricBackground()
                 VStack(spacing: 0) {
                     DatePicker(
                         "",
@@ -561,7 +572,7 @@ struct DailyJournalView: View {
                             Image(systemName: "arrow.uturn.backward.circle.fill")
                             Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
                         }
-                        .font(.custom("PingFangSC-Semibold", size: 16))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -616,7 +627,7 @@ struct DailyJournalView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 18, weight: .semibold))
                 Text(language == "de" ? "Tag bestätigen" : "Confirm Day")
-                    .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(accentBlue)
             .frame(maxWidth: .infinity)
@@ -745,7 +756,7 @@ struct DailyJournalView: View {
                                   text: Binding<String>, focusValue: MacroField, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.custom("PingFangSC-Medium", size: 11, relativeTo: .caption2))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -754,10 +765,10 @@ struct DailyJournalView: View {
                     .keyboardType(.numberPad)
                     #endif
                     .focused($macroFocus, equals: focusValue)
-                    .font(.custom("PingFangSC-Semibold", size: 20, relativeTo: .body))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(tint)
                 Text("g")
-                    .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(tint.opacity(0.6))
             }
             
@@ -786,7 +797,7 @@ struct DailyJournalView: View {
             }
         } label: {
             Text(label)
-                .font(.custom("PingFangSC-Medium", size: 12, relativeTo: .caption))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -813,10 +824,10 @@ struct DailyJournalView: View {
         } label: {
             VStack(spacing: 1) {
                 Text(label)
-                    .font(.custom("PingFangSC-Semibold", size: 13, relativeTo: .callout))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                 if let sub = sublabel {
                     Text(sub)
-                        .font(.custom("PingFangSC-Regular", size: 10, relativeTo: .caption2))
+                        .font(.system(size: 10, weight: .regular, design: .rounded))
                         .opacity(0.8)
                 }
             }
@@ -838,7 +849,7 @@ struct DailyJournalView: View {
     private func trackingToggle(label: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.custom("PingFangSC-Semibold", size: 15, relativeTo: .callout))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .foregroundStyle(isSelected ? .white : tint)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)

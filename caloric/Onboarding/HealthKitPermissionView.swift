@@ -105,10 +105,10 @@ struct HealthKitPermissionView: View {
             // Headline
             VStack(spacing: 6) {
                 Text(language == "de" ? "Wir brauchen deine Hilfe." : "We need your help.")
-                    .font(.custom("PingFangSC-Semibold", size: 22, relativeTo: .title2))
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
                 Text(language == "de" ? "Um deinen persönlichen Kalorienbedarf so genau wie möglich zu berechnen, braucht Caloric Zugriff auf deine Aktivitätsdaten. Deine Bewegungskalorien machen hier nämlich den entscheidenden Unterschied!" : "To calculate your personal calorie needs as accurately as possible, Caloric needs access to your activity data. Your calories burned through movement make all the difference here!")
-                    .font(.custom("PingFangSC-Regular", size: 13, relativeTo: .callout))
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center)
@@ -176,10 +176,10 @@ struct HealthKitPermissionView: View {
             // Text
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.custom("PingFangSC-Semibold", size: 14, relativeTo: .callout))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.custom("PingFangSC-Regular", size: 12, relativeTo: .caption))
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -221,7 +221,7 @@ struct HealthKitPermissionView: View {
         VStack(spacing: 0) {
             // Gradient fade into button area
             LinearGradient(
-                colors: [Theme.obsidian.opacity(0), Theme.obsidian],
+                colors: [Theme.canvas.opacity(0), Theme.canvas],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -256,7 +256,7 @@ struct HealthKitPermissionView: View {
                             Image(systemName: "heart.fill")
                                 .font(.system(size: 15, weight: .semibold))
                             Text(language == "de" ? "Apple Health verbinden" : "Connect Apple Health")
-                                .font(.custom("PingFangSC-Semibold", size: 17, relativeTo: .headline))
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
                         }
                         .opacity(isConnecting ? 0 : 1)
 
@@ -283,13 +283,13 @@ struct HealthKitPermissionView: View {
                 Button(language == "de" ? "Später in den Einstellungen" : "Later in Settings") {
                     onComplete()
                 }
-                .font(.custom("PingFangSC-Regular", size: 14, relativeTo: .callout))
+                .font(.system(size: 14, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
             }
             .padding(.top, 4)
             .padding(.bottom, 16)
-            .background(Theme.obsidian)
+            .background(Theme.canvas)
         }
     }
 }
