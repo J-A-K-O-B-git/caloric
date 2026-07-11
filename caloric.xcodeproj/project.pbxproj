@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		5D0279922FFC24A200388A2C /* DailyJournalSubviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */; };
-		5D0279942FFD955200388A2C /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0279932FFD954E00388A2C /* Secrets.swift */; };
 		5D097FB43000332500BABE78 /* InfographicViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D097FB33000332400BABE78 /* InfographicViews.swift */; };
 		5D0BE1122FD47B480029CE62 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0BE1112FD47B480029CE62 /* DashboardView.swift */; };
 		5D1CB62B2FF6F8950052B1A4 /* NEATModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1CB62A2FF6F8860052B1A4 /* NEATModel.swift */; };
@@ -28,6 +27,7 @@
 		5DCAF4DE2FE82B6D005AE38A /* HealthKitPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */; };
 		5DCAF4E02FE8324F005AE38A /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DF2FE8324F005AE38A /* UserProfile.swift */; };
 		5DCAF4E22FE8325F005AE38A /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4E12FE8325F005AE38A /* AppRootView.swift */; };
+		5DCDD98830023A8D00E17788 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCDD98730023A8A00E17788 /* Secrets.swift */; };
 		5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */; };
 		5DEC7B912FE28406007A1989 /* TDEECalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */; };
 		5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B922FE28407007A1989 /* JournalStore.swift */; };
@@ -37,7 +37,6 @@
 
 /* Begin PBXFileReference section */
 		5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyJournalSubviews.swift; sourceTree = "<group>"; };
-		5D0279932FFD954E00388A2C /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		5D097FB33000332400BABE78 /* InfographicViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfographicViews.swift; sourceTree = "<group>"; };
 		5D0BE1112FD47B480029CE62 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5D1CB62A2FF6F8860052B1A4 /* NEATModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NEATModel.swift; sourceTree = "<group>"; };
@@ -51,7 +50,7 @@
 		5D2E62B32FCE1AE20057E84D /* Translations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translations.swift; sourceTree = "<group>"; };
 		5D2E62BC2FCE261C0057E84D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCalculationService.swift; sourceTree = "<group>"; };
-		5D9DF5552FCC4C0600376596 /* caloric.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = caloric.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D9DF5552FCC4C0600376596 /* caloric.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = caloric.app; path = /Users/macbookvonjj/caloric_folder/caloric_V2/build/Debug/caloric.app; sourceTree = "<absolute>"; };
 		5DAA00002FD60001000000A1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		5DAA00022FD60001000000A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5DCAF4DA2FE826D5005AE38A /* HealthKitImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitImportService.swift; sourceTree = "<group>"; };
@@ -59,6 +58,7 @@
 		5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitPermissionView.swift; sourceTree = "<group>"; };
 		5DCAF4DF2FE8324F005AE38A /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		5DCAF4E12FE8325F005AE38A /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		5DCDD98730023A8A00E17788 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDataView.swift; sourceTree = "<group>"; };
 		5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TDEECalculationService.swift; sourceTree = "<group>"; };
 		5DEC7B922FE28407007A1989 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
@@ -114,6 +114,7 @@
 		5D2E62B42FCE1AE20057E84D /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				5DCDD98730023A8A00E17788 /* Secrets.swift */,
 				5D2E62B22FCE1AE20057E84D /* Theme.swift */,
 				5D2E62B32FCE1AE20057E84D /* Translations.swift */,
 				5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */,
@@ -125,7 +126,6 @@
 				5D24FC822FEFCE7F00472E54 /* DayCacheEntry.swift */,
 				5DF0280B2FF79220003E06B9 /* FoodIntent.swift */,
 				5DF0280D2FF7924B003E06B9 /* JournalViewModel.swift */,
-				5D0279932FFD954E00388A2C /* Secrets.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -147,16 +147,7 @@
 			children = (
 				5D2E62BC2FCE261C0057E84D /* Assets.xcassets */,
 				5D2E62B52FCE1AE20057E84D /* caloric */,
-				5D9DF5562FCC4C0600376596 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		5D9DF5562FCC4C0600376596 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				5D9DF5552FCC4C0600376596 /* caloric.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -206,7 +197,7 @@
 			mainGroup = 5D9DF54C2FCC4C0600376596;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 5D9DF5562FCC4C0600376596 /* Products */;
+			productRefGroup = 5D9DF54C2FCC4C0600376596;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -232,7 +223,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				5DF0280E2FF7924F003E06B9 /* JournalViewModel.swift in Sources */,
-				5D0279942FFD955200388A2C /* Secrets.swift in Sources */,
 				5D24FC832FEFCE7F00472E54 /* DayCacheEntry.swift in Sources */,
 				5DF0280C2FF7922A003E06B9 /* FoodIntent.swift in Sources */,
 				5D2AABAE2FDEC7E600BAC18D /* DailyJournalView.swift in Sources */,
@@ -248,6 +238,7 @@
 				5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */,
 				5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */,
 				5DAA00032FD60001000000A2 /* SettingsView.swift in Sources */,
+				5DCDD98830023A8D00E17788 /* Secrets.swift in Sources */,
 				5D2E62B92FCE1AE20057E84D /* ContentView.swift in Sources */,
 				5D2E62BA2FCE1AE20057E84D /* Theme.swift in Sources */,
 				5DCAF4E22FE8325F005AE38A /* AppRootView.swift in Sources */,

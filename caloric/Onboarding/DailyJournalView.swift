@@ -657,7 +657,7 @@ struct DailyJournalView: View {
             aiErrorMessage = nil
             
             // 1. Dein funktionierender API-Key aus dem Terminal-Test
-            let apiKey = Secrets.apiKey
+            let apiKey = Secrets.gcpApiKey
             guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { return }
             
             var request = URLRequest(url: url)
