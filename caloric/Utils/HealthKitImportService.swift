@@ -473,20 +473,33 @@ final class HealthKitImportService {
 
     // MARK: - HealthKit Query Helpers
 
-    private func appleWatchPredicate(base: NSPredicate) -> NSPredicate {
-        // 1. Must be from an Apple Watch device model
-        let watchDevicePredicate = HKQuery.predicateForObjects(withDeviceProperty: HKDevicePropertyKeyModel, allowedValues: ["Watch"])
-        
-        // 2. OR must be from an Apple Health source (this covers cases where device info might be missing in history)
-        let appleSourcePredicate = NSPredicate(format: "sourceRevision.source.bundleIdentifier BEGINSWITH %@", "com.apple.health")
-        
-        // 3. AND MUST NOT be from Whoop (just to be extra sure)
-        let whoopArray = Array(Self.whoopBundles)
-        let notWhoopPredicate = NSPredicate(format: "NOT (sourceRevision.source.bundleIdentifier IN %@)", whoopArray)
-        
-        let combinedSource = NSCompoundPredicate(orPredicateWithSubpredicates: [watchDevicePredicate, appleSourcePredicate])
-        
-        return NSCompoundPredicate(andPredicateWithSubpredicates: [base, combinedSource, notWhoopPredicate])
+    // HealthKit does not support raw NSPredicate key-path queries on sourceRevision.source.bundleIdentifier.
+    // Use HKSourceQuery first to discover valid sources in the time window, then build a supported predicate.
+    private func appleWatchPredicate(base: NSPredicate, type: HKSampleType) async -> NSPredicate {
+        // Capture @MainActor value before crossing into the nonisolated HKSourceQuery completion handler.
+        let whoopBundles = Self.whoopBundles
+        let appleSources: Set<HKSource> = await withCheckedContinuation { continuation in
+            let sourceQuery = HKSourceQuery(sampleType: type, samplePredicate: base) { _, sources, _ in
+                let valid = sources?.filter { source in
+                    source.bundleIdentifier.hasPrefix("com.apple.") &&
+                    !whoopBundles.contains(source.bundleIdentifier)
+                } ?? []
+                continuation.resume(returning: Set(valid))
+            }
+            self.store.execute(sourceQuery)
+        }
+
+        let watchDevicePredicate = HKQuery.predicateForObjects(
+            withDeviceProperty: HKDevicePropertyKeyModel, allowedValues: ["Watch"]
+        )
+
+        if appleSources.isEmpty {
+            return NSCompoundPredicate(andPredicateWithSubpredicates: [base, watchDevicePredicate])
+        }
+
+        let sourcePredicate = HKQuery.predicateForObjects(from: appleSources)
+        let combinedSource = NSCompoundPredicate(orPredicateWithSubpredicates: [watchDevicePredicate, sourcePredicate])
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [base, combinedSource])
     }
 
     private func hkSamples<T: HKSample>(
@@ -495,8 +508,10 @@ final class HealthKitImportService {
         sort: NSSortDescriptor,
         requireWatch: Bool = true
     ) async -> [T] {
-        await withCheckedContinuation { continuation in
-            let finalPredicate = requireWatch ? appleWatchPredicate(base: predicate) : predicate
+        let finalPredicate = requireWatch
+            ? await appleWatchPredicate(base: predicate, type: type)
+            : predicate
+        return await withCheckedContinuation { continuation in
             let q = HKSampleQuery(
                 sampleType: type,
                 predicate: finalPredicate,
@@ -516,8 +531,10 @@ final class HealthKitImportService {
         requireWatch: Bool = true,
         extract: @escaping (HKStatistics) -> Double?
     ) async -> Double? {
-        await withCheckedContinuation { continuation in
-            let finalPredicate = requireWatch ? appleWatchPredicate(base: predicate) : predicate
+        let finalPredicate = requireWatch
+            ? await appleWatchPredicate(base: predicate, type: type)
+            : predicate
+        return await withCheckedContinuation { continuation in
             let q = HKStatisticsQuery(
                 quantityType: type,
                 quantitySamplePredicate: finalPredicate,
