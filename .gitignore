@@ -3,3 +3,4 @@ Config.xcconfig
 *.xcuserstate
 xcuserdata/caloric/Utils/Secrets.swift
 Secrets.xcconfig
+Config.xcconfig
