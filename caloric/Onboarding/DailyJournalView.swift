@@ -160,10 +160,10 @@ struct DailyJournalView: View {
                             .foregroundStyle(.green)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(language == "de" ? "Bestätigt" : "confirmed")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 13, weight: .semibold))
                                 .foregroundStyle(.primary)
                             Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
-                                .font(.system(size: 11, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 11, weight: .regular))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -272,9 +272,9 @@ struct DailyJournalView: View {
         } label: {
             VStack(spacing: 2) {
                 Text(journalWeekdayAbbrev(for: date))
-                    .font(.system(size: weekFS, weight: .regular, design: .rounded))
+                    .font(.poppins(size: weekFS, weight: .regular))
                 Text("\(day)")
-                    .font(.system(size: dayFS, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: dayFS, weight: .semibold))
                 Circle()
                     .fill(isToday && !isSelected ? accentBlue : Color.clear)
                     .frame(width: 4, height: 4)
@@ -391,10 +391,10 @@ struct DailyJournalView: View {
                 VStack(spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(language == "de" ? "Name des Getränks" : "Drink Name")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 14, weight: .medium))
                             .foregroundStyle(Theme.textSecondary)
                         TextField(language == "de" ? "z.B. Mein Special Tee" : "e.g. My Special Tea", text: $newDrinkName)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 18, weight: .semibold))
                             .padding()
                             .background(Theme.fieldFill)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -402,13 +402,13 @@ struct DailyJournalView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text(language == "de" ? "Koffeingehalt (mg)" : "Caffeine content (mg)")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 14, weight: .medium))
                             .foregroundStyle(Theme.textSecondary)
                         TextField("0", text: $newDrinkCaffeine)
                             #if os(iOS)
                             .keyboardType(.numberPad)
                             #endif
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 18, weight: .semibold))
                             .padding()
                             .background(Theme.fieldFill)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -425,7 +425,7 @@ struct DailyJournalView: View {
                         }
                     } label: {
                         Text(language == "de" ? "Getränk speichern" : "Save Drink")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 16, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
@@ -456,7 +456,7 @@ struct DailyJournalView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Daily Journal")
-                        .font(.system(size: LayoutMetrics.titleFontSize, weight: .bold, design: .rounded))
+                        .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
                     
                     Button {
@@ -467,7 +467,7 @@ struct DailyJournalView: View {
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(accentBlue)
                             Text(selectedDateString)
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .font(.poppins(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.textSecondary)
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .bold))
@@ -503,7 +503,7 @@ struct DailyJournalView: View {
                         Text(language == "de"
                              ? "Einträge für zukünftige Tage gesperrt"
                              : "Entries locked for future dates")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 14, weight: .medium))
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .padding(.vertical, 20)
@@ -523,14 +523,14 @@ struct DailyJournalView: View {
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Text(macroKeyboardLabel)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 15, weight: .semibold))
                     .foregroundStyle(accentBlue)
                 Spacer()
                 Button(language == "de" ? "Fertig" : "Done") {
                     macroFocus = nil
                     caffeineFocused = false
                 }
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 15, weight: .semibold))
                 .foregroundStyle(accentBlue)
             }
         }
@@ -572,7 +572,7 @@ struct DailyJournalView: View {
                             Image(systemName: "arrow.uturn.backward.circle.fill")
                             Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
                         }
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 16, weight: .semibold))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -627,7 +627,7 @@ struct DailyJournalView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 18, weight: .semibold))
                 Text(language == "de" ? "Tag bestätigen" : "Confirm Day")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 17, weight: .semibold))
             }
             .foregroundStyle(accentBlue)
             .frame(maxWidth: .infinity)
@@ -659,12 +659,11 @@ struct DailyJournalView: View {
             // 1. Dein funktionierender API-Key aus dem Terminal-Test
             let apiKey = Secrets.gcpApiKey
             guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { return }
-            
+
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            
-            // 2. Die exakte JSON-Struktur, die du erfolgreich getestet hast
+
             let payload: [String: Any] = [
                 "systemInstruction": [
                     "parts": [
@@ -687,14 +686,17 @@ struct DailyJournalView: View {
                     ]
                 ]
             ]
-            
+
             request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-            
+
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
-                
+
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                    throw URLError(.badServerResponse)
+                    let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    let body = String(data: data, encoding: .utf8) ?? "–"
+                    throw NSError(domain: "GeminiAPI", code: statusCode,
+                                  userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(body)"])
                 }
                 
                 // 3. Google API Wrapper-Strukturen für das Parsing
@@ -738,7 +740,7 @@ struct DailyJournalView: View {
                 }
             } catch {
                 await MainActor.run {
-                    aiErrorMessage = language == "de" ? "Fehler bei der KI-Schätzung" : "AI analysis failed"
+                    aiErrorMessage = error.localizedDescription
                 }
             }
             
@@ -756,7 +758,7 @@ struct DailyJournalView: View {
                                   text: Binding<String>, focusValue: MacroField, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.poppins(size: 11, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
             
             HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -765,10 +767,10 @@ struct DailyJournalView: View {
                     .keyboardType(.numberPad)
                     #endif
                     .focused($macroFocus, equals: focusValue)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 20, weight: .semibold))
                     .foregroundStyle(tint)
                 Text("g")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 12, weight: .medium))
                     .foregroundStyle(tint.opacity(0.6))
             }
             
@@ -797,7 +799,7 @@ struct DailyJournalView: View {
             }
         } label: {
             Text(label)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.poppins(size: 12, weight: .medium))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -824,10 +826,10 @@ struct DailyJournalView: View {
         } label: {
             VStack(spacing: 1) {
                 Text(label)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 13, weight: .semibold))
                 if let sub = sublabel {
                     Text(sub)
-                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 10, weight: .regular))
                         .opacity(0.8)
                 }
             }
@@ -849,7 +851,7 @@ struct DailyJournalView: View {
     private func trackingToggle(label: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 15, weight: .semibold))
                 .foregroundStyle(isSelected ? .white : tint)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)

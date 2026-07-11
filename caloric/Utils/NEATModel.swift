@@ -47,6 +47,16 @@ struct NEATInputs {
     var bmrDynamisch: Double
 }
 
+// MARK: - Breakdown result
+
+struct NEATBreakdown {
+    let neatSteps: Double
+    let neatStand: Double
+    let neatMicro: Double
+    let neatUnrecordedCardio: Double
+    var total: Double { neatSteps + neatStand + neatMicro + neatUnrecordedCardio }
+}
+
 // MARK: - Pure calculator
 
 enum NEATCalculator {
@@ -65,8 +75,10 @@ enum NEATCalculator {
     private static let cardioMaxNetMET       = 3.2    // moderate ceiling for unrecorded cardio
     private static let cardioDailyCap        = 500.0  // safety cap for unrecorded cardio
 
-    static func neat(_ i: NEATInputs) -> Double {
-        guard i.bmrDynamisch > 0 else { return 0 }
+    static func neatDetailed(_ i: NEATInputs) -> NEATBreakdown {
+        guard i.bmrDynamisch > 0 else {
+            return NEATBreakdown(neatSteps: 0, neatStand: 0, neatMicro: 0, neatUnrecordedCardio: 0)
+        }
 
         let bmrPerHour = i.bmrDynamisch / 24.0
         let bmrPerMinute = i.bmrDynamisch / (24.0 * 60.0)
@@ -133,7 +145,16 @@ enum NEATCalculator {
             }
         }
 
-        return max(0, neatSteps + neatStand + neatMicro + neatUnrecordedCardio)
+        return NEATBreakdown(
+            neatSteps: max(0, neatSteps),
+            neatStand: max(0, neatStand),
+            neatMicro: max(0, neatMicro),
+            neatUnrecordedCardio: max(0, neatUnrecordedCardio)
+        )
+    }
+
+    static func neat(_ i: NEATInputs) -> Double {
+        neatDetailed(i).total
     }
 
     private static func clamp(_ value: Double, lower: Double, upper: Double) -> Double {

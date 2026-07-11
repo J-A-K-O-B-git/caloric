@@ -353,13 +353,13 @@ struct ContentView: View {
                                     .foregroundStyle(.white)
                             } else {
                                 Text("\(index + 1)")
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .font(.poppins(size: 15, weight: .semibold))
                                     .foregroundStyle(.white)
                             }
                         }
                         .shadow(color: isReached ? accentBlue.opacity(0.3) : .clear, radius: 6, y: 3)
                         Text(t.stepLabels[index])
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 11, weight: .regular))
                             .foregroundStyle(isReached ? accentBlue : accentBlue.opacity(0.4))
                             .fixedSize()
                     }
@@ -398,12 +398,12 @@ struct ContentView: View {
             .padding(.bottom, 4)
 
             Text(t.welcome)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.poppins(size: 30, weight: .bold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 30)
             Text(t.welcomeSubtitle)
-                .font(.system(size: 16, weight: .regular, design: .rounded))
+                .font(.poppins(size: 16, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
@@ -427,7 +427,7 @@ struct ContentView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "globe").font(.system(size: 14))
-                    Text(selectedLanguage.uppercased()).font(.system(size: 14, weight: .medium, design: .rounded))
+                    Text(selectedLanguage.uppercased()).font(.poppins(size: 14, weight: .medium))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -444,7 +444,7 @@ struct ContentView: View {
     private var genderPage: some View {
         VStack(spacing: 25) {
             Text(t.genderQuestion)
-                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 28, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
             hintBox(t.genderInfo)
@@ -464,7 +464,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.ageQuestion)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 28, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 hintBox(t.ageInfo)
@@ -476,7 +476,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 3)
                 }
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.poppins(size: 18, weight: .medium))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -492,7 +492,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.weightQuestion)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 28, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.weightInfo)
                     .frame(minHeight: 115, alignment: .top)
@@ -531,7 +531,7 @@ struct ContentView: View {
                         .onChange(of: weightLb) { weightText = "\(weightLb)" }
                     }
                     Text(weightUnit)
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 24, weight: .semibold))
                         .foregroundStyle(accentBlue)
                         .frame(width: 36, alignment: .leading)
                     Spacer()
@@ -539,7 +539,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 4)
                 }
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.poppins(size: 18, weight: .medium))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -555,7 +555,7 @@ struct ContentView: View {
             Spacer()
             VStack(spacing: 25) {
                 Text(t.heightQuestion)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 28, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.heightInfo)
                     .frame(minHeight: 115, alignment: .top)
@@ -587,7 +587,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightCm) { heightText = "\(heightCm)" }
                         Text("cm")
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 24, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .frame(width: 44, alignment: .leading)
                         Spacer()
@@ -603,7 +603,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightFeet) { heightText = "\(heightFeet)'\(heightInches)\"" }
                         Text("ft")
-                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 22, weight: .semibold))
                             .foregroundStyle(accentBlue)
                         Picker("", selection: $heightInches) {
                             ForEach(0...11, id: \.self) { v in Text("\(v)").tag(v) }
@@ -613,7 +613,7 @@ struct ContentView: View {
                         .clipped()
                         .onChange(of: heightInches) { heightText = "\(heightFeet)'\(heightInches)\"" }
                         Text("in")
-                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 22, weight: .semibold))
                             .foregroundStyle(accentBlue)
                         Spacer()
                     }
@@ -621,7 +621,7 @@ struct ContentView: View {
                 Button(t.next) {
                     navigate(to: 5)
                 }
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.poppins(size: 18, weight: .medium))
                 .buttonStyle(.caloricPrimary)
             }
             Spacer()
@@ -638,7 +638,7 @@ struct ContentView: View {
 
             VStack(spacing: 20) {
                 Text(t.bodyFatQuestion)
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 28, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
@@ -658,7 +658,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "checkmark.circle.fill").font(.system(size: 24))
-                            Text(t.yes).font(.system(size: 20, weight: .medium, design: .rounded))
+                            Text(t.yes).font(.poppins(size: 20, weight: .medium))
                             Spacer()
                         }
                         .padding(.horizontal, 24)
@@ -680,24 +680,24 @@ struct ContentView: View {
                                 #if os(iOS)
                                 .keyboardType(.decimalPad)
                                 #endif
-                                .font(.system(size: 48, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 48, weight: .semibold))
                                 .foregroundStyle(accentBlue)
                                 .multilineTextAlignment(.center)
                                 .frame(width: 140)
                                 Text("%")
-                                    .font(.system(size: 22, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 22, weight: .regular))
                                     .foregroundStyle(accentBlue.opacity(0.6))
                             }
                             if let error = bodyFatError {
                                 Text(error)
-                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 13, weight: .regular))
                                     .foregroundStyle(.red)
                                     .multilineTextAlignment(.center)
                             }
                             Button(t.next) {
                                 navigate(to: 6)
                             }
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 18, weight: .medium))
                             .buttonStyle(.caloricPrimary)
                             .disabled(!isBodyFatValid)
                         }
@@ -711,7 +711,7 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: "xmark.circle.fill").font(.system(size: 24))
-                            Text(t.no).font(.system(size: 20, weight: .medium, design: .rounded))
+                            Text(t.no).font(.poppins(size: 20, weight: .medium))
                             Spacer()
                         }
                         .padding(.horizontal, 24)
@@ -747,7 +747,7 @@ struct ContentView: View {
                 Spacer().frame(height: 20)
 
                 Text(t.metabolismQuestion)
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 24, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
 
@@ -904,7 +904,7 @@ struct ContentView: View {
                     metabolismFactor = computedMetabolismFactor
                     navigate(to: 7)
                 }
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.poppins(size: 18, weight: .medium))
                 .buttonStyle(.caloricPrimary)
                 .disabled(!isReadyToCalculate)
                 .padding(.top, 20)
@@ -946,12 +946,12 @@ struct ContentView: View {
 
                     VStack(spacing: 2) {
                         Text("\(Int(animatedBMR))")
-                            .font(.system(size: 84, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 84, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .contentTransition(.numericText())
 
                         Text(t.resultUnit)
-                            .font(.system(size: 17, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 17, weight: .regular))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -961,7 +961,7 @@ struct ContentView: View {
 
                 // Untertitel direkt unter der Zahl
                 Text(selectedLanguage == "de" ? "dein persönlicher Wert" : "your personal value")
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .foregroundStyle(.secondary.opacity(0.55))
                     .opacity(showResult ? 1 : 0)
                     .offset(y: showResult ? 0 : 8)
@@ -996,7 +996,7 @@ struct ContentView: View {
 
                 // Info-Text
                 Text(t.resultInfo)
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 13, weight: .regular))
                     .italic()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1011,7 +1011,7 @@ struct ContentView: View {
                 Button(t.resultContinue) {
                     navigate(to: 8)
                 }
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.poppins(size: 18, weight: .medium))
                 .buttonStyle(.caloricPrimary)
                 .opacity(showCards ? 1 : 0)
                 .offset(y: showCards ? 0 : 12)
@@ -1058,12 +1058,12 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(accentBlue)
             Text(value)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 20, weight: .semibold))
                 .foregroundStyle(accentBlue)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(unit)
-                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .font(.poppins(size: 11, weight: .regular))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
@@ -1100,7 +1100,7 @@ struct ContentView: View {
             .padding(.bottom, 22)
 
             Text(selectedLanguage == "de" ? "Konto erstellen" : "Create account")
-                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 26, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer().frame(height: 8)
@@ -1108,7 +1108,7 @@ struct ContentView: View {
             Text(selectedLanguage == "de"
                  ? "Damit dein Profil nicht verloren geht."
                  : "So your profile doesn't get lost.")
-                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .font(.poppins(size: 15, weight: .regular))
                 .italic()
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -1123,7 +1123,7 @@ struct ContentView: View {
                         Image(systemName: "apple.logo")
                             .font(.system(size: 17, weight: .semibold))
                         Text(selectedLanguage == "de" ? "Mit Apple anmelden" : "Sign in with Apple")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 16, weight: .semibold))
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
@@ -1142,7 +1142,7 @@ struct ContentView: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
                         Text(selectedLanguage == "de" ? "Mit Google anmelden" : "Sign in with Google")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
                     }
                     .frame(maxWidth: .infinity)
@@ -1162,7 +1162,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Rectangle().fill(.secondary.opacity(0.22)).frame(height: 1)
                     Text(selectedLanguage == "de" ? "oderrrrrr" : "orrrrrrrr")
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                     Rectangle().fill(.secondary.opacity(0.22)).frame(height: 1)
                 }
@@ -1192,7 +1192,7 @@ struct ContentView: View {
                             Image(systemName: "envelope.fill")
                                 .font(.system(size: 17))
                             Text(selectedLanguage == "de" ? "Mit E-Mail anmelden" : "Sign up with Email")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 16, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
@@ -1223,10 +1223,10 @@ struct ContentView: View {
                 .frame(width: 22)
             if secure {
                 SecureField(placeholder, text: text)
-                    .font(.system(size: 16, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 16, weight: .regular))
             } else {
                 TextField(placeholder, text: text)
-                    .font(.system(size: 16, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 16, weight: .regular))
                     #if os(iOS)
                     .autocapitalization(.none)
                     #endif
@@ -1309,7 +1309,7 @@ struct ContentView: View {
         } label: {
             HStack(spacing: 16) {
                 Image(systemName: icon).font(.system(size: 32))
-                Text(title).font(.system(size: 20, weight: .medium, design: .rounded))
+                Text(title).font(.poppins(size: 20, weight: .medium))
                 Spacer()
             }
             .padding(.horizontal, 24)
@@ -1328,10 +1328,10 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Good to Know")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 12, weight: .semibold))
                     .foregroundStyle(accentBlue)
                 Text(text)
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 13, weight: .regular))
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1349,7 +1349,7 @@ struct ContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
             content()
         }
@@ -1362,7 +1362,7 @@ struct ContentView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -1384,7 +1384,7 @@ struct ContentView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()

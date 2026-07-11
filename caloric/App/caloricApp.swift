@@ -13,6 +13,6 @@ struct caloricApp: App {
             AppRootView()
                 .caloricAppearance()
         }
-        .modelContainer(for: [UserProfile.self, DayCacheEntry.self])
+        .modelContainer(for: [UserProfile.self, DayCacheEntry.self, DailyActivityRecord.self])
     }
 }

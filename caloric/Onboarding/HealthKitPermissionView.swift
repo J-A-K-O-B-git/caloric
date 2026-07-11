@@ -105,10 +105,10 @@ struct HealthKitPermissionView: View {
             // Headline
             VStack(spacing: 6) {
                 Text(language == "de" ? "Wir brauchen deine Hilfe." : "We need your help.")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 22, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text(language == "de" ? "Um deinen persönlichen Kalorienbedarf so genau wie möglich zu berechnen, braucht Caloric Zugriff auf deine Aktivitätsdaten. Deine Bewegungskalorien machen hier nämlich den entscheidenden Unterschied!" : "To calculate your personal calorie needs as accurately as possible, Caloric needs access to your activity data. Your calories burned through movement make all the difference here!")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 13, weight: .regular))
                     .foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center)
@@ -176,10 +176,10 @@ struct HealthKitPermissionView: View {
             // Text
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 12, weight: .regular))
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -256,7 +256,7 @@ struct HealthKitPermissionView: View {
                             Image(systemName: "heart.fill")
                                 .font(.system(size: 15, weight: .semibold))
                             Text(language == "de" ? "Apple Health verbinden" : "Connect Apple Health")
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 17, weight: .semibold))
                         }
                         .opacity(isConnecting ? 0 : 1)
 
@@ -283,7 +283,7 @@ struct HealthKitPermissionView: View {
                 Button(language == "de" ? "Später in den Einstellungen" : "Later in Settings") {
                     onComplete()
                 }
-                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .font(.poppins(size: 14, weight: .regular))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 8)
             }

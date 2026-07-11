@@ -4,5 +4,13 @@
 <dict>
 	<key>GCP_API_KEY</key>
 	<string>$(GCP_API_KEY)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Poppins-Regular.ttf</string>
+		<string>Poppins-Medium.ttf</string>
+		<string>Poppins-SemiBold.ttf</string>
+		<string>Poppins-Bold.ttf</string>
+		<string>Poppins-Light.ttf</string>
+	</array>
 </dict>
 </plist>

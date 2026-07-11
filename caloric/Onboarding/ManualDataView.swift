@@ -56,10 +56,10 @@ struct ManualDataView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Meine Daten" : "My Data")
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 28, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         Text(language == "de" ? "Aktivität & manuelle Werte" : "Activity & manual values")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -131,10 +131,10 @@ struct ManualDataView: View {
     private func panelSectionHeader(title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 16, weight: .semibold))
                 .foregroundStyle(.primary)
             Text(subtitle)
-                .font(.system(size: 12, weight: .regular, design: .rounded))
+                .font(.poppins(size: 12, weight: .regular))
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,10 +158,10 @@ struct ManualDataView: View {
                     
                     VStack(alignment: .leading, spacing: 2) {
                         Text(label)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
                         Text(value)
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 17, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                     }
                     
@@ -214,15 +214,15 @@ struct ManualDataView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 12, weight: .regular))
                         .foregroundStyle(Theme.textSecondary)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(value)
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 18, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         if !unit.isEmpty {
                             Text(unit)
-                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 12, weight: .regular))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }
@@ -274,7 +274,7 @@ struct ManualDataView: View {
                 .onChange(of: weightUnit == "kg" ? editWeightKg : editWeightLb) { 
                     weightText = weightUnit == "kg" ? "\(editWeightKg)" : "\(editWeightLb)"
                 }
-                Text(weightUnit).font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(accentBlue).frame(width: 36, alignment: .leading)
+                Text(weightUnit).font(.poppins(size: 24, weight: .semibold)).foregroundStyle(accentBlue).frame(width: 36, alignment: .leading)
                 Spacer()
             }
         }
@@ -290,7 +290,7 @@ struct ManualDataView: View {
                 Picker("", selection: $editHeightCm) { ForEach(100...230, id: \.self) { v in Text("\(v)").tag(v) } }
                 .pickerStyle(.wheel).frame(width: 110, height: 180).clipped()
                 .onChange(of: editHeightCm) { heightText = "\(editHeightCm)" }
-                Text("cm").font(.system(size: 24, weight: .semibold, design: .rounded)).foregroundStyle(accentBlue).frame(width: 44, alignment: .leading)
+                Text("cm").font(.poppins(size: 24, weight: .semibold)).foregroundStyle(accentBlue).frame(width: 44, alignment: .leading)
                 Spacer()
             }
         }

@@ -7,7 +7,7 @@
 //  Designsystem "Caloric Ice" — adaptives UI mit zwei Erscheinungsbildern:
 //  · Hell:  kühler Eis-Hintergrund, weiße Karten, weiche blaue Schatten
 //  · Dunkel: tiefe, kühle Fläche ("Caloric Night"), angehobene Karten
-//  Beide teilen SF Rounded und die Caloric-Blau-Familie (Sky → Azure).
+//  Beide teilen Poppins und die Caloric-Blau-Familie (Sky → Azure).
 //  Der Modus ist über AppearanceMode /  umschaltbar
 //  (System / Hell / Dunkel, gespeichert in AppStorage).
 //
@@ -196,7 +196,7 @@ struct AppearancePicker: View {
                         Image(systemName: m.icon)
                             .font(.system(size: 12, weight: .semibold))
                         Text(m.label(language))
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 13, weight: .semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
@@ -237,7 +237,7 @@ struct CaloricPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .font(.poppins(size: 17, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 34)
             .frame(maxWidth: fullWidth ? .infinity : nil)
@@ -398,4 +398,23 @@ enum LayoutMetrics {
     static var cardSpacing: CGFloat    { (10  * scale).rounded() }
     static var sectionSpacing: CGFloat { (14  * scale).rounded() }
     static var titleFontSize: CGFloat  { (30  * scale).rounded() }
+}
+
+// MARK: - Poppins Font Helper
+extension Font {
+    static func poppins(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        let name: String
+        switch weight {
+        case .ultraLight: name = "Poppins-ExtraLight"
+        case .thin:       name = "Poppins-Thin"
+        case .light:      name = "Poppins-Light"
+        case .medium:     name = "Poppins-Medium"
+        case .semibold:   name = "Poppins-SemiBold"
+        case .bold:       name = "Poppins-Bold"
+        case .heavy:      name = "Poppins-ExtraBold"
+        case .black:      name = "Poppins-Black"
+        default:          name = "Poppins-Regular"
+        }
+        return .custom(name, size: size)
+    }
 }

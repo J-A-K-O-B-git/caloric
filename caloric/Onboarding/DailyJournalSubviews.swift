@@ -23,7 +23,7 @@ struct MenstruationCard: View {
                         .foregroundStyle(.pink)
                 }
                 Text(language == "de" ? "Menstruation" : "Menstruation")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
             }
@@ -60,7 +60,7 @@ struct SicknessCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 Text(language == "de" ? "Krankheit" : "Illness")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
                 Toggle("", isOn: $sickToggle.animation(.spring(response: 0.38, dampingFraction: 0.85)))
@@ -79,7 +79,7 @@ struct SicknessCard: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?")
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
 
                         HStack(spacing: 8) {
@@ -90,7 +90,7 @@ struct SicknessCard: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(language == "de" ? "Hast du Fieber?" : "Do you have a fever?")
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
 
                         HStack(spacing: 8) {
@@ -110,11 +110,11 @@ struct SicknessCard: View {
                                 .font(.system(size: 14))
                                 .foregroundStyle(tint)
                             Text(language == "de" ? "Temporärer BMR-Faktor: \(delta)" : "Temporary BMR factor: \(delta)")
-                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 12, weight: .regular))
                                 .foregroundStyle(Theme.textPrimary.opacity(0.85))
                             Spacer()
                             Text(isFeverHigh ? "×1.18" : "×1.10")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 13, weight: .semibold))
                                 .foregroundStyle(tint)
                         }
                         .padding(10)
@@ -165,7 +165,7 @@ struct CaffeineCard: View {
                                 .foregroundStyle(Theme.segCaf)
                         }
                         Text(language == "de" ? "Koffein" : "Caffeine")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 12, weight: .bold))
@@ -196,12 +196,12 @@ struct CaffeineCard: View {
                             .keyboardType(.numberPad)
                             #endif
                             .focused($caffeineFocused)
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 28, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .multilineTextAlignment(.center)
                             .frame(width: 60)
                         Text("mg")
-                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 14, weight: .regular))
                             .foregroundStyle(accentBlue.opacity(0.6))
                     }
 
@@ -244,7 +244,7 @@ struct CaffeineCard: View {
                             Image(systemName: "plus.circle.fill")
                             Text(language == "de" ? "Eigenes Getränk erstellen" : "Create custom drink")
                         }
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.poppins(size: 13, weight: .medium))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -267,11 +267,11 @@ struct CaffeineCard: View {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(label)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.poppins(size: 12, weight: .medium))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Text("+\(mg) mg")
-                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 10, weight: .regular))
                         .foregroundStyle(accentBlue)
                 }
                 Spacer()
@@ -327,7 +327,7 @@ struct MacrosCard: View {
                         .foregroundStyle(Theme.segTEF)
                 }
                 Text(language == "de" ? "Makros" : "Macros")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
             }
@@ -346,7 +346,7 @@ struct MacrosCard: View {
                 HStack {
                     TextField(language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...", text: $aiInputText, axis: .vertical)
                         .lineLimit(1...3)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 13, weight: .regular))
                         .foregroundColor(Theme.textPrimary)
                         .disabled(aiIsLoading)
                     
@@ -367,7 +367,7 @@ struct MacrosCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
                 
                 if let error = aiErrorMessage {
-                    Text(error).font(.system(size: 11, weight: .regular, design: .rounded)).foregroundColor(.red).padding(.leading, 4)
+                    Text(error).font(.poppins(size: 11, weight: .regular)).foregroundColor(.red).padding(.leading, 4)
                 }
             }
             .padding(.vertical, 4)
@@ -413,7 +413,7 @@ struct MacrosCard: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.orange.opacity(0.8))
                 Text("\(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
             }
@@ -431,14 +431,14 @@ struct MacrosCard: View {
     private func macroTotalPill(label: String, value: Int, unit: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.poppins(size: 11, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text("\(value)")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 20, weight: .semibold))
                     .foregroundStyle(color)
                 Text(unit)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 12, weight: .medium))
                     .foregroundStyle(color.opacity(0.6))
             }
         }
@@ -461,7 +461,7 @@ struct MacrosCard: View {
             }
         } label: {
             Text(name)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.poppins(size: 12, weight: .medium))
                 .foregroundStyle(isSelected ? .white : Theme.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)

@@ -16,6 +16,8 @@ struct CalorieSlot: Identifiable {
     let calories: Double
     let workoutKcal: Double
     let isSleep: Bool
+    let isWorkout: Bool
+    let isFuture: Bool
     var total: Double { calories + workoutKcal }
 }
 
@@ -178,8 +180,31 @@ struct DashboardView: View {
     }
 
     private var calorieSlots: [CalorieSlot] {
-        stride(from: 0.0, to: 24.0, by: 0.5).map { hour in
+        let now = nowFraction
+        let workoutList = healthKit.isAuthorized && !isSelectedFuture ? selectedWorkouts : []
+        let totalWorkoutMinutes = workoutList.reduce(0.0) { $0 + $1.duration / 60.0 }
+        let totalEatKcal = healthKit.isAuthorized && !isSelectedFuture ? activityResult.eatKcal : 0.0
+        let dayStart = Calendar.current.startOfDay(for: selectedDate)
+
+        return stride(from: 0.0, to: 24.0, by: 0.5).map { hour in
+            let slotEnd = hour + 0.5
             let sleeping = hour < sleepHoursValue
+            let isFuture = isSelectedFuture || (isSelectedToday && hour >= now)
+
+            var workoutKcal = 0.0
+            var isWorkout = false
+            if !sleeping && !isFuture && totalWorkoutMinutes > 0 {
+                for w in workoutList {
+                    let wStart = w.startDate.timeIntervalSince(dayStart) / 3600.0
+                    let wEnd   = w.endDate.timeIntervalSince(dayStart)   / 3600.0
+                    let overlap = max(0, min(slotEnd, wEnd) - max(hour, wStart))
+                    if overlap > 0 {
+                        isWorkout = true
+                        workoutKcal += (totalEatKcal / totalWorkoutMinutes) * (overlap * 60.0)
+                    }
+                }
+            }
+
             var mult: Double = sleeping ? 0.88 : 1.0
             if !sleeping {
                 switch hour {
@@ -192,7 +217,14 @@ struct DashboardView: View {
                 default:          mult = 1.0
                 }
             }
-            return CalorieSlot(hour: hour, calories: hourlyBMR * 0.5 * mult, workoutKcal: 0, isSleep: sleeping)
+            return CalorieSlot(
+                hour: hour,
+                calories: hourlyBMR * 0.5 * mult,
+                workoutKcal: workoutKcal,
+                isSleep: sleeping,
+                isWorkout: isWorkout,
+                isFuture: isFuture
+            )
         }
     }
 
@@ -201,11 +233,14 @@ struct DashboardView: View {
         return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60.0
     }
 
+    private var bmrBurnedSoFar: Double {
+        calorieSlots.filter { $0.hour < nowFraction }.reduce(0) { $0 + $1.calories }
+    }
+
     private var burnedSoFar: Double {
-        let bmrSoFar = calorieSlots.filter { $0.hour < nowFraction }.reduce(0) { $0 + $1.calories }
         let activeKcal = healthKit.isAuthorized ? activityResult.totalActiveKcal : 0
         let fractionalBonuses = (tdeeResult.tefKcal + tdeeResult.koffeinBonus) * (nowFraction / 24.0)
-        return bmrSoFar + activeKcal + fractionalBonuses
+        return bmrBurnedSoFar + activeKcal + fractionalBonuses
     }
 
     private var tdeeResult: TDEECalculationService.TDEEResult {
@@ -220,21 +255,107 @@ struct DashboardView: View {
         guard healthKit.isAuthorized else {
             return ActivityCalculationService.ActivityResult(neatKcal: 0, eatKcal: 0)
         }
+        let act = selectedActivity
         return ActivityCalculationService.calculate(
-            steps:            healthKit.activity.steps,
-            standTimeMinutes: healthKit.activity.standTimeMinutes,
-            restingHR:        healthKit.activity.restingHeartRate,
-            sedentaryAvgHR:   healthKit.activity.sedentaryAvgHR,
-            unrecordedCardioAvgHR: healthKit.activity.unrecordedCardioAvgHR,
-            cardioRatio:      healthKit.activity.cardioRatio,
+            steps:            act.steps,
+            standTimeMinutes: act.standTimeMinutes,
+            restingHR:        act.restingHeartRate,
+            sedentaryAvgHR:   act.sedentaryAvgHR,
+            unrecordedCardioAvgHR: act.unrecordedCardioAvgHR,
+            cardioRatio:      act.cardioRatio,
             vo2Max:           healthKit.vo2Max,
-            workouts:         healthKit.workouts,
+            workouts:         selectedWorkouts,
             weightKg:         weightInKg,
             age:              userAge,
             isMale:           selectedGender != femaleText,
             sleepHours:       sleepHours,
-            bmrDynamisch:     tdeeResult.bmrDynamisch
+            bmrDynamisch:     tdeeResult.bmrDynamisch,
+            referenceDate:    selectedDate
         )
+    }
+
+    private func saveActivityRecord() {
+        guard healthKit.isAuthorized else { return }
+        let result = activityResult
+        let breakdown = result.neatBreakdown
+        let record = DailyActivityRecord(
+            dateKey: ActivityRepository.dateKey(for: selectedDate),
+            date: Calendar.current.startOfDay(for: selectedDate),
+            steps: selectedActivity.steps,
+            standTimeMinutes: selectedActivity.standTimeMinutes,
+            restingHR: selectedActivity.restingHeartRate,
+            sedentaryAvgHR: selectedActivity.sedentaryAvgHR,
+            unrecordedCardioAvgHR: selectedActivity.unrecordedCardioAvgHR,
+            cardioRatio: selectedActivity.cardioRatio,
+            vo2Max: healthKit.vo2Max,
+            workoutSeconds: selectedWorkouts.reduce(0.0) { $0 + $1.duration },
+            sleepHours: sleepHours,
+            weightKg: weightInKg > 0 ? weightInKg : nil,
+            bmrDynamisch: tdeeResult.bmrDynamisch,
+            neatSteps: breakdown.neatSteps,
+            neatStand: breakdown.neatStand,
+            neatMicro: breakdown.neatMicro,
+            neatUnrecordedCardio: breakdown.neatUnrecordedCardio,
+            neatTotal: result.neatKcal,
+            eatCalories: result.eatKcal
+        )
+        ActivityRepository.save(record: record, context: modelContext)
+        ActivityRepository.deleteOlderThan(days: 90, context: modelContext)
+    }
+
+    private func backfillActivityHistory() {
+        guard healthKit.isAuthorized, !healthKit.history.isEmpty else { return }
+        let calendar = Calendar.current
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        for (key, snapshot) in healthKit.history {
+            guard let date = fmt.date(from: key) else { continue }
+            let dayTDEE = TDEECalculationService.calculate(
+                bmrStandard: activeFinalBMR,
+                inputs: store.journalInputs(for: date),
+                isFemale: selectedGender == femaleText
+            )
+            let result = ActivityCalculationService.calculate(
+                steps: snapshot.activity.steps,
+                standTimeMinutes: snapshot.activity.standTimeMinutes,
+                restingHR: snapshot.activity.restingHeartRate,
+                sedentaryAvgHR: snapshot.activity.sedentaryAvgHR,
+                unrecordedCardioAvgHR: snapshot.activity.unrecordedCardioAvgHR,
+                cardioRatio: snapshot.activity.cardioRatio,
+                vo2Max: healthKit.vo2Max,
+                workouts: snapshot.workouts,
+                weightKg: weightInKg,
+                age: userAge,
+                isMale: selectedGender != femaleText,
+                sleepHours: sleepHours,
+                bmrDynamisch: dayTDEE.bmrDynamisch,
+                referenceDate: date
+            )
+            let breakdown = result.neatBreakdown
+            let record = DailyActivityRecord(
+                dateKey: key,
+                date: calendar.startOfDay(for: date),
+                steps: snapshot.activity.steps,
+                standTimeMinutes: snapshot.activity.standTimeMinutes,
+                restingHR: snapshot.activity.restingHeartRate,
+                sedentaryAvgHR: snapshot.activity.sedentaryAvgHR,
+                unrecordedCardioAvgHR: snapshot.activity.unrecordedCardioAvgHR,
+                cardioRatio: snapshot.activity.cardioRatio,
+                vo2Max: healthKit.vo2Max,
+                workoutSeconds: snapshot.workouts.reduce(0.0) { $0 + $1.duration },
+                sleepHours: sleepHours,
+                weightKg: weightInKg > 0 ? weightInKg : nil,
+                bmrDynamisch: dayTDEE.bmrDynamisch,
+                neatSteps: breakdown.neatSteps,
+                neatStand: breakdown.neatStand,
+                neatMicro: breakdown.neatMicro,
+                neatUnrecordedCardio: breakdown.neatUnrecordedCardio,
+                neatTotal: result.neatKcal,
+                eatCalories: result.eatKcal
+            )
+            ActivityRepository.save(record: record, context: modelContext)
+        }
     }
 
     private var burnProgress: Double {
@@ -245,14 +366,27 @@ struct DashboardView: View {
 
     private var isSelectedToday: Bool { Calendar.current.isDateInToday(selectedDate) }
     private var isSelectedFuture: Bool { selectedDate > Calendar.current.startOfDay(for: Date()) }
-    
+
+    private var selectedActivity: HKActivitySnapshot {
+        if isSelectedToday { return healthKit.activity }
+        let key = HealthKitImportService.dateKey(selectedDate)
+        return healthKit.history[key]?.activity ?? healthKit.activity
+    }
+
+    private var selectedWorkouts: [HKWorkoutSnapshot] {
+        if isSelectedToday { return healthKit.workouts }
+        let key = HealthKitImportService.dateKey(selectedDate)
+        return healthKit.history[key]?.workouts ?? []
+    }
+
     private var displayBurnedSoFar: Double {
         if isSelectedToday {
             return burnedSoFar
         } else if isSelectedFuture {
             return 0
         } else {
-            return todayProjected
+            return tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal +
+                   (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
         }
     }
     
@@ -309,6 +443,44 @@ struct DashboardView: View {
     private var vsYesterdayColor: Color {
         vsYesterdayPercent >= 0 ? .green : .red
     }
+
+    private var previousDayTotal: Double {
+        if isSelectedToday { return yesterdayProjected }
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        let key = HealthKitImportService.dateKey(prevDate)
+        guard let snap = healthKit.history[key] else { return 0 }
+        let prevTDEE = TDEECalculationService.calculate(
+            bmrStandard: activeFinalBMR,
+            inputs: store.journalInputs(for: prevDate),
+            isFemale: selectedGender == femaleText
+        )
+        let prevActive = ActivityCalculationService.calculate(
+            steps: snap.activity.steps,
+            standTimeMinutes: snap.activity.standTimeMinutes,
+            restingHR: snap.activity.restingHeartRate,
+            sedentaryAvgHR: snap.activity.sedentaryAvgHR,
+            unrecordedCardioAvgHR: snap.activity.unrecordedCardioAvgHR,
+            cardioRatio: snap.activity.cardioRatio,
+            vo2Max: healthKit.vo2Max,
+            workouts: snap.workouts,
+            weightKg: weightInKg,
+            age: userAge,
+            isMale: selectedGender != femaleText,
+            sleepHours: sleepHours,
+            bmrDynamisch: prevTDEE.bmrDynamisch,
+            referenceDate: prevDate
+        )
+        return prevTDEE.bmrDynamisch + prevTDEE.koffeinBonus + prevTDEE.tefKcal + prevActive.totalActiveKcal
+    }
+
+    private var vsSelectedDayPercent: Double {
+        if isSelectedToday { return vsYesterdayPercent }
+        let prev = previousDayTotal
+        guard prev > 0 else { return 0 }
+        return (displayBurnedSoFar - prev) / prev * 100
+    }
+
+    private var vsSelectedDayColor: Color { vsSelectedDayPercent >= 0 ? .green : .red }
 
     private var calendarDays: [Date] {
         let cal = Calendar.current
@@ -367,7 +539,7 @@ struct DashboardView: View {
                         HStack {
                             Text(language == "de" ? "Zurück zu Heute" : "Back to Today")
                         }
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 16, weight: .semibold))
                         .foregroundStyle(accentBlue)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
@@ -463,7 +635,7 @@ struct DashboardView: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.system(size: LayoutMetrics.titleFontSize, weight: .bold, design: .rounded))
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
                             .foregroundStyle(Theme.textPrimary)
                         
                         Button {
@@ -474,7 +646,7 @@ struct DashboardView: View {
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(accentBlue)
                                 Text(selectedDateString)
-                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .font(.poppins(size: 13, weight: .medium))
                                     .foregroundStyle(Theme.textSecondary)
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 9, weight: .bold))
@@ -533,6 +705,7 @@ struct DashboardView: View {
             }
             .refreshable {
                 await healthKit.fetchAll()
+                saveActivityRecord()
                 Task { @MainActor in
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                         showRefreshBadge = true
@@ -578,10 +751,10 @@ struct DashboardView: View {
                             .foregroundStyle(.green)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(language == "de" ? "Alles aktuell" : "All up to date")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 13, weight: .semibold))
                                 .foregroundStyle(.primary)
                             Text(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short))
-                                .font(.system(size: 11, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 11, weight: .regular))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -600,10 +773,18 @@ struct DashboardView: View {
                 .allowsHitTesting(false)
             }
         }
-        .onAppear { runBurnAnimation() }
+        .onAppear {
+            runBurnAnimation()
+            saveActivityRecord()
+            backfillActivityHistory()
+        }
         .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
-        .onChange(of: healthKit.activity.fetchedAt) { _, _ in runBurnAnimation() }
+        .onChange(of: healthKit.activity.fetchedAt) { _, _ in
+            runBurnAnimation()
+            saveActivityRecord()
+            backfillActivityHistory()
+        }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
@@ -664,9 +845,9 @@ struct DashboardView: View {
         } label: {
             VStack(spacing: 2) {
                 Text(weekdayAbbrev(for: date))
-                    .font(.system(size: weekFS, weight: .regular, design: .rounded))
+                    .font(.poppins(size: weekFS, weight: .regular))
                 Text("\(day)")
-                    .font(.system(size: dayFS, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: dayFS, weight: .semibold))
                 Circle()
                     .fill(isToday && !isSelected ? accentBlue : Color.clear)
                     .frame(width: 4, height: 4)
@@ -736,49 +917,55 @@ struct DashboardView: View {
         let kcal: Double
     }
 
-    /// Ordered energy-expenditure components that sum to the daily total.
+    /// Ordered energy-expenditure components — for today shows burned so far, for past/future shows full day.
     private var energySegments: [EnergySegment] {
         let neat = healthKit.isAuthorized ? activityResult.neatKcal : 0
         let eat  = healthKit.isAuthorized ? activityResult.eatKcal  : 0
+
+        // When viewing today, scale BMR/TEF/caffeine to the elapsed fraction of the day.
+        // NEAT and EAT come from HealthKit and already reflect what actually happened.
+        let fraction = nowFraction / 24.0
+        let bmrVal = isSelectedToday ? bmrBurnedSoFar : tdeeResult.bmrDynamisch
+        let tefVal = isSelectedToday ? tdeeResult.tefKcal * fraction : tdeeResult.tefKcal
+        let cafVal = isSelectedToday ? tdeeResult.koffeinBonus * fraction : tdeeResult.koffeinBonus
+
         var segs: [EnergySegment] = [
             EnergySegment(
                 type: .bmr,
                 title: language == "de" ? "BMR" : "Resting Metabolic Rate",
                 short: "BMR",
                 subtitle: language == "de" ? "Grundumsatz" : "Basal Metabolic Rate",
-                icon: "moon.zzz.fill", color: Theme.segBMR, kcal: tdeeResult.bmrDynamisch
+                icon: "moon.zzz.fill", color: Theme.segBMR, kcal: bmrVal
             ),
             EnergySegment(
                 type: .neat,
                 title: "NEAT",
                 short: "NEAT",
-                subtitle: language == "de" ? "Non-Exercise Activity Thermogenesis" : "Non-Exercise Activity Thermogenesis",
+                subtitle: language == "de" ? "Alltagsbewegung" : "Non-Exercise Activity Thermogenesis",
                 icon: "figure.walk", color: Theme.segNEAT, kcal: neat
             ),
             EnergySegment(
                 type: .eat,
                 title: "EAT",
                 short: "EAT",
-                subtitle: language == "de" ? "Exercise Activity Thermogenesis"
-                                           : "Exercise Activity Thermogenesis",
+                subtitle: language == "de" ? "Workouts" : "Exercise Activity Thermogenesis",
                 icon: "dumbbell.fill", color: Theme.segEAT, kcal: eat
             ),
             EnergySegment(
                 type: .tef,
-                title: language == "de" ? "TEF" : "TEF",
+                title: "TEF",
                 short: "TEF",
-                subtitle: language == "de" ? "Thermische Wirkung der Ernährung"
-                                           : "Thermic Effect of Food",
-                icon: "fork.knife.circle.fill", color: Theme.segTEF, kcal: tdeeResult.tefKcal
+                subtitle: language == "de" ? "Thermische Wirkung der Ernährung" : "Thermic Effect of Food",
+                icon: "fork.knife.circle.fill", color: Theme.segTEF, kcal: tefVal
             ),
         ]
-        if tdeeResult.koffeinBonus > 0 {
+        if cafVal > 0 {
             segs.append(EnergySegment(
                 type: .caffeine,
                 title: language == "de" ? "Koffein-Thermogenese" : "Caffeine Thermogenesis",
                 short: language == "de" ? "Koffein" : "Caffeine",
                 subtitle: nil,
-                icon: "cup.and.heat.waves.fill", color: Theme.segCaf, kcal: tdeeResult.koffeinBonus
+                icon: "cup.and.heat.waves.fill", color: Theme.segCaf, kcal: cafVal
             ))
         }
         return segs
@@ -839,11 +1026,11 @@ struct DashboardView: View {
                         )
                     VStack(alignment: .leading, spacing: 2) {
                         Text(s.title)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 15, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         if let subtitle = s.subtitle {
                             Text(subtitle)
-                                .font(.system(size: 11, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 11, weight: .regular))
                                 .foregroundStyle(Theme.textSecondary)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.85)
@@ -853,14 +1040,14 @@ struct DashboardView: View {
                     VStack(alignment: .trailing, spacing: 1) {
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text("\(Int(s.kcal))")
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 17, weight: .semibold))
                                 .foregroundStyle(Theme.textPrimary)
                             Text("kcal")
-                                .font(.system(size: 11, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 11, weight: .regular))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                         Text(String(format: "%.0f%%", pct * 100))
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 11, weight: .medium))
                             .foregroundStyle(s.color)
                     }
                 }
@@ -878,21 +1065,21 @@ struct DashboardView: View {
         let baseBMR = 370 + 21.6 * lbm
         let isMale = selectedGender != femaleText
         
-        let nWalkMin      = Double(healthKit.activity.steps) / 100.0
+        let nWalkMin      = Double(selectedActivity.steps) / 100.0
         let nWalkH        = nWalkMin / 60.0
         let nBmrH         = activeFinalBMR / 24.0
         let nStepsKcal    = nWalkH * 2.0 * nBmrH
-        let nStandMin     = healthKit.activity.standTimeMinutes
+        let nStandMin     = selectedActivity.standTimeMinutes
         let nPureStandMin = max(0, nStandMin - nWalkMin)
         let nPureStandH   = nPureStandMin / 60.0
         let nStandKcal    = nPureStandH * 0.18 * nBmrH
         let nHrMax        = 208.0 - 0.7 * Double(userAge)
-        let nWorkoutMin   = healthKit.workouts.reduce(0.0) { $0 + $1.duration } / 60.0
+        let nWorkoutMin   = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
         let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
         let nWakeMin      = (24.0 - nEffSleepH) * 60.0
         let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
-        let nHrAvg        = healthKit.activity.avgHeartRateWaking
-        let nHrRest       = healthKit.activity.restingHeartRate
+        let nHrAvg        = selectedActivity.avgHeartRateWaking
+        let nHrRest       = selectedActivity.restingHeartRate
 
         let nMicroKcal: Double = {
             guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
@@ -1010,7 +1197,7 @@ struct DashboardView: View {
                             color: Theme.segEAT
                         )
                         
-                        if healthKit.workouts.isEmpty {
+                        if selectedWorkouts.isEmpty {
                             InfographicMathCard(
                                 title: language == "de" ? "Keine Workouts" : "No workouts",
                                 formula: language == "de" ? "Heute noch nicht trainiert" : "No training today",
@@ -1019,8 +1206,8 @@ struct DashboardView: View {
                             )
                         } else {
                             VStack(spacing: 8) {
-                                ForEach(healthKit.workouts) { w in
-                                    let kcal = ActivityCalculationService.eat(workout: w, weightKg: weightInKg, vo2Max: healthKit.vo2Max, hrRest: healthKit.activity.restingHeartRate, age: userAge, isMale: isMale)
+                                ForEach(selectedWorkouts) { w in
+                                    let kcal = ActivityCalculationService.eat(workout: w, weightKg: weightInKg, vo2Max: healthKit.vo2Max, hrRest: selectedActivity.restingHeartRate, age: userAge, isMale: isMale)
                                     InfographicMathCard(
                                         title: workoutActivityName(w.activityType),
                                         formula: String(format: "%.0f min · Ø %.0f bpm", w.duration/60, w.averageHeartRate ?? 0),
@@ -1070,10 +1257,10 @@ struct DashboardView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text(language == "de" ? "Wissenschaftlicher Hintergrund" : "Scientific Background")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 14, weight: .semibold))
                             .foregroundStyle(accentBlue)
                         Text(infoText(for: type))
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
                             .lineSpacing(4)
                     }
@@ -1090,11 +1277,11 @@ struct DashboardView: View {
 
     private func typeTitle(for type: EnergySegmentType) -> String {
         switch type {
-        case .bmr: return "BMR Details"
-        case .neat: return "NEAT Details"
-        case .eat: return "EAT Details"
-        case .tef: return "TEF Details"
-        case .caffeine: return "Caffeine Details"
+        case .bmr: return "Details BMR"
+        case .neat: return "Details NEAT"
+        case .eat: return "Details EAT"
+        case .tef: return "Details TEF"
+        case .caffeine: return "Details Caffeine"
         }
     }
 
@@ -1121,15 +1308,12 @@ struct DashboardView: View {
                         // Hero — total + stacked micro-chart
                         VStack(spacing: 18) {
                             VStack(spacing: 3) {
-                                Text(language == "de" ? "Dein hochgerechneter täglicher Gesamtumsatz" : "Your estimated total daily calorie expenditure")
-                                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                                    .foregroundStyle(Theme.textSecondary)
                                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                    Text("\(Int(todayProjected))")
-                                        .font(.system(size: 46, weight: .semibold, design: .rounded))
+                                    Text("\(Int(displayBurnedSoFar))")
+                                        .font(.poppins(size: 46, weight: .semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                     Text("kcal")
-                                        .font(.system(size: 16, weight: .regular, design: .rounded))
+                                        .font(.poppins(size: 16, weight: .regular))
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                             }
@@ -1140,7 +1324,7 @@ struct DashboardView: View {
                                     HStack(spacing: 5) {
                                         Circle().fill(s.color).frame(width: 7, height: 7)
                                         Text(s.short)
-                                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                                            .font(.poppins(size: 10, weight: .regular))
                                             .foregroundStyle(Theme.textSecondary)
                                     }
                                 }
@@ -1167,7 +1351,7 @@ struct DashboardView: View {
                                 Text(language == "de"
                                      ? "Verbinde Apple Health für NEAT & EAT Daten."
                                      : "Connect Apple Health for NEAT & EAT data.")
-                                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 12, weight: .regular))
                                     .foregroundStyle(Theme.textSecondary)
                             }
                             .padding(.horizontal, 30)
@@ -1205,23 +1389,23 @@ struct DashboardView: View {
         let isMale = selectedGender != femaleText
 
         // ── NEAT intermediate values (mirror ActivityCalculationService.neat) ──
-        let nWalkMin      = Double(healthKit.activity.steps) / 100.0
+        let nWalkMin      = Double(selectedActivity.steps) / 100.0
         let nWalkH        = nWalkMin / 60.0
         let nBmrH         = activeFinalBMR / 24.0
         let nStepsKcal    = nWalkH * 2.0 * nBmrH
 
-        let nStandMin     = healthKit.activity.standTimeMinutes
+        let nStandMin     = selectedActivity.standTimeMinutes
         let nPureStandMin = max(0, nStandMin - nWalkMin)
         let nPureStandH   = nPureStandMin / 60.0
         let nStandKcal    = nPureStandH * 0.18 * nBmrH
 
         let nHrMax        = 220.0 - Double(userAge)
-        let nWorkoutMin   = healthKit.workouts.reduce(0.0) { $0 + $1.duration } / 60.0
+        let nWorkoutMin   = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
         let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
         let nWakeMin      = (24.0 - nEffSleepH) * 60.0
         let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
-        let nHrAvg        = healthKit.activity.avgHeartRateWaking
-        let nHrRest       = healthKit.activity.restingHeartRate
+        let nHrAvg        = selectedActivity.avgHeartRateWaking
+        let nHrRest       = selectedActivity.restingHeartRate
         // Mirror ActivityCalculationService.neat() exactly (saubererPuls, Effizienzfaktor, Cap)
         let nMicroKcal: Double = {
             guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
@@ -1366,19 +1550,19 @@ struct DashboardView: View {
                                 value: ""
                             ),
                         ]
-                        if healthKit.workouts.isEmpty {
+                        if selectedWorkouts.isEmpty {
                             rows.append(calcRow(
                                 label: language == "de" ? "Keine Workouts heute" : "No workouts today",
                                 formula: "–",
                                 value: "0 kcal"
                             ))
                         } else {
-                            for w in healthKit.workouts {
+                            for w in selectedWorkouts {
                                 let kcal = ActivityCalculationService.eat(
                                     workout: w,
                                     weightKg: weightInKg,
                                     vo2Max: healthKit.vo2Max,
-                                    hrRest: healthKit.activity.restingHeartRate,
+                                    hrRest: selectedActivity.restingHeartRate,
                                     age: userAge,
                                     isMale: isMale
                                 )
@@ -1460,7 +1644,7 @@ struct DashboardView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(iconColor)
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 15, weight: .semibold))
                     .foregroundStyle(.primary)
             }
             .padding(.horizontal, 16)
@@ -1484,7 +1668,7 @@ struct DashboardView: View {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                     Text(formula)
                         .font(.system(size: 11, design: .monospaced))
@@ -1494,7 +1678,7 @@ struct DashboardView: View {
                 if !value.isEmpty {
                     Spacer()
                     Text(value)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 13, weight: .semibold))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.trailing)
                 }
@@ -1516,14 +1700,14 @@ struct DashboardView: View {
                 )
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 15, weight: .semibold))
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 12, weight: .regular))
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Text("\(kcal) kcal")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 16, weight: .semibold))
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 20)
@@ -1545,10 +1729,10 @@ struct DashboardView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(language == "de" ? "Dein Profil" : "Your Profile")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 22, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(language == "de" ? "Passe hier deinen Namen und dein Geburtsdatum an." : "Adjust your name and birth date here.")
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -1579,11 +1763,11 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue)
                                     .frame(width: 28)
                                 Text(language == "de" ? "Vorname" : "First Name")
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 15, weight: .regular))
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 TextField("", text: $accountUsername)
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .font(.poppins(size: 15, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .multilineTextAlignment(.trailing)
                                     .submitLabel(.done)
@@ -1599,7 +1783,7 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue)
                                     .frame(width: 28)
                                 Text(language == "de" ? "Geburtsdatum" : "Birth Date")
-                                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 15, weight: .regular))
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 DatePicker("", selection: $birthDate, displayedComponents: .date)
@@ -1621,7 +1805,7 @@ struct DashboardView: View {
                                 .foregroundStyle(accentBlue)
                                 .frame(width: 28)
                             Text(language == "de" ? "Darstellung" : "Appearance")
-                                .font(.system(size: 15, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 15, weight: .regular))
                                 .foregroundStyle(.primary)
                             Spacer()
                         }
@@ -1638,7 +1822,7 @@ struct DashboardView: View {
 
                     VStack(spacing: 12) {
                         Text(language == "de" ? "Informationen" : "Information")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 14, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 6)
@@ -1646,7 +1830,7 @@ struct DashboardView: View {
                         Text(language == "de" 
                              ? "Dein Geburtsdatum wird verwendet, um dein Alter für die Stoffwechselberechnungen (BMR) präzise zu bestimmen."
                              : "Your birth date is used to accurately determine your age for metabolic calculations (BMR).")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                             .foregroundStyle(.secondary)
                             .padding(16)
                             .background(GlassCardBackground(cornerRadius: 16))
@@ -1719,13 +1903,13 @@ struct DashboardView: View {
                     // 3. Center Instrument Data
                     VStack(spacing: 2) {
                         Text(!isSelectedFuture ? "\(Int(animatedBurn))" : "–")
-                            .font(.system(size: 38, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 38, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .contentTransition(.numericText())
                         
                         HStack(spacing: 3) {
                             Text("kcal")
-                                .font(.system(size: 12, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 12, weight: .regular))
                                 .foregroundStyle(Theme.textSecondary)
                             
                             if isSelectedToday {
@@ -1734,7 +1918,7 @@ struct DashboardView: View {
                                     .foregroundStyle(accentBlue.opacity(0.5))
                                 
                                 Text(currentTimeString)
-                                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 11, weight: .regular))
                                     .foregroundStyle(Theme.textSecondary.opacity(0.8))
                             }
                         }
@@ -1748,7 +1932,7 @@ struct DashboardView: View {
                 if !isSelectedFuture {
                     HStack(spacing: 6) {
                         Text(language == "de" ? "Aufschlüsselung ansehen" : "View breakdown")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 12, weight: .semibold))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
                             .opacity(0.8)
@@ -1783,10 +1967,10 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(language == "de" ? "Kalorien im Tagesverlauf" : "Calories Throughout the Day")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 15, weight: .semibold))
                     .foregroundStyle(accentBlue)
                 Text(language == "de" ? "kcal pro 30 Minuten" : "kcal per 30 minutes")
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 12, weight: .regular))
                     .foregroundStyle(.secondary)
             }
 
@@ -1794,10 +1978,20 @@ struct DashboardView: View {
                 ForEach(calorieSlots) { slot in
                     BarMark(
                         x: .value("Zeit", slot.hour),
-                        y: .value("kcal", slot.calories)
+                        y: .value("kcal", slot.isFuture ? slot.calories : slot.total)
                     )
-                    .foregroundStyle(accentBlue.opacity(slot.isSleep ? (isDark ? 0.45 : 0.28) : 0.9))
-                    .cornerRadius(3)
+                    .foregroundStyle(slotBarColor(slot))
+                    .cornerRadius(2)
+                }
+                if isSelectedToday {
+                    RuleMark(x: .value("Jetzt", nowFraction))
+                        .foregroundStyle(accentBlue)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                        .annotation(position: .top, spacing: 2) {
+                            Text(language == "de" ? "Jetzt" : "Now")
+                                .font(.poppins(size: 7, weight: .semibold))
+                                .foregroundStyle(accentBlue)
+                        }
                 }
             }
             .frame(height: LayoutMetrics.chartHeight)
@@ -1806,8 +2000,8 @@ struct DashboardView: View {
                 AxisMarks(values: [0, 6, 12, 18, 24]) { value in
                     AxisValueLabel {
                         if let d = value.as(Double.self) {
-                            Text("\(Int(d))h")
-                                .font(.system(size: 8, weight: .regular, design: .rounded))
+                            Text(String(format: "%02d:00", Int(d)))
+                                .font(.poppins(size: 8, weight: .regular))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -1818,16 +2012,22 @@ struct DashboardView: View {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
                     AxisValueLabel()
-                        .font(.system(size: 8, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 8, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
             }
 
-            HStack(spacing: 16) {
-                legendItem(color: accentBlue.opacity(isDark ? 0.45 : 0.28),
+            HStack(spacing: 14) {
+                legendItem(color: accentBlue.opacity(isDark ? 0.40 : 0.25),
                            label: language == "de" ? "Schlaf" : "Sleep")
                 legendItem(color: accentBlue,
                            label: language == "de" ? "Wachphase" : "Awake")
+                if healthKit.isAuthorized && !isSelectedFuture && !selectedWorkouts.isEmpty {
+                    legendItem(color: Theme.segEAT,
+                               label: language == "de" ? "Sport" : "Workout")
+                }
+                legendItem(color: Theme.ink.opacity(isDark ? 0.15 : 0.10),
+                           label: language == "de" ? "Zukunft" : "Future")
             }
         }
         .padding(14)
@@ -1835,24 +2035,35 @@ struct DashboardView: View {
         .padding(.horizontal, 20)
     }
 
+    private func slotBarColor(_ slot: CalorieSlot) -> Color {
+        if slot.isFuture  { return Theme.ink.opacity(isDark ? 0.13 : 0.09) }
+        if slot.isWorkout { return Theme.segEAT }
+        if slot.isSleep   { return accentBlue.opacity(isDark ? 0.40 : 0.25) }
+        return accentBlue.opacity(0.85)
+    }
+
     private var kpiRow: some View {
         HStack(spacing: 10) {
             kpiBox(
                 icon: "target",
-                value: isSelectedToday ? "\(Int(todayProjected))" : "\(Int(tdeeResult.tdeeTotal))",
+                value: isSelectedToday
+                    ? "\(Int(todayProjected))"
+                    : isSelectedFuture
+                        ? "\(Int(tdeeResult.tdeeTotal))"
+                        : "\(Int(displayBurnedSoFar))",
                 unit: "kcal",
                 accent: false
             )
             kpiBox(
                 icon: "arrow.up.arrow.down",
-                value: isSelectedToday ? String(format: "%+.0f", vsYesterdayPercent) : "–",
+                value: isSelectedFuture ? "–" : String(format: "%+.0f", vsSelectedDayPercent),
                 unit: language == "de" ? "% vs. Gestern" : "% vs. Yesterday",
                 accent: false,
-                tint: isSelectedToday ? vsYesterdayColor : nil
+                tint: isSelectedFuture ? nil : vsSelectedDayColor
             )
             kpiBox(
                 icon: "bolt.fill",
-                value: healthKit.isAuthorized && isSelectedToday
+                value: healthKit.isAuthorized && !isSelectedFuture
                     ? "\(Int(activityResult.totalActiveKcal))"
                     : "–",
                 unit: language == "de" ? "Aktiv kcal" : "Active kcal",
@@ -1870,12 +2081,12 @@ struct DashboardView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(fg)
             Text(value)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 20, weight: .semibold))
                 .foregroundStyle(valueFg)
                 .minimumScaleFactor(0.65)
                 .lineLimit(1)
             Text(unit)
-                .font(.system(size: 9, weight: .regular, design: .rounded))
+                .font(.poppins(size: 9, weight: .regular))
                 .foregroundStyle(unitFg)
                 .lineLimit(1)
         }
@@ -1950,7 +2161,7 @@ struct DashboardView: View {
                 .fill(color)
                 .frame(width: 14, height: 9)
             Text(label)
-                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .font(.poppins(size: 11, weight: .regular))
                 .foregroundStyle(.secondary)
         }
     }
@@ -2021,7 +2232,7 @@ struct DashboardView: View {
                     .onChange(of: editWeightLb) { weightText = "\(editWeightLb)" }
                 }
                 Text(weightUnit)
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 24, weight: .semibold))
                     .foregroundStyle(accentBlue)
                     .frame(width: 36, alignment: .leading)
                 Spacer()
@@ -2073,7 +2284,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightCm) { heightText = "\(editHeightCm)" }
                     Text("cm")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 24, weight: .semibold))
                         .foregroundStyle(accentBlue)
                         .frame(width: 44, alignment: .leading)
                     Spacer()
@@ -2089,7 +2300,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightFeet) { heightText = "\(editHeightFeet)'\(editHeightInches)\"" }
                     Text("ft")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 22, weight: .semibold))
                         .foregroundStyle(accentBlue)
                     Picker("", selection: $editHeightInches) {
                         ForEach(0...11, id: \.self) { v in Text("\(v)").tag(v) }
@@ -2099,7 +2310,7 @@ struct DashboardView: View {
                     .clipped()
                     .onChange(of: editHeightInches) { heightText = "\(editHeightFeet)'\(editHeightInches)\"" }
                     Text("in")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 22, weight: .semibold))
                         .foregroundStyle(accentBlue)
                     Spacer()
                 }
@@ -2136,7 +2347,7 @@ struct DashboardView: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 24))
                         Text(t.yes)
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 18, weight: .medium))
                         Spacer()
                     }
                     .padding(.horizontal, 24)
@@ -2155,12 +2366,12 @@ struct DashboardView: View {
                                 #if os(iOS)
                                 .keyboardType(.decimalPad)
                                 #endif
-                                .font(.system(size: 56, weight: .semibold, design: .rounded))
+                                .font(.poppins(size: 56, weight: .semibold))
                                 .foregroundStyle(accentBlue)
                                 .multilineTextAlignment(.center)
                                 .frame(width: 140)
                             Text("%")
-                                .font(.system(size: 22, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 22, weight: .regular))
                                 .foregroundStyle(accentBlue.opacity(0.6))
                         }
                     }
@@ -2174,7 +2385,7 @@ struct DashboardView: View {
                     HStack {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 24))
                         Text(t.no)
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .font(.poppins(size: 18, weight: .medium))
                         Spacer()
                     }
                     .padding(.horizontal, 24)
@@ -2359,7 +2570,7 @@ struct DashboardView: View {
                     editingField = nil
                 } label: {
                     Text(language == "de" ? "Übernehmen" : "Apply")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
@@ -2401,7 +2612,7 @@ struct DashboardView: View {
                         .foregroundStyle(isSelected ? .white : accentBlue)
                 }
                 Text(label)
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 15, weight: .regular))
                     .foregroundStyle(isSelected ? .white : .primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -2427,7 +2638,7 @@ struct DashboardView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
             content()
         }
@@ -2447,7 +2658,7 @@ struct DashboardView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -2469,7 +2680,7 @@ struct DashboardView: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Text(label)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
@@ -2504,19 +2715,19 @@ struct InfographicHeroCard: View {
                 .foregroundStyle(color)
             VStack(spacing: 4) {
                 Text(title)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.poppins(size: 18, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 12, weight: .regular))
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .font(.poppins(size: 38, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(unit)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 16, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
             }
         }
@@ -2544,15 +2755,15 @@ struct InfographicMathCard: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(formula)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 12, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             Text(value)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.poppins(size: 16, weight: .bold))
                 .foregroundStyle(color)
         }
         .padding(16)
@@ -2599,7 +2810,7 @@ struct InfographicSegmentBar: View {
                         HStack(spacing: 4) {
                             Circle().fill(seg.color).frame(width: 8, height: 8)
                             Text("\(seg.label) \(Int((seg.value / max(total, 1)) * 100))%")
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .font(.poppins(size: 11, weight: .medium))
                                 .foregroundStyle(Theme.textSecondary)
                         }
                     }

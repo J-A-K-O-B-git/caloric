@@ -45,10 +45,10 @@ struct SettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(language == "de" ? "Einstellungen" : "Settings")
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 28, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                         Text(language == "de" ? "Deine Stammdaten" : "Your master data")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -65,11 +65,11 @@ struct SettingsView: View {
                             .strokeBorder(accentBlue.opacity(isDark ? 0.34 : 0.18), lineWidth: 1)
                             .frame(width: 88, height: 88)
                         Text(initial)
-                            .font(.system(size: 36, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 36, weight: .semibold))
                             .foregroundStyle(accentBlue)
                     }
                     Text(displayName)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 20, weight: .semibold))
                         .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity)
@@ -78,7 +78,7 @@ struct SettingsView: View {
                 // Stammdaten-Karte
                 VStack(alignment: .leading, spacing: 10) {
                     Text(language == "de" ? "Persönliche Daten" : "Personal data")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 15, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                         .padding(.bottom, 2)
@@ -109,7 +109,7 @@ struct SettingsView: View {
                 // Darstellung-Karte
                 VStack(alignment: .leading, spacing: 10) {
                     Text(language == "de" ? "Darstellung" : "Appearance")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 15, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                         .padding(.bottom, 2)
@@ -119,7 +119,7 @@ struct SettingsView: View {
                     Text(language == "de"
                          ? "System folgt automatisch dem Gerätemodus."
                          : "System automatically follows your device mode.")
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 12, weight: .regular))
                         .foregroundStyle(.secondary)
                         .padding(.leading, 4)
                 }
@@ -135,7 +135,7 @@ struct SettingsView: View {
                     Text(language == "de"
                          ? "Weitere Einstellungen folgen bald."
                          : "More settings coming soon.")
-                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -157,7 +157,7 @@ struct SettingsView: View {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 13, weight: .medium))
                         Text(language == "de" ? "Datenbank zurücksetzen" : "Reset database")
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                     }
                     .foregroundStyle(.secondary.opacity(0.55))
                 }
@@ -205,11 +205,11 @@ struct SettingsView: View {
                     .foregroundStyle(accentBlue)
                     .frame(width: 26)
                 Text(label)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 16, weight: .medium))
                     .foregroundStyle(.primary)
                 Spacer()
                 Text(value)
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 15, weight: .regular))
                     .foregroundStyle(isPlaceholder ? accentBlue.opacity(0.7) : .secondary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
@@ -268,7 +268,7 @@ struct SettingsView: View {
                 .autocapitalization(.words)
                 #endif
                 .disableAutocorrection(true)
-                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 26, weight: .semibold))
                 .foregroundStyle(accentBlue)
                 .multilineTextAlignment(.center)
                 .onChange(of: nameDraft) { accountUsername = nameDraft }

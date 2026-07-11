@@ -57,11 +57,11 @@ struct BodyFatHelpView: View {
         NavigationStack {
             VStack(spacing: 25) {
                 Text(t.bodyFatHelpTitle)
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 24, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
 
                 Text(t.bodyFatHelpSubtitle)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 14, weight: .regular))
                     .italic()
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -99,7 +99,7 @@ struct BodyFatHelpView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 16))
                         Text(t.language == "de" ? "Gespeichert!" : "Saved!")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 15, weight: .semibold))
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20)
@@ -159,7 +159,7 @@ struct BodyFatHelpView: View {
                 }
 
                 Text("~\(percent)%")
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 30, weight: .semibold))
                     .foregroundStyle(accentBlue)
 
                 HStack(spacing: 20) {
@@ -176,7 +176,7 @@ struct BodyFatHelpView: View {
                     }
 
                     Button(t.calcUseResult) { estimateWithBadge("\(percent)") }
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 16, weight: .semibold))
                         .buttonStyle(.borderedProminent)
                         .tint(accentBlue)
                         .controlSize(.large)
@@ -259,10 +259,10 @@ struct BodyFatHelpView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("~\(percent)%")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 18, weight: .semibold))
                         .foregroundStyle(accentBlue)
                     Text(t.language == "de" ? "Tippen zum Vergrößern" : "Tap to expand")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 11, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
 
@@ -311,10 +311,10 @@ struct BodyFatHelpView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("~\(percent)%")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.poppins(size: 18, weight: .semibold))
                         .foregroundStyle(accentBlue)
                     Text(t.language == "de" ? "Tippen zum Vergrößern" : "Tap to expand")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .font(.poppins(size: 11, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
 
@@ -341,7 +341,7 @@ struct BodyFatHelpView: View {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.left.and.right").font(.system(size: 12))
                 Text("\(t.inBetween) (~\(midStr)%)")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 13, weight: .regular))
             }
             .foregroundStyle(accentBlue.opacity(0.7))
             .frame(maxWidth: .infinity)
@@ -365,7 +365,7 @@ struct BodyFatHelpView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isShown ? "chevron.up" : "chevron.down").font(.system(size: 11))
-                    Text(label).font(.system(size: 13, weight: .regular, design: .rounded))
+                    Text(label).font(.poppins(size: 13, weight: .regular))
                 }
                 .foregroundStyle(accentBlue.opacity(0.7))
                 .frame(maxWidth: .infinity)
@@ -382,12 +382,12 @@ struct BodyFatHelpView: View {
                             #if os(iOS)
                             .keyboardType(.decimalPad)
                             #endif
-                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .font(.poppins(size: 26, weight: .semibold))
                             .foregroundStyle(accentBlue)
                             .multilineTextAlignment(.center)
                             .frame(width: 70)
                         Text("%")
-                            .font(.system(size: 18, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 18, weight: .regular))
                             .foregroundStyle(accentBlue.opacity(0.6))
                     }
                     Spacer()
@@ -395,7 +395,7 @@ struct BodyFatHelpView: View {
                         let val = text.wrappedValue.replacingOccurrences(of: ",", with: ".")
                         if !val.isEmpty { estimateWithBadge(val) }
                     }
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 15, weight: .medium))
                     .buttonStyle(.borderedProminent)
                     .tint(accentBlue)
                     .controlSize(.regular)
@@ -414,10 +414,10 @@ struct BodyFatHelpView: View {
     private func infoBox(header: String, body: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(header)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.poppins(size: 12, weight: .semibold))
                 .foregroundStyle(accentBlue)
             Text(body)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .font(.poppins(size: 13, weight: .regular))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -438,7 +438,7 @@ struct BodyFatHelpView: View {
 
                     if heightInCm <= 0 {
                         Text(t.calcHeightMissing)
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.poppins(size: 13, weight: .regular))
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
@@ -460,7 +460,7 @@ struct BodyFatHelpView: View {
                         #endif
                         showCalcResult = true
                     }
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .font(.poppins(size: 17, weight: .medium))
                     .buttonStyle(.borderedProminent)
                     .tint(accentBlue)
                     .controlSize(.large)
@@ -470,23 +470,23 @@ struct BodyFatHelpView: View {
                         if let bf = calculatedBF {
                             VStack(spacing: 6) {
                                 Text(t.calcResult)
-                                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                                    .font(.poppins(size: 14, weight: .regular))
                                     .foregroundStyle(.secondary)
                                 Text(String(format: "%.1f%%", bf))
-                                    .font(.system(size: 48, weight: .semibold, design: .rounded))
+                                    .font(.poppins(size: 48, weight: .semibold))
                                     .foregroundStyle(accentBlue)
                             }
                             .padding(.top, 4)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                             Button(t.calcUseResult) { estimateWithBadge(String(format: "%.1f", bf)) }
-                                .font(.system(size: 18, weight: .medium, design: .rounded))
+                                .font(.poppins(size: 18, weight: .medium))
                                 .buttonStyle(.borderedProminent)
                                 .tint(accentBlue)
                                 .controlSize(.large)
                                 .id("calcResult")
                         } else {
                             Text(t.calcInvalidInput)
-                                .font(.system(size: 13, weight: .regular, design: .rounded))
+                                .font(.poppins(size: 13, weight: .regular))
                                 .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 20)
@@ -512,18 +512,18 @@ struct BodyFatHelpView: View {
     private func circumferenceField(label: String, placeholder: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .font(.poppins(size: 13, weight: .regular))
                 .foregroundStyle(.secondary)
             HStack(spacing: 6) {
                 TextField(placeholder, text: text)
                     #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.poppins(size: 22, weight: .semibold))
                     .foregroundStyle(accentBlue)
                     .multilineTextAlignment(.trailing)
                 Text("cm")
-                    .font(.system(size: 16, weight: .regular, design: .rounded))
+                    .font(.poppins(size: 16, weight: .regular))
                     .foregroundStyle(accentBlue.opacity(0.6))
             }
             .padding(.horizontal, 16)

@@ -21,7 +21,15 @@ struct ActivityCalculationService {
     struct ActivityResult {
         let neatKcal: Double
         let eatKcal: Double
+        let neatBreakdown: NEATBreakdown
         var totalActiveKcal: Double { neatKcal + eatKcal }
+
+        init(neatKcal: Double, eatKcal: Double,
+             neatBreakdown: NEATBreakdown = NEATBreakdown(neatSteps: 0, neatStand: 0, neatMicro: 0, neatUnrecordedCardio: 0)) {
+            self.neatKcal = neatKcal
+            self.eatKcal = eatKcal
+            self.neatBreakdown = neatBreakdown
+        }
     }
 
     // MARK: - EAT (Exercise Activity Thermogenesis)
@@ -126,12 +134,12 @@ struct ActivityCalculationService {
             bmrDynamisch: bmrDynamisch
         )
 
-        let neatKcal = NEATCalculator.neat(inputs)
-        let eatKcal  = workouts.reduce(0.0) { sum, w in
+        let breakdown = NEATCalculator.neatDetailed(inputs)
+        let eatKcal = workouts.reduce(0.0) { sum, w in
             sum + eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
                       hrRest: restingHR, age: age, isMale: isMale)
         }
-        return ActivityResult(neatKcal: neatKcal, eatKcal: eatKcal)
+        return ActivityResult(neatKcal: breakdown.total, eatKcal: eatKcal, neatBreakdown: breakdown)
     }
 }
 

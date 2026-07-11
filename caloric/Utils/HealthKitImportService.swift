@@ -127,7 +127,7 @@ final class HealthKitImportService {
     /// Called after every `fetchHistory()` completes.
     func saveHistoryToCache() {
         guard let ctx = modelContext else { return }
-        let cutoff = Calendar.current.date(byAdding: .day, value: -35, to: Date()) ?? .distantPast
+        let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? .distantPast
         let existing = (try? ctx.fetch(FetchDescriptor<DayCacheEntry>())) ?? []
         for entry in existing {
             let entryDate = Self.keyFormatter.date(from: entry.dateKey) ?? .distantPast
@@ -159,7 +159,7 @@ final class HealthKitImportService {
         try await store.requestAuthorization(toShare: [], read: Self.readSet)
         isAuthorized = true
         await fetchAll()
-        await fetchHistory()
+        await fetchHistory(days: 90)
         saveHistoryToCache()
         startObservers()
     }
