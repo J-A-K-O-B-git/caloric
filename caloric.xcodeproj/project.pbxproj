@@ -31,6 +31,8 @@
 		5DCDD98D3002476F00E17788 /* Config.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 5DCDD98C3002476F00E17788 /* Config.xcconfig */; };
 		5DCDD98F30024C6A00E17788 /* DailyActivityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCDD98E30024C6A00E17788 /* DailyActivityRecord.swift */; };
 		5DCDD99130024C7200E17788 /* ActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCDD99030024C7200E17788 /* ActivityRepository.swift */; };
+		5DCDD993300258AC00E17788 /* CalorieSlot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCDD992300258AC00E17788 /* CalorieSlot.swift */; };
+		5DCDD995300258C100E17788 /* CalorieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCDD994300258C100E17788 /* CalorieDetailView.swift */; };
 		5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */; };
 		5DEC7B912FE28406007A1989 /* TDEECalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */; };
 		5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEC7B922FE28407007A1989 /* JournalStore.swift */; };
@@ -66,6 +68,8 @@
 		5DCDD98C3002476F00E17788 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		5DCDD98E30024C6A00E17788 /* DailyActivityRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyActivityRecord.swift; sourceTree = "<group>"; };
 		5DCDD99030024C7200E17788 /* ActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityRepository.swift; sourceTree = "<group>"; };
+		5DCDD992300258AC00E17788 /* CalorieSlot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalorieSlot.swift; sourceTree = "<group>"; };
+		5DCDD994300258C100E17788 /* CalorieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalorieDetailView.swift; sourceTree = "<group>"; };
 		5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDataView.swift; sourceTree = "<group>"; };
 		5DEC7B902FE28406007A1989 /* TDEECalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TDEECalculationService.swift; sourceTree = "<group>"; };
 		5DEC7B922FE28407007A1989 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
@@ -114,6 +118,7 @@
 				5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */,
 				5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */,
 				5D097FB33000332400BABE78 /* InfographicViews.swift */,
+				5DCDD994300258C100E17788 /* CalorieDetailView.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -135,6 +140,7 @@
 				5DF0280D2FF7924B003E06B9 /* JournalViewModel.swift */,
 				5DCDD98E30024C6A00E17788 /* DailyActivityRecord.swift */,
 				5DCDD99030024C7200E17788 /* ActivityRepository.swift */,
+				5DCDD992300258AC00E17788 /* CalorieSlot.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -244,8 +250,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				5DF0280E2FF7924F003E06B9 /* JournalViewModel.swift in Sources */,
+				5DCDD993300258AC00E17788 /* CalorieSlot.swift in Sources */,
 				5DCDD98F30024C6A00E17788 /* DailyActivityRecord.swift in Sources */,
 				5D24FC832FEFCE7F00472E54 /* DayCacheEntry.swift in Sources */,
+				5DCDD995300258C100E17788 /* CalorieDetailView.swift in Sources */,
 				5DF0280C2FF7922A003E06B9 /* FoodIntent.swift in Sources */,
 				5D2AABAE2FDEC7E600BAC18D /* DailyJournalView.swift in Sources */,
 				5D8016A12FEB1EC3004446E7 /* ActivityCalculationService.swift in Sources */,

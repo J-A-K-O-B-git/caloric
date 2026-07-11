@@ -264,9 +264,14 @@ final class HealthKitImportService {
                 let diff = abs(sorted[j].startDate.timeIntervalSince(sorted[i].startDate))
                 guard diff <= 60 else { break }
                 processed.insert(sorted[j].id)
+                
                 let jIsWhoop    = Self.whoopBundles.contains(sorted[j].sourceBundleID)
                 let bestIsWhoop = Self.whoopBundles.contains(best.sourceBundleID)
-                if jIsWhoop && !bestIsWhoop { best = sorted[j] }
+                
+                // If the new one (j) is NOT Whoop, but the current best IS Whoop, prefer the new one (Apple Watch/Other).
+                if !jIsWhoop && bestIsWhoop {
+                    best = sorted[j]
+                }
             }
             result.append(best)
         }
@@ -357,7 +362,9 @@ final class HealthKitImportService {
         let start = cal.startOfDay(for: date)
         let end   = cal.isDateInToday(date) ? Date() : cal.date(byAdding: .day, value: 1, to: start)!
         let pred  = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-        return await hkStatistic(type: type, predicate: pred, options: .discreteAverage) {
+        // Resting HR is a system-calculated metric, it might not always have the "Watch" device model metadata.
+        // We disable requireWatch here to ensure we get this value for historical data.
+        return await hkStatistic(type: type, predicate: pred, options: .discreteAverage, requireWatch: false) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "count/min"))
         }
     }
@@ -377,7 +384,9 @@ final class HealthKitImportService {
         let end   = Date()
         let start = cal.date(byAdding: .day, value: -90, to: end) ?? end
         let pred  = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-        return await hkStatistic(type: type, predicate: pred, options: .discreteAverage) {
+        // VO2Max is often a system-estimated metric, it might not always have the "Watch" device model metadata.
+        // We disable requireWatch here to ensure we get this value for calculations.
+        return await hkStatistic(type: type, predicate: pred, options: .discreteAverage, requireWatch: false) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "ml/kg*min"))
         }
     }
@@ -399,8 +408,12 @@ final class HealthKitImportService {
             withStart: windowStart, end: windowEnd, options: .strictStartDate
         )
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        // Sleep data can come from Phone or Watch. Usually, Watch data is better.
+        // If the user ONLY wants Watch activities, we might want to filter sleep too, 
+        // but the request specifically mentioned "Aktivitäten" (Activities).
+        // I'll keep requireWatch: true for consistency if the user wants Apple Watch only.
         let samples: [HKCategorySample] = await hkSamples(
-            type: sleepType, predicate: predicate, sort: sort
+            type: sleepType, predicate: predicate, sort: sort, requireWatch: true
         )
 
         let asleepValues: Set<Int> = [
@@ -460,15 +473,33 @@ final class HealthKitImportService {
 
     // MARK: - HealthKit Query Helpers
 
+    private func appleWatchPredicate(base: NSPredicate) -> NSPredicate {
+        // 1. Must be from an Apple Watch device model
+        let watchDevicePredicate = HKQuery.predicateForObjects(withDeviceProperty: HKDevicePropertyKeyModel, allowedValues: ["Watch"])
+        
+        // 2. OR must be from an Apple Health source (this covers cases where device info might be missing in history)
+        let appleSourcePredicate = NSPredicate(format: "sourceRevision.source.bundleIdentifier BEGINSWITH %@", "com.apple.health")
+        
+        // 3. AND MUST NOT be from Whoop (just to be extra sure)
+        let whoopArray = Array(Self.whoopBundles)
+        let notWhoopPredicate = NSPredicate(format: "NOT (sourceRevision.source.bundleIdentifier IN %@)", whoopArray)
+        
+        let combinedSource = NSCompoundPredicate(orPredicateWithSubpredicates: [watchDevicePredicate, appleSourcePredicate])
+        
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [base, combinedSource, notWhoopPredicate])
+    }
+
     private func hkSamples<T: HKSample>(
         type: HKSampleType,
         predicate: NSPredicate,
-        sort: NSSortDescriptor
+        sort: NSSortDescriptor,
+        requireWatch: Bool = true
     ) async -> [T] {
         await withCheckedContinuation { continuation in
+            let finalPredicate = requireWatch ? appleWatchPredicate(base: predicate) : predicate
             let q = HKSampleQuery(
                 sampleType: type,
-                predicate: predicate,
+                predicate: finalPredicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: [sort]
             ) { _, samples, _ in
@@ -482,12 +513,14 @@ final class HealthKitImportService {
         type: HKQuantityType,
         predicate: NSPredicate,
         options: HKStatisticsOptions,
+        requireWatch: Bool = true,
         extract: @escaping (HKStatistics) -> Double?
     ) async -> Double? {
         await withCheckedContinuation { continuation in
+            let finalPredicate = requireWatch ? appleWatchPredicate(base: predicate) : predicate
             let q = HKStatisticsQuery(
                 quantityType: type,
-                quantitySamplePredicate: predicate,
+                quantitySamplePredicate: finalPredicate,
                 options: options
             ) { _, stats, _ in
                 continuation.resume(returning: stats.flatMap(extract))
@@ -499,10 +532,11 @@ final class HealthKitImportService {
     private func hkSum(
         _ identifier: HKQuantityTypeIdentifier,
         unit: HKUnit,
-        predicate: NSPredicate
+        predicate: NSPredicate,
+        requireWatch: Bool = true
     ) async -> Double? {
         guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
-        return await hkStatistic(type: type, predicate: predicate, options: .cumulativeSum) {
+        return await hkStatistic(type: type, predicate: predicate, options: .cumulativeSum, requireWatch: requireWatch) {
             $0.sumQuantity()?.doubleValue(for: unit)
         }
     }

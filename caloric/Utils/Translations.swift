@@ -247,4 +247,18 @@ struct Translations {
     var pcosInsulinYes: String { language == "de" ? "Ja, bestätigt" : "Yes, confirmed" }
     var pcosInsulinNo: String { language == "de" ? "Nein / nicht bekannt" : "No / not known" }
     var calculateBMR: String { language == "de" ? "Grundbedarf kalkulieren" : "Calculate basal rate" }
+    
+    // --- Aufschlüsselung: Wissenschaftlicher Hintergrund ---
+    var breakdownScienceTitle: String { language == "de" ? "Wissenschaftlicher Hintergrund" : "Scientific Background" }
+    var breakdownScienceText: String {
+        language == "de"
+            ? "Dein täglicher Energiebedarf (TDEE) setzt sich aus diesen Faktoren zusammen:\n\n• BMR: Energie für lebenswichtige Funktionen in Ruhe.\n• NEAT: Kalorien durch Alltagsbewegung (Gehen, Stehen).\n• EAT: Energieverbrauch durch gezielten Sport.\n• TEF: Energie zur Verdauung von Nahrung."
+            : "Your Total Daily Energy Expenditure (TDEE) consists of these factors:\n\n• BMR: Energy for vital functions at rest.\n• NEAT: Calories from daily movement (walking, standing).\n• EAT: Energy burned through intentional exercise.\n• TEF: Energy needed to digest food."
+    }
+    
+    var bmrDesc: String { language == "de" ? "Energie für lebenswichtige Funktionen in Ruhe." : "Energy for vital functions at rest." }
+    var neatDesc: String { language == "de" ? "Kalorien durch Alltagsbewegung (Gehen, Stehen)." : "Calories from daily movement (walking, standing)." }
+    var eatDesc: String { language == "de" ? "Energieverbrauch durch gezielten Sport." : "Energy burned through intentional exercise." }
+    var tefDesc: String { language == "de" ? "Energie zur Verdauung von Nahrung." : "Energy needed to digest food." }
+    var otherDesc: String { language == "de" ? "Sonstige Faktoren (Koffein, Zyklus, etc.)" : "Other factors (Caffeine, cycle, etc.)" }
 }

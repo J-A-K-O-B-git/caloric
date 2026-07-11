@@ -10,17 +10,6 @@ import Charts
 import HealthKit
 import SwiftData
 
-struct CalorieSlot: Identifiable {
-    let id = UUID()
-    let hour: Double
-    let calories: Double
-    let workoutKcal: Double
-    let isSleep: Bool
-    let isWorkout: Bool
-    let isFuture: Bool
-    var total: Double { calories + workoutKcal }
-}
-
 struct DashboardView: View {
     let accentBlue: Color
     let language: String
@@ -67,6 +56,7 @@ struct DashboardView: View {
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
+    @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
     @Environment(\.modelContext) private var modelContext
     @Environment(JournalStore.self)           private var store
@@ -798,6 +788,16 @@ struct DashboardView: View {
         .sheet(isPresented: $showActivityBreakdown) {
             activityBreakdownSheet
         }
+        .fullScreenCover(isPresented: $showCalorieDetail) {
+            CalorieDetailView(
+                slots: calorieSlots,
+                accentBlue: accentBlue,
+                language: language,
+                isSelectedToday: isSelectedToday,
+                nowFraction: nowFraction
+            )
+            .caloricAppearance()
+        }
     }
 
     // MARK: - Datumsleiste
@@ -1106,6 +1106,7 @@ struct DashboardView: View {
                         InfographicHeroCard(
                             title: language == "de" ? "Grundumsatz (BMR)" : "Basal Metabolic Rate",
                             subtitle: language == "de" ? "Katch-McArdle Formel" : "Katch-McArdle Formula",
+                            description: infoText(for: .bmr),
                             value: String(format: "%.0f", activeFinalBMR),
                             unit: "kcal",
                             icon: "moon.zzz.fill",
@@ -1139,6 +1140,7 @@ struct DashboardView: View {
                         InfographicHeroCard(
                             title: language == "de" ? "Alltagsbewegung (NEAT)" : "Daily Activity (NEAT)",
                             subtitle: language == "de" ? "3-Komponenten Modell" : "3-Component Model",
+                            description: infoText(for: .neat),
                             value: String(format: "%.0f", activityResult.neatKcal),
                             unit: "kcal",
                             icon: "figure.walk",
@@ -1191,6 +1193,7 @@ struct DashboardView: View {
                         InfographicHeroCard(
                             title: language == "de" ? "Workouts (EAT)" : "Workouts (EAT)",
                             subtitle: language == "de" ? "Keytel Formel + EPOC" : "Keytel Formula + EPOC",
+                            description: infoText(for: .eat),
                             value: String(format: "%.0f", activityResult.eatKcal),
                             unit: "kcal",
                             icon: "dumbbell.fill",
@@ -1222,6 +1225,7 @@ struct DashboardView: View {
                         InfographicHeroCard(
                             title: language == "de" ? "Verdauung (TEF)" : "Digestion (TEF)",
                             subtitle: language == "de" ? "Thermischer Effekt der Nahrung" : "Thermic Effect of Food",
+                            description: infoText(for: .tef),
                             value: String(format: "%.0f", tdeeResult.tefKcal),
                             unit: "kcal",
                             icon: "fork.knife.circle.fill",
@@ -1241,6 +1245,7 @@ struct DashboardView: View {
                         InfographicHeroCard(
                             title: language == "de" ? "Koffein-Effekt" : "Caffeine Effect",
                             subtitle: language == "de" ? "Metabolische Stimulation" : "Metabolic Stimulation",
+                            description: infoText(for: .caffeine),
                             value: String(format: "+%.0f", tdeeResult.koffeinBonus),
                             unit: "kcal",
                             icon: "cup.and.heat.waves.fill",
@@ -1254,18 +1259,6 @@ struct DashboardView: View {
                             color: Theme.segCaf
                         )
                     }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(language == "de" ? "Wissenschaftlicher Hintergrund" : "Scientific Background")
-                            .font(.poppins(size: 14, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                        Text(infoText(for: type))
-                            .font(.poppins(size: 13, weight: .regular))
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineSpacing(4)
-                    }
-                    .padding(20)
-                    .glassCard(20)
                     
                     Spacer()
                 }
@@ -1965,13 +1958,26 @@ struct DashboardView: View {
 
     private var caloriesChartSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(language == "de" ? "Kalorien im Tagesverlauf" : "Calories Throughout the Day")
-                    .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                Text(language == "de" ? "kcal pro 30 Minuten" : "kcal per 30 minutes")
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language == "de" ? "Kalorien im Tagesverlauf" : "Calories Throughout the Day")
+                        .font(.poppins(size: 15, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                    Text(language == "de" ? "kcal pro 30 Minuten" : "kcal per 30 minutes")
+                        .font(.poppins(size: 12, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    showCalorieDetail = true
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(accentBlue)
+                        .frame(width: 28, height: 28)
+                        .background(accentBlue.opacity(0.12))
+                        .clipShape(Circle())
+                }
             }
 
             Chart {
@@ -2032,6 +2038,9 @@ struct DashboardView: View {
         }
         .padding(14)
         .background(GlassCardBackground(cornerRadius: 18))
+        .onTapGesture {
+            showCalorieDetail = true
+        }
         .padding(.horizontal, 20)
     }
 
@@ -2703,6 +2712,7 @@ struct DashboardView: View {
 struct InfographicHeroCard: View {
     let title: String
     let subtitle: String
+    var description: String? = nil
     let value: String
     let unit: String
     let icon: String
@@ -2722,6 +2732,16 @@ struct InfographicHeroCard: View {
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
             }
+            
+            if let desc = description {
+                Text(desc)
+                    .font(.poppins(size: 12, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 4)
+            }
+
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)
                     .font(.poppins(size: 38, weight: .bold))
