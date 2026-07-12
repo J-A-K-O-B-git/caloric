@@ -22,9 +22,6 @@ enum ActivityRepository {
             existing.steps = record.steps
             existing.standTimeMinutes = record.standTimeMinutes
             existing.restingHR = record.restingHR
-            existing.sedentaryAvgHR = record.sedentaryAvgHR
-            existing.unrecordedCardioAvgHR = record.unrecordedCardioAvgHR
-            existing.cardioRatio = record.cardioRatio
             existing.vo2Max = record.vo2Max
             existing.workoutSeconds = record.workoutSeconds
             existing.sleepHours = record.sleepHours
@@ -32,8 +29,7 @@ enum ActivityRepository {
             existing.bmrDynamisch = record.bmrDynamisch
             existing.neatSteps = record.neatSteps
             existing.neatStand = record.neatStand
-            existing.neatMicro = record.neatMicro
-            existing.neatUnrecordedCardio = record.neatUnrecordedCardio
+            existing.neatHR = record.neatHR
             existing.neatTotal = record.neatTotal
             existing.eatCalories = record.eatCalories
         } else {

@@ -46,10 +46,6 @@ final class DayCacheEntry {
     var restingHeartRate: Double   // 0 encodes nil
     var avgHeartRateWaking: Double // 0 encodes nil
     
-    var sedentaryAvgHR: Double = 0
-    var unrecordedCardioAvgHR: Double = 0
-    var cardioRatio: Double = 0
-    
     var workoutsData: Data         // JSON-encoded [CachedWorkout]
     var cachedAt: Date
 
@@ -60,10 +56,6 @@ final class DayCacheEntry {
         self.standTimeMinutes    = snapshot.activity.standTimeMinutes
         self.restingHeartRate    = snapshot.activity.restingHeartRate ?? 0
         self.avgHeartRateWaking  = snapshot.activity.avgHeartRateWaking ?? 0
-        
-        self.sedentaryAvgHR      = snapshot.activity.sedentaryAvgHR ?? 0
-        self.unrecordedCardioAvgHR = snapshot.activity.unrecordedCardioAvgHR ?? 0
-        self.cardioRatio         = snapshot.activity.cardioRatio
         
         self.cachedAt            = Date()
 
@@ -92,9 +84,7 @@ final class DayCacheEntry {
                 standTimeMinutes: standTimeMinutes,
                 restingHeartRate: restingHeartRate > 0 ? restingHeartRate : nil,
                 avgHeartRateWaking: avgHeartRateWaking > 0 ? avgHeartRateWaking : nil,
-                sedentaryAvgHR: sedentaryAvgHR > 0 ? sedentaryAvgHR : nil,
-                unrecordedCardioAvgHR: unrecordedCardioAvgHR > 0 ? unrecordedCardioAvgHR : nil,
-                cardioRatio: cardioRatio
+                hrSegments: []
             ),
             workouts: workouts
         )

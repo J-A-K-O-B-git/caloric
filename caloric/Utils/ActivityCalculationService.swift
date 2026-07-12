@@ -6,9 +6,9 @@
 //  All results are *net* — the resting BMR share for the same window is
 //  subtracted to prevent double-counting against the base BMR ring.
 //
-//  NEAT math lives in NEATModel.swift (NEATCalculator/NEATInputs).
+//  NEAT math lives in NEATModel.swift (NEATCalculator / NEATInputs).
 //  This service stays SYNCHRONOUS so it can be used from SwiftUI computed
-//  properties. It maps the already-fetched HealthKit aggregates into NEATInputs.
+//  properties. It maps already-fetched HealthKit aggregates into NEATInputs.
 //
 
 import Foundation
@@ -25,7 +25,7 @@ struct ActivityCalculationService {
         var totalActiveKcal: Double { neatKcal + eatKcal }
 
         init(neatKcal: Double, eatKcal: Double,
-             neatBreakdown: NEATBreakdown = NEATBreakdown(neatSteps: 0, neatStand: 0, neatMicro: 0, neatUnrecordedCardio: 0)) {
+             neatBreakdown: NEATBreakdown = NEATBreakdown(neatSteps: 0, neatStand: 0, neatHR: 0)) {
             self.neatKcal = neatKcal
             self.eatKcal = eatKcal
             self.neatBreakdown = neatBreakdown
@@ -80,16 +80,15 @@ struct ActivityCalculationService {
 
     // MARK: - Combined (synchronous)
 
-    /// Same signature as before + an optional `referenceDate`.
-    /// Pass the day you're computing (defaults to today) so past days use the
-    /// full 24h window instead of clamping to the current clock time.
+    /// Pass the day you're computing via `referenceDate` (defaults to today) so past
+    /// days use the full 24 h window instead of clamping to the current clock time.
+    /// Pass `hrSegments` from `HKActivitySnapshot.hrSegments` for an HR-informed result;
+    /// omit (default `[]`) when only aggregated data is available.
     static func calculate(
         steps: Int,
         standTimeMinutes: Double,
         restingHR: Double?,
-        sedentaryAvgHR: Double?,
-        unrecordedCardioAvgHR: Double?,
-        cardioRatio: Double,
+        hrSegments: [HRSegment] = [],
         vo2Max: Double?,
         workouts: [HKWorkoutSnapshot],
         weightKg: Double,
@@ -112,34 +111,26 @@ struct ActivityCalculationService {
         let dayStart  = calendar.startOfDay(for: referenceDate)
         let dayEndMin = isToday ? referenceDate.timeIntervalSince(dayStart) / 60.0 : 1440.0
         let wakeMin   = (sleepHours > 0 ? sleepHours : 8.0) * 60.0
-        
-        let awakeMin   = max(0, dayEndMin - wakeMin)
-        let totalGapMin = max(0, awakeMin - netStandMin - workoutMin)
-        
-        let cardioMinutes = totalGapMin * cardioRatio
-        let sedentaryMinutes = totalGapMin * (1.0 - cardioRatio)
 
         let inputs = NEATInputs(
-            nonWorkoutSteps: steps,        // aggregate steps; see note below
-            standTimeMinutes: netStandMin,
-            restingHR: restingHR,
-            workoutSeconds: workoutSeconds,
-            wakeMinuteOfDay: wakeMin,
+            nonWorkoutSteps:   steps,
+            standTimeMinutes:  netStandMin,
+            restingHR:         restingHR,
+            workoutSeconds:    workoutSeconds,
+            wakeMinuteOfDay:   wakeMin,
             dayEndMinuteOfDay: max(wakeMin, dayEndMin),
-            sedentaryGapMinutes: sedentaryMinutes,
-            sedentaryAvgHR: sedentaryAvgHR,
-            unrecordedCardioMinutes: cardioMinutes,
-            unrecordedCardioAvgHR: unrecordedCardioAvgHR,
-            age: age, isMale: isMale, weightKg: weightKg,
+            hrSegments:        hrSegments,
+            age:          age,
+            isMale:       isMale,
+            weightKg:     weightKg,
             bmrDynamisch: bmrDynamisch
         )
 
         let breakdown = NEATCalculator.neatDetailed(inputs)
-        let eatKcal = workouts.reduce(0.0) { sum, w in
+        let eatKcal   = workouts.reduce(0.0) { sum, w in
             sum + eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
                       hrRest: restingHR, age: age, isMale: isMale)
         }
         return ActivityResult(neatKcal: breakdown.total, eatKcal: eatKcal, neatBreakdown: breakdown)
     }
 }
-

@@ -250,9 +250,7 @@ struct DashboardView: View {
             steps:            act.steps,
             standTimeMinutes: act.standTimeMinutes,
             restingHR:        act.restingHeartRate,
-            sedentaryAvgHR:   act.sedentaryAvgHR,
-            unrecordedCardioAvgHR: act.unrecordedCardioAvgHR,
-            cardioRatio:      act.cardioRatio,
+            hrSegments:       act.hrSegments,
             vo2Max:           healthKit.vo2Max,
             workouts:         selectedWorkouts,
             weightKg:         weightInKg,
@@ -274,9 +272,6 @@ struct DashboardView: View {
             steps: selectedActivity.steps,
             standTimeMinutes: selectedActivity.standTimeMinutes,
             restingHR: selectedActivity.restingHeartRate,
-            sedentaryAvgHR: selectedActivity.sedentaryAvgHR,
-            unrecordedCardioAvgHR: selectedActivity.unrecordedCardioAvgHR,
-            cardioRatio: selectedActivity.cardioRatio,
             vo2Max: healthKit.vo2Max,
             workoutSeconds: selectedWorkouts.reduce(0.0) { $0 + $1.duration },
             sleepHours: sleepHours,
@@ -284,8 +279,7 @@ struct DashboardView: View {
             bmrDynamisch: tdeeResult.bmrDynamisch,
             neatSteps: breakdown.neatSteps,
             neatStand: breakdown.neatStand,
-            neatMicro: breakdown.neatMicro,
-            neatUnrecordedCardio: breakdown.neatUnrecordedCardio,
+            neatHR: breakdown.neatHR,
             neatTotal: result.neatKcal,
             eatCalories: result.eatKcal
         )
@@ -310,9 +304,7 @@ struct DashboardView: View {
                 steps: snapshot.activity.steps,
                 standTimeMinutes: snapshot.activity.standTimeMinutes,
                 restingHR: snapshot.activity.restingHeartRate,
-                sedentaryAvgHR: snapshot.activity.sedentaryAvgHR,
-                unrecordedCardioAvgHR: snapshot.activity.unrecordedCardioAvgHR,
-                cardioRatio: snapshot.activity.cardioRatio,
+                hrSegments: snapshot.activity.hrSegments,
                 vo2Max: healthKit.vo2Max,
                 workouts: snapshot.workouts,
                 weightKg: weightInKg,
@@ -329,9 +321,6 @@ struct DashboardView: View {
                 steps: snapshot.activity.steps,
                 standTimeMinutes: snapshot.activity.standTimeMinutes,
                 restingHR: snapshot.activity.restingHeartRate,
-                sedentaryAvgHR: snapshot.activity.sedentaryAvgHR,
-                unrecordedCardioAvgHR: snapshot.activity.unrecordedCardioAvgHR,
-                cardioRatio: snapshot.activity.cardioRatio,
                 vo2Max: healthKit.vo2Max,
                 workoutSeconds: snapshot.workouts.reduce(0.0) { $0 + $1.duration },
                 sleepHours: sleepHours,
@@ -339,8 +328,7 @@ struct DashboardView: View {
                 bmrDynamisch: dayTDEE.bmrDynamisch,
                 neatSteps: breakdown.neatSteps,
                 neatStand: breakdown.neatStand,
-                neatMicro: breakdown.neatMicro,
-                neatUnrecordedCardio: breakdown.neatUnrecordedCardio,
+                neatHR: breakdown.neatHR,
                 neatTotal: result.neatKcal,
                 eatCalories: result.eatKcal
             )
@@ -408,9 +396,7 @@ struct DashboardView: View {
                 steps:            snap.activity.steps,
                 standTimeMinutes: snap.activity.standTimeMinutes,
                 restingHR:        snap.activity.restingHeartRate,
-                sedentaryAvgHR:   snap.activity.sedentaryAvgHR,
-                unrecordedCardioAvgHR: snap.activity.unrecordedCardioAvgHR,
-                cardioRatio:      snap.activity.cardioRatio,
+                hrSegments:       snap.activity.hrSegments,
                 vo2Max:           healthKit.vo2Max,
                 workouts:         snap.workouts,
                 weightKg:         weightInKg,
@@ -448,9 +434,7 @@ struct DashboardView: View {
             steps: snap.activity.steps,
             standTimeMinutes: snap.activity.standTimeMinutes,
             restingHR: snap.activity.restingHeartRate,
-            sedentaryAvgHR: snap.activity.sedentaryAvgHR,
-            unrecordedCardioAvgHR: snap.activity.unrecordedCardioAvgHR,
-            cardioRatio: snap.activity.cardioRatio,
+            hrSegments: snap.activity.hrSegments,
             vo2Max: healthKit.vo2Max,
             workouts: snap.workouts,
             weightKg: weightInKg,
@@ -1073,27 +1057,8 @@ struct DashboardView: View {
         let nPureStandMin = max(0, nStandMin - nWalkMin)
         let nPureStandH   = nPureStandMin / 60.0
         let nStandKcal    = nPureStandH * 0.18 * nBmrH
-        let nHrMax        = 208.0 - 0.7 * Double(userAge)
-        let nWorkoutMin   = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
-        let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
-        let nWakeMin      = (24.0 - nEffSleepH) * 60.0
-        let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
-        let nHrAvg        = selectedActivity.avgHeartRateWaking
-        let nHrRest       = selectedActivity.restingHeartRate
-
-        let nMicroKcal: Double = {
-            guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
-            let divisor = nHrMax - rest
-            guard divisor > 0 else { return 0 }
-            let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
-            let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
-            let kJ: Double = isMale
-                ? -55.0969 + 0.6309 * nHrMax + 0.1988 * weightInKg + 0.2017 * Double(userAge)
-                : -20.4022 + 0.4472 * nHrMax - 0.1263 * weightInKg + 0.0740 * Double(userAge)
-            let kNetto = max(0, kJ / 4.184 - activeFinalBMR / (24.0 * 60.0))
-            let micro = ((saubererPuls - rest) / divisor) * nGapMin * kNetto * 0.10
-            return min(max(0, micro), 500.0)
-        }()
+        let nHRKcal  = activityResult.neatBreakdown.neatHR
+        let nHRCount = selectedActivity.hrSegments.count
 
         return ZStack {
             CaloricBackground()
@@ -1135,28 +1100,25 @@ struct DashboardView: View {
                         }
                         
                     case .neat:
-                        let nCardioKcal = max(0, activityResult.neatKcal - nStepsKcal - nStandKcal - nMicroKcal)
-                        
                         InfographicHeroCard(
                             title: language == "de" ? "Alltagsbewegung (NEAT)" : "Daily Activity (NEAT)",
-                            subtitle: language == "de" ? "3-Komponenten Modell" : "3-Component Model",
+                            subtitle: language == "de" ? "3-Komponenten-Modell" : "3-Component Model",
                             description: infoText(for: .neat),
                             value: String(format: "%.0f", activityResult.neatKcal),
                             unit: "kcal",
                             icon: "figure.walk",
                             color: Theme.segNEAT
                         )
-                        
+
                         InfographicSegmentBar(
                             segments: [
                                 .init(value: nStepsKcal, color: Theme.segNEAT, label: language == "de" ? "Gehen" : "Walk"),
                                 .init(value: nStandKcal, color: Theme.segNEAT.opacity(0.8), label: language == "de" ? "Stehen" : "Stand"),
-                                .init(value: nMicroKcal, color: Theme.segNEAT.opacity(0.6), label: "Mikro"),
-                                .init(value: nCardioKcal, color: Theme.segNEAT.opacity(0.3), label: "Cardio")
+                                .init(value: nHRKcal,    color: Theme.segNEAT.opacity(0.55), label: language == "de" ? "Pulsaktivität" : "HR Activity")
                             ],
                             total: max(1, activityResult.neatKcal)
                         )
-                        
+
                         VStack(spacing: 8) {
                             InfographicMathCard(
                                 title: language == "de" ? "① Geh-Kalorien" : "① Walk Calories",
@@ -1170,23 +1132,14 @@ struct DashboardView: View {
                                 value: String(format: "%.0f kcal", nStandKcal),
                                 color: Theme.segNEAT
                             )
-                            if let avg = nHrAvg, let rest = nHrRest, avg > rest {
-                                let hrr = (min(avg, rest + 25) - rest) / max(1, nHrMax - rest)
-                                InfographicMathCard(
-                                    title: language == "de" ? "③ Mikro-NEAT (HR)" : "③ Micro-NEAT (HR)",
-                                    formula: String(format: "HRR %.2f · %.0f min", hrr, nGapMin),
-                                    value: String(format: "%.0f kcal", nMicroKcal),
-                                    color: Theme.segNEAT
-                                )
-                            }
-                            if nCardioKcal > 0 {
-                                InfographicMathCard(
-                                    title: language == "de" ? "④ Ungemeldete Belastung" : "④ Unrecorded Intensity",
-                                    formula: language == "de" ? "Aktive Phasen außerhalb Workouts" : "Active phases outside workouts",
-                                    value: String(format: "%.0f kcal", nCardioKcal),
-                                    color: Theme.segNEAT
-                                )
-                            }
+                            InfographicMathCard(
+                                title: language == "de" ? "③ Herzfrequenz-Aktivität" : "③ HR Activity",
+                                formula: nHRCount > 0
+                                    ? String(format: language == "de" ? "%d HR-Segmente · HRR^1.1-gewichtet" : "%d HR segments · HRR^1.1-weighted", nHRCount)
+                                    : (language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data"),
+                                value: String(format: "%.0f kcal", nHRKcal),
+                                color: Theme.segNEAT
+                            )
                         }
                         
                     case .eat:
@@ -1281,7 +1234,7 @@ struct DashboardView: View {
     private func infoText(for type: EnergySegmentType) -> String {
         switch type {
         case .bmr: return language == "de" ? "Der Grundumsatz (BMR) basiert auf der Katch-McArdle Formel, die besonders präzise ist, da sie deine fettfreie Körpermasse berücksichtigt." : "The Basal Metabolic Rate (BMR) is based on the Katch-McArdle formula, which is particularly precise as it accounts for your lean body mass."
-        case .neat: return language == "de" ? "NEAT umfasst alle Alltagsbewegungen. Wir berechnen dies über ein 3-Stufen-Modell aus Schritten, Stehzeit und der Herzfrequenz-Varianz in Ruhephasen." : "NEAT includes all daily movements. We calculate this using a 3-component model of steps, standing time, and heart rate variance during rest periods."
+        case .neat: return language == "de" ? "NEAT umfasst alle Alltagsbewegungen: Schritte, Stehzeit und eine zeitgewichtete Herzfrequenzanalyse aller Nicht-Workout-Segmente." : "NEAT covers all daily movements: steps, standing time, and a time-weighted heart rate analysis of all non-workout segments."
         case .eat: return language == "de" ? "EAT misst die Energie während geplanter Workouts. Hier nutzen wir die Keytel-Formel, die Alter, Gewicht und Herzfrequenz kombiniert." : "EAT measures energy during planned workouts. We use the Keytel formula, which combines age, weight, and heart rate."
         case .tef: return language == "de" ? "TEF ist die Energie, die dein Körper für die Verdauung aufwendet. Proteine haben hierbei mit ca. 25% den höchsten Effekt." : "TEF is the energy your body spends on digestion. Protein has the highest effect at approximately 25%."
         case .caffeine: return language == "de" ? "Koffein steigert die Thermogenese und den Stoffwechsel kurzfristig. Wir berechnen einen moderaten Bonus von 15 kcal pro 100 mg." : "Caffeine increases thermogenesis and metabolism in the short term. We calculate a moderate bonus of 15 kcal per 100 mg."
@@ -1392,48 +1345,8 @@ struct DashboardView: View {
         let nPureStandH   = nPureStandMin / 60.0
         let nStandKcal    = nPureStandH * 0.18 * nBmrH
 
-        let nHrMax        = 220.0 - Double(userAge)
-        let nWorkoutMin   = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
-        let nEffSleepH    = sleepHours > 0 ? sleepHours : 8.0
-        let nWakeMin      = (24.0 - nEffSleepH) * 60.0
-        let nGapMin       = max(0, nWakeMin - nWalkMin - nStandMin - nWorkoutMin)
-        let nHrAvg        = selectedActivity.avgHeartRateWaking
-        let nHrRest       = selectedActivity.restingHeartRate
-        // Mirror ActivityCalculationService.neat() exactly (saubererPuls, Effizienzfaktor, Cap)
-        let nMicroKcal: Double = {
-            guard let avg = nHrAvg, let rest = nHrRest, avg > rest, nHrMax > rest else { return 0 }
-            let divisor = nHrMax - rest
-            guard divisor > 0 else { return 0 }
-            let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
-            let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
-            let kJ: Double = isMale
-                ? -55.0969 + 0.6309 * nHrMax + 0.1988 * weightInKg + 0.2017 * Double(userAge)
-                : -20.4022 + 0.4472 * nHrMax - 0.1263 * weightInKg + 0.0740 * Double(userAge)
-            let kNetto = max(0, kJ / 4.184 - activeFinalBMR / (24.0 * 60.0))
-            let micro = ((saubererPuls - rest) / divisor) * nGapMin * kNetto * 0.10
-            return min(max(0, micro), 500.0)
-        }()
-        let nMicroRow: AnyView = { () -> AnyView in
-            if let avg = nHrAvg, let rest = nHrRest, avg > rest {
-                let geschaetzterLückenPuls = min(avg - (nWorkoutMin > 0 ? 15.0 : 0.0), rest + 25.0)
-                let saubererPuls = max(rest + 2.0, geschaetzterLückenPuls)
-                let hrrNetto = (saubererPuls - rest) / max(1, nHrMax - rest)
-                return calcRow(
-                    label: language == "de" ? "③ Mikro-NEAT (HR-Lücke)" : "③ Micro-NEAT (HR Gap)",
-                    formula: String(format: language == "de"
-                        ? "HR_avg %.0f → bereinigt %.0f · HR_rest %.0f · HR_max %.0f\nHRR %.2f · %.0f min · ×0.10"
-                        : "HR_avg %.0f → adjusted %.0f · HR_rest %.0f · HR_max %.0f\nHRR %.2f · %.0f min · ×0.10",
-                        avg, saubererPuls, rest, nHrMax, hrrNetto, nGapMin),
-                    value: String(format: "%.0f kcal", nMicroKcal)
-                )
-            } else {
-                return calcRow(
-                    label: language == "de" ? "③ Mikro-NEAT (HR-Lücke)" : "③ Micro-NEAT (HR Gap)",
-                    formula: language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data",
-                    value: "0 kcal"
-                )
-            }
-        }()
+        let nHRKcal  = activityResult.neatBreakdown.neatHR
+        let nHRCount = selectedActivity.hrSegments.count
 
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 20) {
@@ -1507,11 +1420,17 @@ struct DashboardView: View {
                                 nStandMin, nWalkMin, nPureStandMin, nPureStandH, nBmrH),
                             value: String(format: "%.0f kcal", nStandKcal)
                         ),
-                        nMicroRow,
+                        calcRow(
+                            label: language == "de" ? "③ Herzfrequenz-Aktivität" : "③ HR Activity",
+                            formula: nHRCount > 0
+                                ? String(format: language == "de" ? "%d HR-Segmente · HRR^1.1-gewichtet · cap 350 kcal" : "%d HR segments · HRR^1.1-weighted · cap 350 kcal", nHRCount)
+                                : (language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data"),
+                            value: String(format: "%.0f kcal", nHRKcal)
+                        ),
                         calcRow(
                             label: language == "de" ? "NEAT gesamt" : "NEAT total",
                             formula: String(format: "%.0f + %.0f + %.0f kcal",
-                                           nStepsKcal, nStandKcal, nMicroKcal),
+                                           nStepsKcal, nStandKcal, nHRKcal),
                             value: String(format: "%.0f kcal", activityResult.neatKcal)
                         ),
                     ]
