@@ -21,6 +21,7 @@
 		5D2E62BB2FCE1AE20057E84D /* ConfettiView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2E62AD2FCE1AE20057E84D /* ConfettiView.swift */; };
 		5D2E62BD2FCE261C0057E84D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D2E62BC2FCE261C0057E84D /* Assets.xcassets */; };
 		5D8016A12FEB1EC3004446E7 /* ActivityCalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */; };
+		5D84F9A1300396FE00EBA31D /* AppMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */; };
 		5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA00002FD60001000000A1 /* MainTabView.swift */; };
 		5DAA00032FD60001000000A2 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA00022FD60001000000A2 /* SettingsView.swift */; };
 		5DCAF4DB2FE826D5005AE38A /* HealthKitImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DA2FE826D5005AE38A /* HealthKitImportService.swift */; };
@@ -55,6 +56,7 @@
 		5D2E62B32FCE1AE20057E84D /* Translations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translations.swift; sourceTree = "<group>"; };
 		5D2E62BC2FCE261C0057E84D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCalculationService.swift; sourceTree = "<group>"; };
+		5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMigrationPlan.swift; sourceTree = "<group>"; };
 		5DAA00002FD60001000000A1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		5DAA00022FD60001000000A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5DCAF4DA2FE826D5005AE38A /* HealthKitImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitImportService.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 			children = (
 				5D2E62AB2FCE1AE20057E84D /* caloricApp.swift */,
 				5DCAF4E12FE8325F005AE38A /* AppRootView.swift */,
+				5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -266,6 +269,7 @@
 				5D0BE1122FD47B480029CE62 /* DashboardView.swift in Sources */,
 				5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */,
 				5DEC7B932FE28407007A1989 /* JournalStore.swift in Sources */,
+				5D84F9A1300396FE00EBA31D /* AppMigrationPlan.swift in Sources */,
 				5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */,
 				5DAA00032FD60001000000A2 /* SettingsView.swift in Sources */,
 				5DCDD98830023A8D00E17788 /* Secrets.swift in Sources */,

@@ -1049,16 +1049,13 @@ struct DashboardView: View {
         let baseBMR = 370 + 21.6 * lbm
         let isMale = selectedGender != femaleText
         
+        // Use breakdown values directly so detail view always matches the overview total.
+        let nStepsKcal    = activityResult.neatBreakdown.neatSteps
+        let nStandKcal    = activityResult.neatBreakdown.neatStand
+        let nHRKcal       = activityResult.neatBreakdown.neatHR
+        // Approximate stand minutes for the formula label only (display, not calculation).
         let nWalkMin      = Double(selectedActivity.steps) / 100.0
-        let nWalkH        = nWalkMin / 60.0
-        let nBmrH         = activeFinalBMR / 24.0
-        let nStepsKcal    = nWalkH * 2.0 * nBmrH
-        let nStandMin     = selectedActivity.standTimeMinutes
-        let nPureStandMin = max(0, nStandMin - nWalkMin)
-        let nPureStandH   = nPureStandMin / 60.0
-        let nStandKcal    = nPureStandH * 0.18 * nBmrH
-        let nHRKcal  = activityResult.neatBreakdown.neatHR
-        let nHRCount = selectedActivity.hrSegments.count
+        let nPureStandMin = max(0, selectedActivity.standTimeMinutes - nWalkMin)
 
         return ZStack {
             CaloricBackground()
@@ -1069,8 +1066,7 @@ struct DashboardView: View {
                     switch type {
                     case .bmr:
                         InfographicHeroCard(
-                            title: language == "de" ? "Grundumsatz (BMR)" : "Basal Metabolic Rate",
-                            subtitle: language == "de" ? "Katch-McArdle Formel" : "Katch-McArdle Formula",
+                            title: language == "de" ? "Grundumsatz" : "Basal Metabolic Rate",
                             description: infoText(for: .bmr),
                             value: String(format: "%.0f", activeFinalBMR),
                             unit: "kcal",
@@ -1080,29 +1076,25 @@ struct DashboardView: View {
                         
                         VStack(spacing: 8) {
                             InfographicMathCard(
-                                title: language == "de" ? "Magermasse (LBM)" : "Lean Body Mass",
-                                formula: language == "de" ? "Gewicht × (1 - Fett%)" : "Weight × (1 - Fat%)",
+                                title: language == "de" ? "Magermasse" : "Lean Body Mass",
                                 value: String(format: "%.1f kg", lbm),
                                 color: Theme.segBMR
                             )
                             InfographicMathCard(
                                 title: language == "de" ? "Basis-Umsatz" : "Base BMR",
-                                formula: "370 + 21.6 × LBM",
                                 value: String(format: "%.0f kcal", baseBMR),
                                 color: Theme.segBMR
                             )
                             InfographicMathCard(
                                 title: language == "de" ? "Faktoren" : "Multipliers",
-                                formula: language == "de" ? "Schlaf, Alter & Stoffwechsel" : "Sleep, Age & Metabolism",
                                 value: String(format: "×%.2f", activeFinalBMR / baseBMR),
                                 color: Theme.segBMR
                             )
                         }
-                        
+
                     case .neat:
                         InfographicHeroCard(
-                            title: language == "de" ? "Alltagsbewegung (NEAT)" : "Daily Activity (NEAT)",
-                            subtitle: language == "de" ? "3-Komponenten-Modell" : "3-Component Model",
+                            title: language == "de" ? "Alltagsbewegung" : "Daily Activity",
                             description: infoText(for: .neat),
                             value: String(format: "%.0f", activityResult.neatKcal),
                             unit: "kcal",
@@ -1121,22 +1113,19 @@ struct DashboardView: View {
 
                         VStack(spacing: 8) {
                             InfographicMathCard(
-                                title: language == "de" ? "① Geh-Kalorien" : "① Walk Calories",
+                                title: language == "de" ? "Geh-Kalorien" : "Walk Calories",
                                 formula: String(format: "%d Schr · ×2.0 MET", healthKit.activity.steps),
-                                value: String(format: "%.0f kcal", nStepsKcal),
+                                value: String(format: "+ %.0f kcal", nStepsKcal),
                                 color: Theme.segNEAT
                             )
                             InfographicMathCard(
-                                title: language == "de" ? "② Steh-Kalorien" : "② Stand Calories",
+                                title: language == "de" ? "Steh-Kalorien" : "Stand Calories",
                                 formula: String(format: "%.0f min reines Stehen", nPureStandMin),
                                 value: String(format: "%.0f kcal", nStandKcal),
                                 color: Theme.segNEAT
                             )
                             InfographicMathCard(
-                                title: language == "de" ? "③ Herzfrequenz-Aktivität" : "③ HR Activity",
-                                formula: nHRCount > 0
-                                    ? String(format: language == "de" ? "%d HR-Segmente · HRR^1.1-gewichtet" : "%d HR segments · HRR^1.1-weighted", nHRCount)
-                                    : (language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data"),
+                                title: language == "de" ? "Pulsaktivität" : "HR Activity",
                                 value: String(format: "%.0f kcal", nHRKcal),
                                 color: Theme.segNEAT
                             )
@@ -1144,8 +1133,7 @@ struct DashboardView: View {
                         
                     case .eat:
                         InfographicHeroCard(
-                            title: language == "de" ? "Workouts (EAT)" : "Workouts (EAT)",
-                            subtitle: language == "de" ? "Keytel Formel + EPOC" : "Keytel Formula + EPOC",
+                            title: language == "de" ? "Workouts" : "Workouts",
                             description: infoText(for: .eat),
                             value: String(format: "%.0f", activityResult.eatKcal),
                             unit: "kcal",
@@ -1166,7 +1154,6 @@ struct DashboardView: View {
                                     let kcal = ActivityCalculationService.eat(workout: w, weightKg: weightInKg, vo2Max: healthKit.vo2Max, hrRest: selectedActivity.restingHeartRate, age: userAge, isMale: isMale)
                                     InfographicMathCard(
                                         title: workoutActivityName(w.activityType),
-                                        formula: String(format: "%.0f min · Ø %.0f bpm", w.duration/60, w.averageHeartRate ?? 0),
                                         value: String(format: "%.0f kcal", kcal),
                                         color: Theme.segEAT
                                     )
@@ -1176,8 +1163,7 @@ struct DashboardView: View {
                         
                     case .tef:
                         InfographicHeroCard(
-                            title: language == "de" ? "Verdauung (TEF)" : "Digestion (TEF)",
-                            subtitle: language == "de" ? "Thermischer Effekt der Nahrung" : "Thermic Effect of Food",
+                            title: language == "de" ? "Thermische Wirkung der Nahrung" : "Thermic Effect of Food",
                             description: infoText(for: .tef),
                             value: String(format: "%.0f", tdeeResult.tefKcal),
                             unit: "kcal",
@@ -1197,18 +1183,16 @@ struct DashboardView: View {
                     case .caffeine:
                         InfographicHeroCard(
                             title: language == "de" ? "Koffein-Effekt" : "Caffeine Effect",
-                            subtitle: language == "de" ? "Metabolische Stimulation" : "Metabolic Stimulation",
                             description: infoText(for: .caffeine),
-                            value: String(format: "+%.0f", tdeeResult.koffeinBonus),
+                            value: String(format: "%.0f", tdeeResult.koffeinBonus),
                             unit: "kcal",
                             icon: "cup.and.heat.waves.fill",
                             color: Theme.segCaf
                         )
-                        
+
                         InfographicMathCard(
-                            title: language == "de" ? "Stimulation" : "Stimulation",
-                            formula: "+15 kcal / 100 mg",
-                            value: String(format: "+%.0f kcal", tdeeResult.koffeinBonus),
+                            title: language == "de" ? "Thermogene Wirkung" : "Thermogenic Effect",
+                            value: String(format: "%.0f kcal", tdeeResult.koffeinBonus),
                             color: Theme.segCaf
                         )
                     }
@@ -1356,10 +1340,10 @@ struct DashboardView: View {
                 calcSection(
                     icon: "moon.zzz.fill",
                     iconColor: accentBlue,
-                    title: "BMR — Katch-McArdle",
+                    title: "Grundumsatz",
                     rows: [
                         calcRow(
-                            label: language == "de" ? "Magermasse (LBM)" : "Lean Body Mass",
+                            label: language == "de" ? "Magermasse" : "Lean Body Mass",
                             formula: language == "de"
                                 ? "Gewicht × (1 − Körperfett%)"
                                 : "Weight × (1 − Body fat%)",
@@ -1405,7 +1389,7 @@ struct DashboardView: View {
                     title: language == "de" ? "NEAT — 3-Komponenten-Modell" : "NEAT — 3-Component Model",
                     rows: [
                         calcRow(
-                            label: language == "de" ? "① Geh-Kalorien" : "① Walk Calories",
+                            label: language == "de" ? "Geh-Kalorien" : "Walk Calories",
                             formula: String(format: language == "de"
                                 ? "%d Schr ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h"
                                 : "%d steps ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h",
@@ -1413,7 +1397,7 @@ struct DashboardView: View {
                             value: String(format: "%.0f kcal", nStepsKcal)
                         ),
                         calcRow(
-                            label: language == "de" ? "② Steh-Kalorien" : "② Stand Calories",
+                            label: language == "de" ? "Steh-Kalorien" : "Stand Calories",
                             formula: String(format: language == "de"
                                 ? "%.0f min Stand − %.0f min Geh = %.0f min rein\n%.2f h × 0.18 × %.1f kcal/h"
                                 : "%.0f min stand − %.0f min walk = %.0f min net\n%.2f h × 0.18 × %.1f kcal/h",
@@ -1421,7 +1405,7 @@ struct DashboardView: View {
                             value: String(format: "%.0f kcal", nStandKcal)
                         ),
                         calcRow(
-                            label: language == "de" ? "③ Herzfrequenz-Aktivität" : "③ HR Activity",
+                            label: language == "de" ? "Herzfrequenz-Aktivität" : "HR Activity",
                             formula: nHRCount > 0
                                 ? String(format: language == "de" ? "%d HR-Segmente · HRR^1.1-gewichtet · cap 350 kcal" : "%d HR segments · HRR^1.1-weighted · cap 350 kcal", nHRCount)
                                 : (language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data"),
@@ -2630,7 +2614,7 @@ struct DashboardView: View {
 
 struct InfographicHeroCard: View {
     let title: String
-    let subtitle: String
+    var subtitle: String? = nil
     var description: String? = nil
     let value: String
     let unit: String
@@ -2646,10 +2630,12 @@ struct InfographicHeroCard: View {
                 Text(title)
                     .font(.poppins(size: 18, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
-                Text(subtitle)
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.poppins(size: 12, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
             
             if let desc = description {
@@ -2686,7 +2672,7 @@ struct InfographicHeroCard: View {
 
 struct InfographicMathCard: View {
     let title: String
-    let formula: String
+    var formula: String? = nil
     let value: String
     let color: Color
 
@@ -2696,9 +2682,11 @@ struct InfographicMathCard: View {
                 Text(title)
                     .font(.poppins(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
-                Text(formula)
-                    .font(.poppins(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
+                if let formula {
+                    Text(formula)
+                        .font(.poppins(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
             Spacer()
             Text(value)
