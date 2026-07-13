@@ -79,21 +79,14 @@ enum NEATCalculator {
         let bmrPerHour   = i.bmrDynamisch / 24.0
         let bmrPerMinute = i.bmrDynamisch / (24.0 * 60.0)
 
-        let awakeMinutes   = max(0, i.dayEndMinuteOfDay - i.wakeMinuteOfDay)
-        let workoutMinutes = max(0, i.workoutSeconds / 60.0)
-
         // --- Steps ---
-        // Cap walk minutes by available awake-non-workout time so steps
-        // never double-count time that is already in the workout budget.
-        let availableForSteps = max(0, awakeMinutes - workoutMinutes)
-        let walkMinutesRaw    = Double(i.nonWorkoutSteps) / stepsPerMinute
-        let walkMinutes       = min(walkMinutesRaw, availableForSteps)
-        let neatSteps         = (walkMinutes / 60.0) * walkNetFactor * bmrPerHour
+        // nonWorkoutSteps already excludes workout windows, so no time-budget cap needed.
+        let walkMinutes = Double(i.nonWorkoutSteps) / stepsPerMinute
+        let neatSteps   = (walkMinutes / 60.0) * walkNetFactor * bmrPerHour
 
-        // --- Standing (net above walk) ---
-        let standWindow  = min(max(0, i.standTimeMinutes), max(0, awakeMinutes - workoutMinutes))
-        let pureStandMin = max(0, standWindow - walkMinutes)
-        let neatStand    = (pureStandMin / 60.0) * standNetFactor * bmrPerHour
+        // --- Standing ---
+        // standTimeMinutes is Apple Stand Time (≈1 min per stand-hour, already net of workouts).
+        let neatStand = (max(0, i.standTimeMinutes) / 60.0) * standNetFactor * bmrPerHour
 
         // --- Continuous HR block ---
         // Process every non-workout segment with its real time weight.

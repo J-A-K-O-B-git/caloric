@@ -529,6 +529,9 @@ struct DashboardView: View {
             }
             .navigationTitle(language == "de" ? "Datum wählen" : "Select Date")
             .navigationBarTitleDisplayMode(.inline)
+            .alert(item: Binding(get: { infoSegmentType.map { InfoSegment(type: $0) } }, set: { infoSegmentType = $0?.type })) { info in
+                Alert(title: Text(energySegments.first(where: { $0.type == info.type })?.title ?? ""), message: Text(infoText(for: info.type)), dismissButton: .default(Text("OK")))
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(t.done) {
@@ -885,9 +888,16 @@ struct DashboardView: View {
     // MARK: - Aktivitäts-Aufschlüsselung Sheet
 
     @State private var selectedEnergySegment: EnergySegment? = nil
+    @State private var expandedSegmentType: EnergySegmentType? = nil
+    @State private var infoSegmentType: EnergySegmentType? = nil
 
     private enum EnergySegmentType: Hashable {
         case bmr, neat, eat, tef, caffeine
+    }
+
+    private struct InfoSegment: Identifiable {
+        let id = UUID()
+        let type: EnergySegmentType
     }
 
     private struct EnergySegment: Identifiable {
@@ -953,6 +963,116 @@ struct DashboardView: View {
             ))
         }
         return segs
+    } 
+
+    @ViewBuilder
+    private func expandedContent(for type: EnergySegmentType, currentKcal: Double) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let prev = previousValue(for: type)
+            let diff = currentKcal - prev
+
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: diff >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    Text(String(format: "%%+.0f kcal %@", diff, language == "de" ? "vs. gestern" : "vs. yesterday"))
+                }
+                .font(.poppins(size: 12, weight: .medium))
+                .foregroundStyle(diff >= 0 ? .green : .red)
+
+                Spacer()
+
+                Button {
+                    infoSegmentType = type
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .padding(.top, 4)
+
+            VStack(spacing: 8) {
+                switch type {
+                case .neat:
+                    breakdownItem(label: language == "de" ? "Schritte" : "Steps", value: activityResult.neatBreakdown.neatSteps)
+                    breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand)
+                    breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR)
+                case .eat:
+                    breakdownItem(label: language == "de" ? "Workouts" : "Workouts", value: activityResult.eatKcal)
+                case .tef:
+                    let inputs = store.journalInputs(for: selectedDate)
+                    let p = inputs.proteinGramsByMeal.values.reduce(0, +) * 1.0
+                    let c = inputs.carbsGramsByMeal.values.reduce(0, +) * 0.3
+                    let f = inputs.fatGramsByMeal.values.reduce(0, +) * 0.135
+                    breakdownItem(label: language == "de" ? "Protein" : "Protein", value: p)
+                    breakdownItem(label: language == "de" ? "Kohlenhydrate" : "Carbs", value: c)
+                    breakdownItem(label: language == "de" ? "Fett" : "Fat", value: f)
+                case .caffeine:
+                    let inputs = store.journalInputs(for: selectedDate)
+                    breakdownItem(label: language == "de" ? "Koffein (\(Int(inputs.caffeineMg)) mg)" : "Caffeine (\(Int(inputs.caffeineMg)) mg)", value: tdeeResult.koffeinBonus)
+                case .bmr:
+                    breakdownItem(label: language == "de" ? "Basis-Grundumsatz" : "Base BMR", value: currentKcal)
+                }
+            }
+            .padding(10)
+            .background(Theme.ink.opacity(0.04))
+            .cornerRadius(10)
+        }
+    }
+
+    private func breakdownItem(label: String, value: Double) -> some View {
+        HStack {
+            Text(label)
+                .font(.poppins(size: 13, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
+            Text(String(format: "%%.0f kcal", value))
+                .font(.poppins(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+        }
+    }
+
+    private func previousValue(for type: EnergySegmentType) -> Double {
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        let key = HealthKitImportService.dateKey(prevDate)
+
+        let inputs = store.journalInputs(for: prevDate)
+        let tdee = TDEECalculationService.calculate(
+            bmrStandard: activeFinalBMR,
+            inputs: inputs,
+            isFemale: selectedGender == femaleText
+        )
+
+        if let snap = healthKit.history[key] {
+            let res = ActivityCalculationService.calculate(
+                steps: snap.activity.steps,
+                standTimeMinutes: snap.activity.standTimeMinutes,
+                restingHR: snap.activity.restingHeartRate,
+                hrSegments: snap.activity.hrSegments,
+                vo2Max: healthKit.vo2Max,
+                workouts: snap.workouts,
+                weightKg: weightInKg,
+                age: userAge,
+                isMale: selectedGender != femaleText,
+                sleepHours: sleepHours,
+                bmrDynamisch: tdee.bmrDynamisch,
+                referenceDate: prevDate
+            )
+            switch type {
+            case .bmr:  return tdee.bmrDynamisch
+            case .neat: return res.neatKcal
+            case .eat:  return res.eatKcal
+            case .tef:  return tdee.tefKcal
+            case .caffeine: return tdee.koffeinBonus
+            }
+        } else {
+            switch type {
+            case .bmr:  return tdee.bmrDynamisch
+            case .tef:  return tdee.tefKcal
+            case .caffeine: return tdee.koffeinBonus
+            default:    return 0
+            }
+        }
     }
 
     private func energyStackedBar(_ segs: [EnergySegment], total: Double) -> some View {
@@ -995,7 +1115,13 @@ struct DashboardView: View {
 
     private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
         let pct = total > 0 ? s.kcal / total : 0
-        return NavigationLink(value: s.type) {
+        let isExpanded = expandedSegmentType == s.type
+
+        return Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
+            }
+        } label: {
             VStack(spacing: 11) {
                 HStack(spacing: 13) {
                     Image(systemName: s.icon)
@@ -1035,8 +1161,17 @@ struct DashboardView: View {
                             .foregroundStyle(s.color)
                     }
                 }
+
                 InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
                     .frame(height: 12)
+
+                if isExpanded {
+                    expandedContent(for: s.type, currentKcal: s.kcal)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .move(edge: .top))
+                        ))
+                }
             }
             .padding(14)
             .glassCard(16)
@@ -1044,184 +1179,14 @@ struct DashboardView: View {
         .buttonStyle(.plain)
     }
 
-    private func calculationDetailView(for type: EnergySegmentType) -> some View {
-        let lbm = weightInKg * (1.0 - bodyFatPercent / 100.0)
-        let baseBMR = 370 + 21.6 * lbm
-        let isMale = selectedGender != femaleText
-        
-        // Use breakdown values directly so detail view always matches the overview total.
-        let nStepsKcal    = activityResult.neatBreakdown.neatSteps
-        let nStandKcal    = activityResult.neatBreakdown.neatStand
-        let nHRKcal       = activityResult.neatBreakdown.neatHR
-        // Approximate stand minutes for the formula label only (display, not calculation).
-        let nWalkMin      = Double(selectedActivity.steps) / 100.0
-        let nPureStandMin = max(0, selectedActivity.standTimeMinutes - nWalkMin)
-
-        return ZStack {
-            CaloricBackground()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    Spacer().frame(height: 10)
-                    
-                    switch type {
-                    case .bmr:
-                        InfographicHeroCard(
-                            title: language == "de" ? "Grundumsatz" : "Basal Metabolic Rate",
-                            description: infoText(for: .bmr),
-                            value: String(format: "%.0f", activeFinalBMR),
-                            unit: "kcal",
-                            icon: "moon.zzz.fill",
-                            color: Theme.segBMR
-                        )
-                        
-                        VStack(spacing: 8) {
-                            InfographicMathCard(
-                                title: language == "de" ? "Magermasse" : "Lean Body Mass",
-                                value: String(format: "%.1f kg", lbm),
-                                color: Theme.segBMR
-                            )
-                            InfographicMathCard(
-                                title: language == "de" ? "Basis-Umsatz" : "Base BMR",
-                                value: String(format: "%.0f kcal", baseBMR),
-                                color: Theme.segBMR
-                            )
-                            InfographicMathCard(
-                                title: language == "de" ? "Faktoren" : "Multipliers",
-                                value: String(format: "×%.2f", activeFinalBMR / baseBMR),
-                                color: Theme.segBMR
-                            )
-                        }
-
-                    case .neat:
-                        InfographicHeroCard(
-                            title: language == "de" ? "Alltagsbewegung" : "Daily Activity",
-                            description: infoText(for: .neat),
-                            value: String(format: "%.0f", activityResult.neatKcal),
-                            unit: "kcal",
-                            icon: "figure.walk",
-                            color: Theme.segNEAT
-                        )
-
-                        InfographicSegmentBar(
-                            segments: [
-                                .init(value: nStepsKcal, color: Theme.segNEAT, label: language == "de" ? "Gehen" : "Walk"),
-                                .init(value: nStandKcal, color: Theme.segNEAT.opacity(0.8), label: language == "de" ? "Stehen" : "Stand"),
-                                .init(value: nHRKcal,    color: Theme.segNEAT.opacity(0.55), label: language == "de" ? "Pulsaktivität" : "HR Activity")
-                            ],
-                            total: max(1, activityResult.neatKcal)
-                        )
-
-                        VStack(spacing: 8) {
-                            InfographicMathCard(
-                                title: language == "de" ? "Geh-Kalorien" : "Walk Calories",
-                                formula: String(format: "%d Schr · ×2.0 MET", healthKit.activity.steps),
-                                value: String(format: "+ %.0f kcal", nStepsKcal),
-                                color: Theme.segNEAT
-                            )
-                            InfographicMathCard(
-                                title: language == "de" ? "Steh-Kalorien" : "Stand Calories",
-                                formula: String(format: "%.0f min reines Stehen", nPureStandMin),
-                                value: String(format: "%.0f kcal", nStandKcal),
-                                color: Theme.segNEAT
-                            )
-                            InfographicMathCard(
-                                title: language == "de" ? "Pulsaktivität" : "HR Activity",
-                                value: String(format: "%.0f kcal", nHRKcal),
-                                color: Theme.segNEAT
-                            )
-                        }
-                        
-                    case .eat:
-                        InfographicHeroCard(
-                            title: language == "de" ? "Workouts" : "Workouts",
-                            description: infoText(for: .eat),
-                            value: String(format: "%.0f", activityResult.eatKcal),
-                            unit: "kcal",
-                            icon: "dumbbell.fill",
-                            color: Theme.segEAT
-                        )
-                        
-                        if selectedWorkouts.isEmpty {
-                            InfographicMathCard(
-                                title: language == "de" ? "Keine Workouts" : "No workouts",
-                                formula: language == "de" ? "Heute noch nicht trainiert" : "No training today",
-                                value: "0 kcal",
-                                color: Theme.segEAT
-                            )
-                        } else {
-                            VStack(spacing: 8) {
-                                ForEach(selectedWorkouts) { w in
-                                    let kcal = ActivityCalculationService.eat(workout: w, weightKg: weightInKg, vo2Max: healthKit.vo2Max, hrRest: selectedActivity.restingHeartRate, age: userAge, isMale: isMale)
-                                    InfographicMathCard(
-                                        title: workoutActivityName(w.activityType),
-                                        value: String(format: "%.0f kcal", kcal),
-                                        color: Theme.segEAT
-                                    )
-                                }
-                            }
-                        }
-                        
-                    case .tef:
-                        InfographicHeroCard(
-                            title: language == "de" ? "Thermische Wirkung der Nahrung" : "Thermic Effect of Food",
-                            description: infoText(for: .tef),
-                            value: String(format: "%.0f", tdeeResult.tefKcal),
-                            unit: "kcal",
-                            icon: "fork.knife.circle.fill",
-                            color: Theme.segTEF
-                        )
-                        
-                        InfographicSegmentBar(
-                            segments: [
-                                .init(value: tdeeResult.tefKcal * 0.7, color: Theme.segTEF, label: "Protein"),
-                                .init(value: tdeeResult.tefKcal * 0.2, color: Theme.segTEF.opacity(0.6), label: "Carbs"),
-                                .init(value: tdeeResult.tefKcal * 0.1, color: Theme.segTEF.opacity(0.3), label: "Fat")
-                            ],
-                            total: max(1, tdeeResult.tefKcal)
-                        )
-                        
-                    case .caffeine:
-                        InfographicHeroCard(
-                            title: language == "de" ? "Koffein-Effekt" : "Caffeine Effect",
-                            description: infoText(for: .caffeine),
-                            value: String(format: "%.0f", tdeeResult.koffeinBonus),
-                            unit: "kcal",
-                            icon: "cup.and.heat.waves.fill",
-                            color: Theme.segCaf
-                        )
-
-                        InfographicMathCard(
-                            title: language == "de" ? "Thermogene Wirkung" : "Thermogenic Effect",
-                            value: String(format: "%.0f kcal", tdeeResult.koffeinBonus),
-                            color: Theme.segCaf
-                        )
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 18)
-            }
-        }
-        .navigationTitle(typeTitle(for: type))
-    }
-
-    private func typeTitle(for type: EnergySegmentType) -> String {
-        switch type {
-        case .bmr: return "Details BMR"
-        case .neat: return "Details NEAT"
-        case .eat: return "Details EAT"
-        case .tef: return "Details TEF"
-        case .caffeine: return "Details Caffeine"
-        }
-    }
 
     private func infoText(for type: EnergySegmentType) -> String {
         switch type {
-        case .bmr: return language == "de" ? "Der Grundumsatz (BMR) basiert auf der Katch-McArdle Formel, die besonders präzise ist, da sie deine fettfreie Körpermasse berücksichtigt." : "The Basal Metabolic Rate (BMR) is based on the Katch-McArdle formula, which is particularly precise as it accounts for your lean body mass."
-        case .neat: return language == "de" ? "NEAT umfasst alle Alltagsbewegungen: Schritte, Stehzeit und eine zeitgewichtete Herzfrequenzanalyse aller Nicht-Workout-Segmente." : "NEAT covers all daily movements: steps, standing time, and a time-weighted heart rate analysis of all non-workout segments."
-        case .eat: return language == "de" ? "EAT misst die Energie während geplanter Workouts. Hier nutzen wir die Keytel-Formel, die Alter, Gewicht und Herzfrequenz kombiniert." : "EAT measures energy during planned workouts. We use the Keytel formula, which combines age, weight, and heart rate."
-        case .tef: return language == "de" ? "TEF ist die Energie, die dein Körper für die Verdauung aufwendet. Proteine haben hierbei mit ca. 25% den höchsten Effekt." : "TEF is the energy your body spends on digestion. Protein has the highest effect at approximately 25%."
-        case .caffeine: return language == "de" ? "Koffein steigert die Thermogenese und den Stoffwechsel kurzfristig. Wir berechnen einen moderaten Bonus von 15 kcal pro 100 mg." : "Caffeine increases thermogenesis and metabolism in the short term. We calculate a moderate bonus of 15 kcal per 100 mg."
+        case .bmr: return language == "de" ? "Der Grundumsatz ist die Energie, die dein Körper im Ruhezustand benötigt, um lebenswichtige Funktionen aufrechtzuerhalten." : "Basal Metabolic Rate is the energy your body needs at rest to maintain vital functions."
+        case .neat: return language == "de" ? "NEAT umfasst alle Kalorien, die du durch Alltagsbewegungen wie Gehen, Stehen oder Hausarbeit verbrennst, außerhalb von gezieltem Sport." : "NEAT includes all calories burned through daily activities like walking, standing, or chores, outside of intentional exercise."
+        case .eat: return language == "de" ? "EAT bezeichnet die Energie, die du während geplanter sportlicher Aktivitäten und Workouts verbrauchst." : "EAT refers to the energy consumed during planned physical activities and workouts."
+        case .tef: return language == "de" ? "TEF ist die Energie, die dein Körper für die Verdauung, Aufnahme und Verarbeitung von Nährstoffen aus der Nahrung aufwendet." : "TEF is the energy your body spends on digesting, absorbing, and processing nutrients from food."
+        case .caffeine: return language == "de" ? "Koffein kann den Stoffwechsel und die Wärmeproduktion des Körpers kurzzeitig leicht erhöhen." : "Caffeine can slightly increase metabolism and the body's heat production for a short period."
         }
     }
 
@@ -1294,8 +1259,8 @@ struct DashboardView: View {
             }
             .navigationTitle(language == "de" ? "Aufschlüsselung" : "Breakdown")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: EnergySegmentType.self) { type in
-                calculationDetailView(for: type)
+            .alert(item: Binding(get: { infoSegmentType.map { InfoSegment(type: $0) } }, set: { infoSegmentType = $0?.type })) { info in
+                Alert(title: Text(energySegments.first(where: { $0.type == info.type })?.title ?? ""), message: Text(infoText(for: info.type)), dismissButton: .default(Text("OK")))
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -1313,278 +1278,7 @@ struct DashboardView: View {
 
     // MARK: - Berechnungsmethoden View
 
-    private var calcExplanationView: some View {
-        let lbm = weightInKg * (1.0 - bodyFatPercent / 100.0)
-        let baseBMR = 370 + 21.6 * lbm
-        let isMale = selectedGender != femaleText
-
-        // ── NEAT intermediate values (mirror ActivityCalculationService.neat) ──
-        let nWalkMin      = Double(selectedActivity.steps) / 100.0
-        let nWalkH        = nWalkMin / 60.0
-        let nBmrH         = activeFinalBMR / 24.0
-        let nStepsKcal    = nWalkH * 2.0 * nBmrH
-
-        let nStandMin     = selectedActivity.standTimeMinutes
-        let nPureStandMin = max(0, nStandMin - nWalkMin)
-        let nPureStandH   = nPureStandMin / 60.0
-        let nStandKcal    = nPureStandH * 0.18 * nBmrH
-
-        let nHRKcal  = activityResult.neatBreakdown.neatHR
-        let nHRCount = selectedActivity.hrSegments.count
-
-        return ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                Spacer().frame(height: 4)
-
-                // ── BMR ──────────────────────────────────────────────────
-                calcSection(
-                    icon: "moon.zzz.fill",
-                    iconColor: accentBlue,
-                    title: "Grundumsatz",
-                    rows: [
-                        calcRow(
-                            label: language == "de" ? "Magermasse" : "Lean Body Mass",
-                            formula: language == "de"
-                                ? "Gewicht × (1 − Körperfett%)"
-                                : "Weight × (1 − Body fat%)",
-                            value: String(format: "%.1f kg", lbm)
-                        ),
-                        calcRow(
-                            label: "BMR Basis",
-                            formula: "370 + 21.6 × LBM",
-                            value: String(format: "%.0f kcal", baseBMR)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Altersfaktor" : "Age factor",
-                            formula: language == "de"
-                                ? "≤30: ×1.0 · 31–60: −0.1%/J · >60: −0.5%/J"
-                                : "≤30: ×1.0 · 31–60: −0.1%/yr · >60: −0.5%/yr",
-                            value: {
-                                let f: Double
-                                if userAge <= 30 { f = 1.0 }
-                                else if userAge <= 60 { f = 1.0 - Double(userAge - 30) * 0.001 }
-                                else { f = 0.970 - Double(userAge - 60) * 0.005 }
-                                return String(format: "×%.3f", f)
-                            }()
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Stoffwechselfaktor" : "Metabolism factor",
-                            formula: language == "de" ? "Benutzerdefiniert" : "User-defined",
-                            value: String(format: "×%.2f", metabolismFactor)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Schlafkorrektur" : "Sleep correction",
-                            formula: language == "de"
-                                ? "Schlaf ×0.9, Wach ×1.0"
-                                : "Sleep ×0.9, Awake ×1.0",
-                            value: String(format: "%.0f kcal", activeFinalBMR)
-                        ),
-                    ]
-                )
-
-                // ── NEAT ─────────────────────────────────────────────────
-                calcSection(
-                    icon: "figure.walk",
-                    iconColor: .orange,
-                    title: language == "de" ? "NEAT — 3-Komponenten-Modell" : "NEAT — 3-Component Model",
-                    rows: [
-                        calcRow(
-                            label: language == "de" ? "Geh-Kalorien" : "Walk Calories",
-                            formula: String(format: language == "de"
-                                ? "%d Schr ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h"
-                                : "%d steps ÷ 100/min = %.0f min = %.2f h\n%.2f h × 2.0 × %.1f kcal/h",
-                                healthKit.activity.steps, nWalkMin, nWalkH, nWalkH, nBmrH),
-                            value: String(format: "%.0f kcal", nStepsKcal)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Steh-Kalorien" : "Stand Calories",
-                            formula: String(format: language == "de"
-                                ? "%.0f min Stand − %.0f min Geh = %.0f min rein\n%.2f h × 0.18 × %.1f kcal/h"
-                                : "%.0f min stand − %.0f min walk = %.0f min net\n%.2f h × 0.18 × %.1f kcal/h",
-                                nStandMin, nWalkMin, nPureStandMin, nPureStandH, nBmrH),
-                            value: String(format: "%.0f kcal", nStandKcal)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Herzfrequenz-Aktivität" : "HR Activity",
-                            formula: nHRCount > 0
-                                ? String(format: language == "de" ? "%d HR-Segmente · HRR^1.1-gewichtet · cap 350 kcal" : "%d HR segments · HRR^1.1-weighted · cap 350 kcal", nHRCount)
-                                : (language == "de" ? "Keine Herzfrequenz-Daten" : "No heart rate data"),
-                            value: String(format: "%.0f kcal", nHRKcal)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "NEAT gesamt" : "NEAT total",
-                            formula: String(format: "%.0f + %.0f + %.0f kcal",
-                                           nStepsKcal, nStandKcal, nHRKcal),
-                            value: String(format: "%.0f kcal", activityResult.neatKcal)
-                        ),
-                    ]
-                )
-
-                // ── EAT ──────────────────────────────────────────────────
-                calcSection(
-                    icon: "dumbbell.fill",
-                    iconColor: Color(red: 0.20, green: 0.78, blue: 0.35),
-                    title: "EAT — Keytel-Formel",
-                    rows: {
-                        var rows: [AnyView] = [
-                            calcRow(
-                                label: language == "de"
-                                    ? "Formel (\(isMale ? "Mann" : "Frau"))"
-                                    : "Formula (\(isMale ? "Male" : "Female"))",
-                                formula: isMale
-                                    ? "−55.097 + 0.631×HR + 0.199×kg + 0.202×age"
-                                    : "−20.402 + 0.447×HR − 0.126×kg + 0.074×age",
-                                value: String(format: "%.1f kg · %d %@",
-                                              weightInKg, userAge,
-                                              language == "de" ? "J." : "yrs")
-                            ),
-                            calcRow(
-                                label: "EPOC",
-                                formula: language == "de"
-                                    ? "Kraft-Training: ×1.20"
-                                    : "Strength training: ×1.20",
-                                value: ""
-                            ),
-                        ]
-                        if selectedWorkouts.isEmpty {
-                            rows.append(calcRow(
-                                label: language == "de" ? "Keine Workouts heute" : "No workouts today",
-                                formula: "–",
-                                value: "0 kcal"
-                            ))
-                        } else {
-                            for w in selectedWorkouts {
-                                let kcal = ActivityCalculationService.eat(
-                                    workout: w,
-                                    weightKg: weightInKg,
-                                    vo2Max: healthKit.vo2Max,
-                                    hrRest: selectedActivity.restingHeartRate,
-                                    age: userAge,
-                                    isMale: isMale
-                                )
-                                let mins = Int(w.duration / 60)
-                                let hrStr = w.averageHeartRate
-                                    .map { String(format: "Ø %.0f bpm · ", $0) } ?? ""
-                                rows.append(calcRow(
-                                    label: workoutActivityName(w.activityType),
-                                    formula: "\(hrStr)\(mins) min",
-                                    value: String(format: "%.0f kcal", kcal)
-                                ))
-                            }
-                            rows.append(calcRow(
-                                label: language == "de" ? "Gesamt (netto)" : "Total (net)",
-                                formula: "Σ − BMR-Anteil",
-                                value: String(format: "%.0f kcal", activityResult.eatKcal)
-                            ))
-                        }
-                        return rows
-                    }()
-                )
-
-                // ── Daily Journal ─────────────────────────────────────────────
-                calcSection(
-                    icon: "book.pages.fill",
-                    iconColor: .purple,
-                    title: language == "de" ? "Daily Journal — Anpassungen" : "Daily Journal — Adjustments",
-                    rows: [
-                        calcRow(
-                            label: language == "de" ? "Krankheitsfaktor (Fieber)" : "Illness factor (fever)",
-                            formula: language == "de"
-                                ? "Kein Fieber ×1.0 · Leicht ×1.10 · Hoch ×1.18"
-                                : "No fever ×1.0 · Low ×1.10 · High ×1.18",
-                            value: String(format: "×%.2f", tdeeResult.krankheitsFaktor)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "PAL-Korrektur (Energielevel)" : "PAL correction (energy level)",
-                            formula: language == "de"
-                                ? "Leicht angeschlagen: Aktivität ×70% · Bettruhe: PAL = 1.1"
-                                : "Mild: activity ×70% · Bedridden: PAL = 1.1",
-                            value: ""
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Zyklusfaktor (nur Frauen)" : "Cycle factor (female only)",
-                            formula: language == "de"
-                                ? "Menstruation aktiv: BMR +5%"
-                                : "Menstruation active: BMR +5%",
-                            value: String(format: "×%.2f", tdeeResult.zyklusFaktor)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Koffein-Thermogenese" : "Caffeine thermogenesis",
-                            formula: "+15 kcal/100 mg · max. +60 kcal",
-                            value: String(format: "+%.0f kcal", tdeeResult.koffeinBonus)
-                        ),
-                        calcRow(
-                            label: language == "de" ? "Thermischer Effekt (TEF)" : "Thermic Effect of Food (TEF)",
-                            formula: language == "de"
-                                ? "Protein ×1.0 · KH ×0.3 · Fett ×0.135 kcal/g"
-                                : "Protein ×1.0 · Carbs ×0.3 · Fat ×0.135 kcal/g",
-                            value: String(format: "+%.0f kcal", tdeeResult.tefKcal)
-                        ),
-                    ]
-                )
-
-                Spacer().frame(height: 24)
-            }
-            .padding(.horizontal, 16)
-        }
-        .background(CaloricBackground())
-        .navigationTitle(language == "de" ? "Berechnungsmethoden" : "Calculation Methods")
-        .navigationBarTitleDisplayMode(.large)
-        .task { await healthKit.fetchAll() }
-    }
-
-    private func calcSection(icon: String, iconColor: Color, title: String, rows: [AnyView]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(iconColor)
-                Text(title)
-                    .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
-                if idx > 0 {
-                    Divider()
-                        .padding(.horizontal, 16)
-                }
-                row
-            }
-            .padding(.bottom, 4)
-        }
-        .background(GlassCardBackground(cornerRadius: 18))
-    }
-
-    private func calcRow(label: String, formula: String, value: String) -> AnyView {
-        AnyView(
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
-                        .font(.poppins(size: 13, weight: .regular))
-                        .foregroundStyle(.secondary)
-                    Text(formula)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary.opacity(0.8))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !value.isEmpty {
-                    Spacer()
-                    Text(value)
-                        .font(.poppins(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.trailing)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        )
-    }
-
-    private func breakdownRow(icon: String, color: Color, title: String, subtitle: String, kcal: Int) -> some View {
+         private func breakdownRow(icon: String, color: Color, title: String, subtitle: String, kcal: Int) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .medium))

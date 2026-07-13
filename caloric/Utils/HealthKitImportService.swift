@@ -288,9 +288,9 @@ final class HealthKitImportService {
         // Waking HR window: 6 am → end of period
         let wakeStart = cal.date(bySettingHour: 6, minute: 0, second: 0, of: start) ?? start
 
-        async let steps   = hkSum(.stepCount,              unit: .count(),  predicate: predicate)
-        async let dist    = hkSum(.distanceWalkingRunning, unit: .meter(),  predicate: predicate)
-        async let stand   = hkSum(.appleStandTime,         unit: .minute(), predicate: predicate)
+        async let steps   = hkSum(.stepCount,              unit: .count(),  predicate: predicate, requireWatch: false)
+        async let dist    = hkSum(.distanceWalkingRunning, unit: .meter(),  predicate: predicate, requireWatch: false)
+        async let stand   = hkSum(.appleStandTime,         unit: .minute(), predicate: predicate, requireWatch: false)
         async let resting = fetchRestingHeartRate(for: date)
         async let avgHR   = fetchAvgHeartRate(from: wakeStart, to: end)
         
