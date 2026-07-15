@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Speech
+import AVFoundation
 
 struct DailyJournalView: View {
 
@@ -50,6 +52,13 @@ struct DailyJournalView: View {
     @State private var aiIsLoading: Bool = false
     @State private var aiErrorMessage: String? = nil
 
+    // Speech State
+    @State private var isRecording = false
+    @State private var audioEngine = AVAudioEngine()
+    @State private var request = SFSpeechAudioBufferRecognitionRequest()
+    @State private var recognitionTask: SFSpeechRecognitionTask?
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "de-DE"))
+
     private enum MacroField: Hashable {
         case protein(String), carbs(String), fat(String)
     }
@@ -57,6 +66,7 @@ struct DailyJournalView: View {
 
     @State private var showSavedBadge = false
     @State private var showCalendarPicker = false
+    @State private var confirmPulse = false
 
     @Environment(JournalStore.self) private var store
     @Environment(\.colorScheme) private var colorScheme
@@ -134,21 +144,15 @@ struct DailyJournalView: View {
 
             journalScrollView
 
-            // Sticky Bottom Footer for Confirm Button
+            // Floating Confirm Button
             VStack {
                 Spacer()
-                ZStack {
-                    // Glass background for the sticky footer
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .overlay(Theme.canvas.opacity(0.4))
-                        .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .bottom))
-                        .ignoresSafeArea()
-                        .frame(height: 180)
-
+                HStack {
+                    Spacer()
                     confirmButton
-                        .padding(.bottom, 74)
                 }
+                .padding(.trailing, 24)
+                .padding(.bottom, 106)
             }
             .ignoresSafeArea(edges: .bottom)
 
@@ -360,9 +364,11 @@ struct DailyJournalView: View {
                 carbsByMeal: $carbsByMeal,
                 fatByMeal: $fatByMeal,
                 analyzeFoodWithAI: { Task { await analyzeFoodWithAI() } },
+                copyYesterdayBreakfast: { copyYesterdayBreakfast() },
+                isRecording: isRecording,
+                startRecording: { startRecording() },
+                stopRecording: { stopRecording() },
                 macroInputField: { label, placeholder, text, focus, tint in
-                    // Need to map AnyHashable back to MacroField or use a generic approach
-                    // For simplicity, we'll handle the mapping here
                     let field: MacroField
                     if let f = focus as? MacrosCardMacroField {
                         switch f {
@@ -371,7 +377,7 @@ struct DailyJournalView: View {
                         case .fat(let m):     field = .fat(m)
                         }
                     } else {
-                        field = .protein("") // fallback
+                        field = .protein("")
                     }
                     return AnyView(macroInputField(label: label, placeholder: placeholder, text: text, focusValue: field, tint: tint))
                 },
@@ -613,7 +619,7 @@ struct DailyJournalView: View {
 
     // MARK: - Confirm Button (Sticky)
 
-    private var confirmButton: some View {
+            private var confirmButton: some View {
         Button {
             macroFocus = nil
             caffeineFocused = false
@@ -623,26 +629,33 @@ struct DailyJournalView: View {
                 withAnimation(.easeOut(duration: 0.4)) { showSavedBadge = false }
             }
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                Text(language == "de" ? "Tag bestätigen" : "Confirm Day")
-                    .font(.poppins(size: 17, weight: .semibold))
+            ZStack {
+                // Pulsing glow effect
+                Circle()
+                    .fill(accentBlue)
+                    .frame(width: 62, height: 62)
+                    .scaleEffect(confirmPulse ? 1.25 : 1.0)
+                    .opacity(confirmPulse ? 0.0 : 0.3)
+                
+                Circle()
+                    .fill(
+                        LinearGradient(colors: [Theme.accentSky, accentBlue],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .frame(width: 62, height: 62)
+                    .shadow(color: accentBlue.opacity(0.35), radius: 10, x: 0, y: 6)
+                
+                Image(systemName: "checkmark")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(.white)
             }
-            .foregroundStyle(accentBlue)
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(accentBlue.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(accentBlue.opacity(0.2), lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 24)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                confirmPulse = true
+            }
+        }
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
     }
@@ -863,5 +876,72 @@ struct DailyJournalView: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private func copyYesterdayBreakfast() {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+        let entry = store.entry(for: yesterday)
+        
+        if let p = entry.proteinByMeal["breakfast"] { proteinByMeal["breakfast"] = p == 0 ? "" : "\(Int(p))" }
+        if let c = entry.carbsByMeal["breakfast"]   { carbsByMeal["breakfast"]   = c == 0 ? "" : "\(Int(c))" }
+        if let f = entry.fatByMeal["breakfast"]     { fatByMeal["breakfast"]     = f == 0 ? "" : "\(Int(f))" }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            selectedMeal = "breakfast"
+        }
+    }
+
+    private func startRecording() {
+        SFSpeechRecognizer.requestAuthorization { authStatus in
+            DispatchQueue.main.async {
+                if authStatus == .authorized {
+                    do {
+                        try self.performStartRecording()
+                    } catch {
+                        self.aiErrorMessage = "Mic error"
+                    }
+                } else {
+                    self.aiErrorMessage = "Mic permission denied"
+                }
+            }
+        }
+    }
+
+    private func performStartRecording() throws {
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        
+        request = SFSpeechAudioBufferRecognitionRequest()
+        let inputNode = audioEngine.inputNode
+        request.shouldReportPartialResults = true
+        
+        recognitionTask = speechRecognizer?.recognitionTask(with: request) { result, error in
+            if let result = result {
+                self.aiInputText = result.bestTranscription.formattedString
+            }
+            if error != nil || result?.isFinal == true {
+                self.stopRecording()
+            }
+        }
+        
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            self.request.append(buffer)
+        }
+        
+        audioEngine.prepare()
+        try audioEngine.start()
+        isRecording = true
+    }
+
+    private func stopRecording() {
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        request.endAudio()
+        isRecording = false
     }
 }

@@ -314,6 +314,10 @@ struct MacrosCard: View {
     @Binding var carbsByMeal: [String: String]
     @Binding var fatByMeal: [String: String]
     let analyzeFoodWithAI: () -> Void
+    let copyYesterdayBreakfast: () -> Void
+    let isRecording: Bool
+    let startRecording: () -> Void
+    let stopRecording: () -> Void
     let macroInputField: (String, String, Binding<String>, AnyHashable, Color) -> AnyView
     let cardBackground: AnyView
 
@@ -330,6 +334,23 @@ struct MacrosCard: View {
                     .font(.poppins(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
+                
+                if selectedMeal == "breakfast" {
+                    Button(action: copyYesterdayBreakfast) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text(language == "de" ? "Vom Vortag" : "From Yesterday")
+                        }
+                        .font(.poppins(size: 11, weight: .medium))
+                        .foregroundStyle(accentBlue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(accentBlue.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
 
             HStack(spacing: 0) {
@@ -343,25 +364,41 @@ struct MacrosCard: View {
             .clipShape(Capsule())
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(spacing: 10) {
                     TextField(language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...", text: $aiInputText, axis: .vertical)
                         .lineLimit(1...3)
                         .font(.poppins(size: 13, weight: .regular))
                         .foregroundColor(Theme.textPrimary)
                         .disabled(aiIsLoading)
                     
-                    Button { analyzeFoodWithAI() } label: {
-                        ZStack {
-                            Circle().fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue).frame(width: 32, height: 32)
-                            if aiIsLoading {
-                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)).scaleEffect(0.8)
-                            } else {
-                                Image(systemName: "sparkles").font(.system(size: 14, weight: .bold)).foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.4) : .white)
+                    HStack(spacing: 8) {
+                        Button { 
+                            if isRecording { stopRecording() }
+                            else { startRecording() }
+                        } label: {
+                            ZStack {
+                                Circle().fill(isRecording ? .red.opacity(0.15) : accentBlue.opacity(0.1)).frame(width: 32, height: 32)
+                                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(isRecording ? .red : accentBlue)
+                                    .scaleEffect(isRecording ? 1.2 : 1.0)
                             }
                         }
+                        .buttonStyle(.plain)
+
+                        Button { analyzeFoodWithAI() } label: {
+                            ZStack {
+                                Circle().fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue).frame(width: 32, height: 32)
+                                if aiIsLoading {
+                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)).scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "sparkles").font(.system(size: 14, weight: .bold)).foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.4) : .white)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(aiInputText.isEmpty || aiIsLoading)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(aiInputText.isEmpty || aiIsLoading)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8).background(Theme.fieldFill).clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
@@ -374,8 +411,27 @@ struct MacrosCard: View {
 
             if let meal = selectedMeal {
                 if meal == "daily" {
-                    totalSummaryView
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    VStack(spacing: 16) {
+                        totalSummaryView
+                        
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(language == "de" ? "Manuelle Gesamteingabe" : "Manual Daily Entry")
+                                .font(.poppins(size: 13, weight: .semibold))
+                                .foregroundStyle(Theme.textSecondary)
+                            
+                            VStack(spacing: 12) {
+                                macroInputField("Protein", "0", Binding(get: { proteinByMeal["daily"] ?? "" }, set: { proteinByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.protein("daily")), Theme.segNEAT)
+                                HStack(spacing: 12) {
+                                    macroInputField(language == "de" ? "Kohlenhydrate" : "Carbs", "0", Binding(get: { carbsByMeal["daily"] ?? "" }, set: { carbsByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.carbs("daily")), accentBlue)
+                                    macroInputField(language == "de" ? "Fett" : "Fat", "0", Binding(get: { fatByMeal["daily"] ?? "" }, set: { fatByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.fat("daily")), .orange)
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .background(Theme.fieldFill.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {
                     VStack(spacing: 12) {
                         macroInputField("Protein", "0", Binding(get: { proteinByMeal[meal] ?? "" }, set: { proteinByMeal[meal] = $0 }), AnyHashable(MacrosCardMacroField.protein(meal)), Theme.segNEAT)

@@ -117,9 +117,24 @@ struct TDEECalculationService {
     ///   Carbs    × 0.300 kcal/g  ( 7.5 % of 4 kcal/g)
     ///   Fat      × 0.135 kcal/g  ( 1.5 % of 9 kcal/g)
     private static func thermicEffectOfFood(inputs: JournalInputs) -> Double {
-        let proteinG = inputs.proteinGramsByMeal.values.reduce(0, +)
-        let carbsG   = inputs.carbsGramsByMeal.values.reduce(0, +)
-        let fatG     = inputs.fatGramsByMeal.values.reduce(0, +)
+        let pDaily = inputs.proteinGramsByMeal["daily"] ?? 0
+        let cDaily = inputs.carbsGramsByMeal["daily"]   ?? 0
+        let fDaily = inputs.fatGramsByMeal["daily"]     ?? 0
+        
+        let proteinG: Double
+        let carbsG:   Double
+        let fatG:     Double
+        
+        if pDaily > 0 || cDaily > 0 || fDaily > 0 {
+            proteinG = pDaily
+            carbsG   = cDaily
+            fatG     = fDaily
+        } else {
+            proteinG = ["breakfast", "lunch", "dinner"].compactMap { inputs.proteinGramsByMeal[$0] }.reduce(0, +)
+            carbsG   = ["breakfast", "lunch", "dinner"].compactMap { inputs.carbsGramsByMeal[$0]   }.reduce(0, +)
+            fatG     = ["breakfast", "lunch", "dinner"].compactMap { inputs.fatGramsByMeal[$0]     }.reduce(0, +)
+        }
+        
         return proteinG * 1.0 + carbsG * 0.3 + fatG * 0.135
     }
 

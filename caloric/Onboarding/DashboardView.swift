@@ -35,7 +35,7 @@ struct DashboardView: View {
     @Binding var selectedDate: Date
 
     @State private var editingField: String? = nil
-    @State private var showProfileSidebar = false
+        @State private var showProfileSidebar = false
     @State private var showActivityBreakdown = false
     @State private var ringProgress: Double = 0
     @State private var animatedBurn: Double = 0
@@ -529,8 +529,12 @@ struct DashboardView: View {
             }
             .navigationTitle(language == "de" ? "Datum wählen" : "Select Date")
             .navigationBarTitleDisplayMode(.inline)
-            .alert(item: Binding(get: { infoSegmentType.map { InfoSegment(type: $0) } }, set: { infoSegmentType = $0?.type })) { info in
-                Alert(title: Text(energySegments.first(where: { $0.type == info.type })?.title ?? ""), message: Text(infoText(for: info.type)), dismissButton: .default(Text("OK")))
+            .sheet(item: Binding(
+                get: { infoSegmentType.map { InfoSegment(type: $0) } },
+                set: { infoSegmentType = $0?.type }
+            )) { info in
+                infoSheet(for: info.type)
+                    .presentationBackground(Theme.canvas)
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -601,98 +605,104 @@ struct DashboardView: View {
         self._selectedDate = selectedDate
     }
 
-    // MARK: - Body
+        private var fullDateButton: some View {
+        Button {
+            showCalendarPicker = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                Text(selectedDateString)
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Theme.card)
+                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(SpringyButtonStyle())
+    }
 
-    var body: some View {
+    private var profileIconButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
+                showProfileSidebar = true
+            }
+        } label: {
+            Image(systemName: "person.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(
+                    Circle()
+                        .fill(
+                            LinearGradient(colors: [Theme.accentSky, accentBlue],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .shadow(color: accentBlue.opacity(0.30), radius: 8, x: 0, y: 4)
+                )
+        }
+    }
+
+        var body: some View {
         ZStack {
             CaloricBackground()
 
-            // Hauptinhalt
             VStack(spacing: 0) {
+                // STATIC HEADER
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
                             .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
                             .foregroundStyle(Theme.textPrimary)
                         
-                        Button {
-                            showCalendarPicker = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(accentBlue)
-                                Text(selectedDateString)
-                                    .font(.poppins(size: 13, weight: .medium))
-                                    .foregroundStyle(Theme.textSecondary)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Theme.card)
-                                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
-                            )
-                            .contentShape(Capsule())
-                        }
-                        .buttonStyle(SpringyButtonStyle())
+                        fullDateButton
                     }
                     Spacer()
-
-                    Button {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
-                            showProfileSidebar = true
-                        }
-                    } label: {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(
-                                Circle()
-                                    .fill(
-                                        LinearGradient(colors: [Theme.accentSky, accentBlue],
-                                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    )
-                                    .shadow(color: accentBlue.opacity(0.30), radius: 8, x: 0, y: 4)
-                            )
-                    }
+                    profileIconButton
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
                 .padding(.bottom, 4)
 
-            ScrollView(showsIndicators: false) {
-            VStack(spacing: LayoutMetrics.cardSpacing) {
-                datePicker
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: LayoutMetrics.cardSpacing) {
+                        datePicker
 
-                calorieRingWidget
-                    .padding(.horizontal, 20)
+                        calorieRingWidget
+                            .padding(.horizontal, 20)
 
-                kpiRow
-                    .padding(.horizontal, 20)
+                        kpiRow
+                            .padding(.horizontal, 20)
 
-                caloriesChartSection
-            }
-            .frame(maxWidth: .infinity)
-            }
-            .refreshable {
-                await healthKit.fetchAll()
-                saveActivityRecord()
-                Task { @MainActor in
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-                        showRefreshBadge = true
-                    }
-                    try? await Task.sleep(nanoseconds: 2_200_000_000)
-                    withAnimation(.easeOut(duration: 0.45)) {
-                        showRefreshBadge = false
+                        caloriesChartSection
+                        
+                        Spacer().frame(height: 100)
                     }
                 }
-            }
+                .refreshable {
+                    await healthKit.fetchAll()
+                    saveActivityRecord()
+                    Task { @MainActor in
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                            showRefreshBadge = true
+                        }
+                        try? await Task.sleep(nanoseconds: 2_200_000_000)
+                        withAnimation(.easeOut(duration: 0.45)) {
+                            showRefreshBadge = false
+                        }
+                    }
+                }
             }
 
             // Abdunkelung beim Öffnen der Leiste
@@ -706,7 +716,6 @@ struct DashboardView: View {
                     }
                     .transition(.opacity)
             }
-
             // Bottom Sheets
             VStack(spacing: 0) {
                 Spacer()
@@ -901,8 +910,8 @@ struct DashboardView: View {
     }
 
     private struct EnergySegment: Identifiable {
-        let id = UUID()
         let type: EnergySegmentType
+        var id: EnergySegmentType { type }
         let title: String
         let short: String
         let subtitle: String?
@@ -974,7 +983,7 @@ struct DashboardView: View {
             HStack {
                 HStack(spacing: 4) {
                     Image(systemName: diff >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    Text(String(format: "%%+.0f kcal %@", diff, language == "de" ? "vs. gestern" : "vs. yesterday"))
+                    Text(String(format: "%+.0f kcal %@", diff, language == "de" ? "vs. gestern" : "vs. yesterday"))
                 }
                 .font(.poppins(size: 12, weight: .medium))
                 .foregroundStyle(diff >= 0 ? .green : .red)
@@ -1026,7 +1035,7 @@ struct DashboardView: View {
                 .font(.poppins(size: 13, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
-            Text(String(format: "%%.0f kcal", value))
+            Text(String(format: "%.0f kcal", value))
                 .font(.poppins(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
         }
@@ -1042,6 +1051,8 @@ struct DashboardView: View {
             inputs: inputs,
             isFemale: selectedGender == femaleText
         )
+
+        let fraction = isSelectedToday ? nowFraction / 24.0 : 1.0
 
         if let snap = healthKit.history[key] {
             let res = ActivityCalculationService.calculate(
@@ -1059,17 +1070,17 @@ struct DashboardView: View {
                 referenceDate: prevDate
             )
             switch type {
-            case .bmr:  return tdee.bmrDynamisch
+            case .bmr:  return isSelectedToday ? bmrBurnedSoFar : tdee.bmrDynamisch
             case .neat: return res.neatKcal
             case .eat:  return res.eatKcal
-            case .tef:  return tdee.tefKcal
-            case .caffeine: return tdee.koffeinBonus
+            case .tef:  return tdee.tefKcal * fraction
+            case .caffeine: return tdee.koffeinBonus * fraction
             }
         } else {
             switch type {
-            case .bmr:  return tdee.bmrDynamisch
-            case .tef:  return tdee.tefKcal
-            case .caffeine: return tdee.koffeinBonus
+            case .bmr:  return isSelectedToday ? bmrBurnedSoFar : tdee.bmrDynamisch
+            case .tef:  return tdee.tefKcal * fraction
+            case .caffeine: return tdee.koffeinBonus * fraction
             default:    return 0
             }
         }
@@ -1113,16 +1124,16 @@ struct DashboardView: View {
         }
     }
 
-    private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
+        private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
         let pct = total > 0 ? s.kcal / total : 0
         let isExpanded = expandedSegmentType == s.type
 
-        return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
-            }
-        } label: {
-            VStack(spacing: 11) {
+        return VStack(spacing: 11) {
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
+                }
+            } label: {
                 HStack(spacing: 13) {
                     Image(systemName: s.icon)
                         .font(.system(size: 18, weight: .medium))
@@ -1161,24 +1172,63 @@ struct DashboardView: View {
                             .foregroundStyle(s.color)
                     }
                 }
-
-                InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
-                    .frame(height: 12)
-
-                if isExpanded {
-                    expandedContent(for: s.type, currentKcal: s.kcal)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .top)),
-                            removal: .opacity.combined(with: .move(edge: .top))
-                        ))
-                }
             }
-            .padding(14)
-            .glassCard(16)
+            .buttonStyle(.plain)
+
+            InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
+                .frame(height: 12)
+
+            if isExpanded {
+                expandedContent(for: s.type, currentKcal: s.kcal)
+                    .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .glassCard(16)
     }
 
+
+    private func infoSheet(for type: EnergySegmentType) -> some View {
+        let seg = energySegments.first(where: { $0.type == type })
+        return VStack(spacing: 20) {
+            HStack(spacing: 14) {
+                Image(systemName: seg?.icon ?? "info.circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(seg?.color ?? accentBlue)
+                    .frame(width: 44, height: 44)
+                    .background((seg?.color ?? accentBlue).opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(seg?.title ?? "")
+                        .font(.poppins(size: 18, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(language == "de" ? "Information" : "Information")
+                        .font(.poppins(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer()
+                Button { infoSegmentType = nil } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.3))
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            
+            Text(infoText(for: type))
+                .font(.poppins(size: 15, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .lineSpacing(5)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 24)
+            
+            Spacer()
+        }
+        .presentationDetents([.height(240)])
+        .presentationDragIndicator(.visible)
+    }
 
     private func infoText(for type: EnergySegmentType) -> String {
         switch type {
@@ -1259,8 +1309,12 @@ struct DashboardView: View {
             }
             .navigationTitle(language == "de" ? "Aufschlüsselung" : "Breakdown")
             .navigationBarTitleDisplayMode(.inline)
-            .alert(item: Binding(get: { infoSegmentType.map { InfoSegment(type: $0) } }, set: { infoSegmentType = $0?.type })) { info in
-                Alert(title: Text(energySegments.first(where: { $0.type == info.type })?.title ?? ""), message: Text(infoText(for: info.type)), dismissButton: .default(Text("OK")))
+            .sheet(item: Binding(
+                get: { infoSegmentType.map { InfoSegment(type: $0) } },
+                set: { infoSegmentType = $0?.type }
+            )) { info in
+                infoSheet(for: info.type)
+                    .presentationBackground(Theme.canvas)
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -1306,7 +1360,7 @@ struct DashboardView: View {
 
     // MARK: - Bottom Sheet (User Profile)
 
-    private var profilePanel: some View {
+        private var profilePanel: some View {
         VStack(spacing: 0) {
             // Drag Handle
             Capsule()
@@ -1318,12 +1372,12 @@ struct DashboardView: View {
             // Header
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(language == "de" ? "Dein Profil" : "Your Profile")
-                        .font(.poppins(size: 22, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(language == "de" ? "Passe hier deinen Namen und dein Geburtsdatum an." : "Adjust your name and birth date here.")
+                    Text(language == "de" ? "Meine Daten" : "My Data")
+                        .font(.poppins(size: 24, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(language == "de" ? "Verwalte dein Profil und Körperwerte" : "Manage your profile and body metrics")
                         .font(.poppins(size: 13, weight: .regular))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
                 Button {
@@ -1332,102 +1386,99 @@ struct DashboardView: View {
                     }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
                         .frame(width: 34, height: 34)
                         .glassEffect(in: .circle)
                 }
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 24)
             .padding(.top, 10)
-            .padding(.bottom, 18)
+            .padding(.bottom, 20)
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 28) {
-                    // STAMMDATEN
-                    VStack(alignment: .leading, spacing: 14) {
+                VStack(spacing: 24) {
+                    // SECTION 1: PERSONAL
+                    profileSection(title: language == "de" ? "Persönlich" : "Personal") {
                         VStack(spacing: 0) {
-                            HStack {
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(accentBlue)
-                                    .frame(width: 28)
-                                Text(language == "de" ? "Vorname" : "First Name")
-                                    .font(.poppins(size: 15, weight: .regular))
-                                    .foregroundStyle(.primary)
-                                Spacer()
+                            profileRow(icon: "person.fill", label: language == "de" ? "Vorname" : "First Name") {
                                 TextField("", text: $accountUsername)
                                     .font(.poppins(size: 15, weight: .semibold))
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Theme.textPrimary)
                                     .multilineTextAlignment(.trailing)
                                     .submitLabel(.done)
                             }
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 16)
-
-                            Divider().padding(.leading, 50)
-
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(accentBlue)
-                                    .frame(width: 28)
-                                Text(language == "de" ? "Geburtsdatum" : "Birth Date")
-                                    .font(.poppins(size: 15, weight: .regular))
-                                    .foregroundStyle(.primary)
-                                Spacer()
+                            Divider().padding(.leading, 52)
+                            profileRow(icon: "calendar", label: language == "de" ? "Geburtsdatum" : "Birth Date") {
                                 DatePicker("", selection: $birthDate, displayedComponents: .date)
                                     .labelsHidden()
                                     .tint(accentBlue)
                             }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
+                            Divider().padding(.leading, 52)
+                            profileRow(icon: "figure.arms.open", label: language == "de" ? "Geschlecht" : "Gender") {
+                                Text(selectedGender ?? "—")
+                                    .font(.poppins(size: 15, weight: .semibold))
+                                    .foregroundStyle(Theme.textPrimary)
+                            }
                         }
-                        .background(GlassCardBackground(cornerRadius: 18))
+                    }
+
+                    // SECTION 2: BODY METRICS
+                    profileSection(title: language == "de" ? "Körperwerte" : "Body Metrics") {
+                        VStack(spacing: 0) {
+                            profileActionRow(icon: "scalemass.fill", label: language == "de" ? "Gewicht" : "Weight", value: weightText + " " + weightUnit) {
+                                editingField = "weight"
+                            }
+                            Divider().padding(.leading, 52)
+                            profileActionRow(icon: "ruler.fill", label: language == "de" ? "Größe" : "Height", value: heightText + " " + heightUnit) {
+                                editingField = "height"
+                            }
+                            Divider().padding(.leading, 52)
+                            profileActionRow(icon: "percent", label: language == "de" ? "Körperfettanteil" : "Body Fat %", value: (knowsBodyFat == true) ? bodyFatText + "%" : (language == "de" ? "Unbekannt" : "Unknown")) {
+                                editingField = "bodyFat"
+                            }
+                        }
+                    }
+
+                    // SECTION 3: METABOLISM
+                    profileSection(title: language == "de" ? "Stoffwechsel & Gesundheit" : "Metabolism & Health") {
+                        profileActionRow(icon: "bolt.heart.fill", label: language == "de" ? "Besonderheiten" : "Conditions", value: selectedConditions.contains(noConditionText) ? (language == "de" ? "Keine" : "None") : "\(selectedConditions.count) Aktiv") {
+                            editingField = "conditions"
+                        }
+                    }
+
+                    // SECTION 4: APPEARANCE
+                    profileSection(title: language == "de" ? "Einstellungen" : "Settings") {
+                        VStack(spacing: 12) {
+                            HStack {
+                                Image(systemName: "circle.lefthalf.filled")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(accentBlue)
+                                    .frame(width: 28)
+                                Text(language == "de" ? "Erscheinungsbild" : "Appearance")
+                                    .font(.poppins(size: 15, weight: .regular))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Spacer()
+                            }
+                            AppearancePicker(language: language, accent: accentBlue)
+                        }
+                        .padding(.vertical, 14)
                         .padding(.horizontal, 16)
                     }
 
-                    // DARSTELLUNG
-                    VStack(spacing: 0) {
-                        HStack {
-                            Image(systemName: "circle.lefthalf.filled")
-                                .font(.system(size: 16))
-                                .foregroundStyle(accentBlue)
-                                .frame(width: 28)
-                            Text(language == "de" ? "Darstellung" : "Appearance")
-                                .font(.poppins(size: 15, weight: .regular))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                        }
-                        .padding(.top, 14)
-                        .padding(.horizontal, 16)
-
-                        AppearancePicker(language: language, accent: accentBlue)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 12)
-                            .padding(.bottom, 14)
-                    }
-                    .background(GlassCardBackground(cornerRadius: 18))
-                    .padding(.horizontal, 16)
-
-                    VStack(spacing: 12) {
-                        Text(language == "de" ? "Informationen" : "Information")
-                            .font(.poppins(size: 14, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 6)
-
+                    // FOOTER INFO
+                    VStack(spacing: 8) {
                         Text(language == "de" 
-                             ? "Dein Geburtsdatum wird verwendet, um dein Alter für die Stoffwechselberechnungen (BMR) präzise zu bestimmen."
-                             : "Your birth date is used to accurately determine your age for metabolic calculations (BMR).")
-                            .font(.poppins(size: 13, weight: .regular))
-                            .foregroundStyle(.secondary)
-                            .padding(16)
-                            .background(GlassCardBackground(cornerRadius: 16))
+                             ? "Deine Daten werden lokal auf deinem Gerät gespeichert und für die präzise Berechnung deines Energiebedarfs verwendet."
+                             : "Your data is stored locally on your device and used for accurate energy expenditure calculations.")
+                            .font(.poppins(size: 12, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 50)
                 }
+                .padding(.horizontal, 16)
             }
         }
         .frame(maxWidth: .infinity)
@@ -1438,6 +1489,70 @@ struct DashboardView: View {
             style: .continuous
         ))
         .shadow(color: .black.opacity(0.18), radius: 32, x: 0, y: -8)
+    }
+
+    private func profileSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .font(.poppins(size: 12, weight: .bold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.leading, 8)
+            
+            content()
+                .background(GlassCardBackground(cornerRadius: 20))
+        }
+    }
+
+    private func profileRow<Content: View>(icon: String, label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(accentBlue)
+                .frame(width: 28, height: 28)
+                .background(accentBlue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            Text(label)
+                .font(.poppins(size: 15, weight: .regular))
+                .foregroundStyle(Theme.textPrimary)
+            
+            Spacer()
+            
+            content()
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+    }
+
+    private func profileActionRow(icon: String, label: String, value: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(accentBlue)
+                    .frame(width: 28, height: 28)
+                    .background(accentBlue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                
+                Text(label)
+                    .font(.poppins(size: 15, weight: .regular))
+                    .foregroundStyle(Theme.textPrimary)
+                
+                Spacer()
+                
+                Text(value)
+                    .font(.poppins(size: 15, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.5))
+            }
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Kalorien-Ring-Widget (USP)

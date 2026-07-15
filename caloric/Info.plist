@@ -12,5 +12,9 @@
 		<string>Poppins-Bold.ttf</string>
 		<string>Poppins-Light.ttf</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Wir benötigen Zugriff auf dein Mikrofon, um deine Mahlzeiten per Spracheingabe zu erfassen.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Wir verwenden Spracherkennung, um deine diktierten Mahlzeiten in Text umzuwandeln.</string>
 </dict>
 </plist>
