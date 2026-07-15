@@ -29,6 +29,13 @@ final class JournalStore {
         var proteinByMeal:      [String: Double] = [:]
         var carbsByMeal:        [String: Double] = [:]
         var fatByMeal:          [String: Double] = [:]
+        var manualWorkouts:     [ManualWorkout]  = []
+    }
+
+    struct ManualWorkout: Codable, Identifiable, Hashable {
+        let id: UUID
+        var name: String
+        var kcal: Double
     }
 
     private static let storageKey = "journalStore.entries.v1"

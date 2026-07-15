@@ -242,10 +242,10 @@ struct DashboardView: View {
     }
 
     private var activityResult: ActivityCalculationService.ActivityResult {
-        guard healthKit.isAuthorized else {
-            return ActivityCalculationService.ActivityResult(neatKcal: 0, eatKcal: 0)
-        }
         let act = selectedActivity
+        let manual = store.entry(for: selectedDate).manualWorkouts.map {
+            ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
+        }
         return ActivityCalculationService.calculate(
             steps:            act.steps,
             standTimeMinutes: act.standTimeMinutes,
@@ -253,6 +253,7 @@ struct DashboardView: View {
             hrSegments:       act.hrSegments,
             vo2Max:           healthKit.vo2Max,
             workouts:         selectedWorkouts,
+            manualWorkouts:   manual,
             weightKg:         weightInKg,
             age:              userAge,
             isMale:           selectedGender != femaleText,
@@ -300,6 +301,9 @@ struct DashboardView: View {
                 inputs: store.journalInputs(for: date),
                 isFemale: selectedGender == femaleText
             )
+            let manual = store.entry(for: date).manualWorkouts.map {
+                ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
+            }
             let result = ActivityCalculationService.calculate(
                 steps: snapshot.activity.steps,
                 standTimeMinutes: snapshot.activity.standTimeMinutes,
@@ -307,6 +311,7 @@ struct DashboardView: View {
                 hrSegments: snapshot.activity.hrSegments,
                 vo2Max: healthKit.vo2Max,
                 workouts: snapshot.workouts,
+                manualWorkouts: manual,
                 weightKg: weightInKg,
                 age: userAge,
                 isMale: selectedGender != femaleText,
@@ -1007,7 +1012,12 @@ struct DashboardView: View {
                     breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand)
                     breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR)
                 case .eat:
-                    breakdownItem(label: language == "de" ? "Workouts" : "Workouts", value: activityResult.eatKcal)
+                    ForEach(activityResult.workoutDetails) { detail in
+                        breakdownItem(label: detail.name, value: detail.kcal)
+                    }
+                    if activityResult.workoutDetails.isEmpty {
+                        breakdownItem(label: language == "de" ? "Keine Workouts" : "No workouts", value: 0)
+                    }
                 case .tef:
                     let inputs = store.journalInputs(for: selectedDate)
                     let p = inputs.proteinGramsByMeal.values.reduce(0, +) * 1.0
@@ -1055,6 +1065,9 @@ struct DashboardView: View {
         let fraction = isSelectedToday ? nowFraction / 24.0 : 1.0
 
         if let snap = healthKit.history[key] {
+            let manual = store.entry(for: prevDate).manualWorkouts.map {
+                ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
+            }
             let res = ActivityCalculationService.calculate(
                 steps: snap.activity.steps,
                 standTimeMinutes: snap.activity.standTimeMinutes,
@@ -1062,6 +1075,7 @@ struct DashboardView: View {
                 hrSegments: snap.activity.hrSegments,
                 vo2Max: healthKit.vo2Max,
                 workouts: snap.workouts,
+                manualWorkouts: manual,
                 weightKg: weightInKg,
                 age: userAge,
                 isMale: selectedGender != femaleText,

@@ -39,7 +39,16 @@ struct ContentView: View {
     @State private var accountPassword = ""
     @State private var showEmailSignUp = false
     @State private var showBFSavedBadge = false
+    @State private var showBMRInfo = false
+    
+    // Welcome Animations
+    @State private var welcomeAnimScale: Double = 1.0
+    @State private var welcomeAnimOpacity: Double = 1.0
+    @State private var welcomeAnimOffset: CGFloat = 0
+    @State private var welcomeHaloScale: Double = 1.0
+
     @State private var isNavigatingForward = true
+
     // Metabolism questionnaire
     @State private var thyroidCondition: String? = nil
     @State private var thyroidWellControlled: Bool? = nil
@@ -233,8 +242,8 @@ struct ContentView: View {
     }
 
     private func navigate(to step: Int) {
+        isNavigatingForward = step >= currentStep
         withAnimation(.spring(response: 0.42, dampingFraction: 0.9)) {
-            isNavigatingForward = step >= currentStep
             currentStep = step
         }
     }
@@ -260,8 +269,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-
-            // Fortschrittsleiste (Schritte 1–6)
+            // Fortschrittsleiste
             if currentStep >= 1 && currentStep <= 6 {
                 progressBar
             }
@@ -273,6 +281,9 @@ struct ContentView: View {
                 #endif
                 .id(currentStep)
                 .transition(pageTransition)
+        }
+        .sheet(isPresented: $showBMRInfo) {
+            bmrInfoSheet
         }
         #if os(iOS)
         .toolbar {
@@ -372,6 +383,51 @@ struct ContentView: View {
         .padding(.horizontal, 36)
         .padding(.top, topSafeArea + 10)
         .padding(.bottom, 14)
+    }
+
+    // MARK: - BMR Info Sheet
+    private var bmrInfoSheet: some View {
+        VStack(spacing: 20) {
+            HStack(spacing: 14) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                    .frame(width: 44, height: 44)
+                    .background(accentBlue.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(selectedLanguage == "de" ? "Dein Grundumsatz" : "Your BMR")
+                        .font(.poppins(size: 18, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(selectedLanguage == "de" ? "Hintergrund & Informationen" : "Background & Information")
+                        .font(.poppins(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer()
+                Button { showBMRInfo = false } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.3))
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            
+            ScrollView {
+                Text(t.resultInfo)
+                    .font(.poppins(size: 15, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(5)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 24)
+            }
+            
+            Spacer()
+        }
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.canvas)
     }
 
     // MARK: - Seite 0: Willkommen
@@ -922,118 +978,127 @@ struct ContentView: View {
     // MARK: - Seite 7: Ergebnis
 
     private var resultPage: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Spacer().frame(height: 60)
+        ZStack {
+            CaloricBackground()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    Spacer().frame(height: 100)
 
-                Spacer().frame(height: 44)
-
-                // Haupt-Zahl mit Glow-Hintergrund
-                ZStack {
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [accentBlue.opacity(0.18), accentBlue.opacity(0)],
-                                center: .center,
-                                startRadius: 20,
-                                endRadius: 130
+                    // Haupt-Zahl mit Glow-Hintergrund
+                    ZStack {
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [accentBlue.opacity(0.18), accentBlue.opacity(0)],
+                                    center: .center,
+                                    startRadius: 20,
+                                    endRadius: 130
+                                )
                             )
-                        )
-                        .frame(width: 280, height: 200)
-                        .blur(radius: 8)
-                        .scaleEffect(showResult ? 1 : 0.4)
-                        .animation(.easeOut(duration: 1.0).delay(0.2), value: showResult)
+                            .frame(width: 280, height: 200)
+                            .blur(radius: 8)
+                            .scaleEffect(showResult ? 1 : 0.4)
+                            .animation(.easeOut(duration: 1.0).delay(0.2), value: showResult)
 
-                    VStack(spacing: 2) {
-                        Text("\(Int(animatedBMR))")
-                            .font(.poppins(size: 84, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .contentTransition(.numericText())
+                        VStack(spacing: 2) {
+                            Text("\(Int(animatedBMR))")
+                                .font(.poppins(size: 84, weight: .semibold))
+                                .foregroundStyle(accentBlue)
+                                .contentTransition(.numericText())
 
-                        Text(t.resultUnit)
-                            .font(.poppins(size: 17, weight: .regular))
-                            .foregroundStyle(.secondary)
+                            Text(t.resultUnit)
+                                .font(.poppins(size: 17, weight: .regular))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-                .scaleEffect(showResult ? 1 : 0.65)
-                .opacity(showResult ? 1 : 0)
-                .animation(.spring(response: 0.65, dampingFraction: 0.72).delay(0.15), value: showResult)
-
-                // Untertitel direkt unter der Zahl
-                Text(selectedLanguage == "de" ? "dein persönlicher Wert" : "your personal value")
-                    .font(.poppins(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary.opacity(0.55))
+                    .scaleEffect(showResult ? 1 : 0.65)
                     .opacity(showResult ? 1 : 0)
-                    .offset(y: showResult ? 0 : 8)
-                    .animation(.easeOut(duration: 0.5).delay(0.5), value: showResult)
+                    .animation(.spring(response: 0.65, dampingFraction: 0.72).delay(0.15), value: showResult)
 
-                Spacer().frame(height: 36)
+                    // Untertitel direkt unter der Zahl
+                    Text(selectedLanguage == "de" ? "dein persönlicher Wert" : "your personal value")
+                        .font(.poppins(size: 14, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.55))
+                        .opacity(showResult ? 1 : 0)
+                        .offset(y: showResult ? 0 : 8)
+                        .animation(.easeOut(duration: 0.5).delay(0.5), value: showResult)
 
-                // Drei Kennzahlen-Karten
-                HStack(spacing: 10) {
-                    metricCard(
-                        icon: "clock.fill",
-                        value: String(format: "%.0f", finalBMR / 24),
-                        unit: "kcal/h",
-                        delay: 0.0
-                    )
-                    metricCard(
-                        icon: "calendar",
-                        value: String(format: "%.0f", finalBMR * 7),
-                        unit: selectedLanguage == "de" ? "kcal/Woche" : "kcal/week",
-                        delay: 0.12
-                    )
-                    metricCard(
-                        icon: "figure.strengthtraining.traditional",
-                        value: String(format: "%.1f", leanBodyMass),
-                        unit: selectedLanguage == "de" ? "kg Muskelmasse" : "kg lean mass",
-                        delay: 0.24
-                    )
-                }
-                .padding(.horizontal, 20)
+                    Spacer().frame(height: 40)
 
-                Spacer().frame(height: 28)
+                    // Drei Kennzahlen-Karten
+                    HStack(spacing: 10) {
+                        metricCard(
+                            icon: "clock.fill",
+                            value: String(format: "%.0f", finalBMR / 24),
+                            unit: "kcal/h",
+                            delay: 0.0
+                        )
+                        metricCard(
+                            icon: "calendar",
+                            value: String(format: "%.0f", finalBMR * 7),
+                            unit: selectedLanguage == "de" ? "kcal/Woche" : "kcal/week",
+                            delay: 0.12
+                        )
+                        metricCard(
+                            icon: "figure.strengthtraining.traditional",
+                            value: String(format: "%.1f", leanBodyMass),
+                            unit: selectedLanguage == "de" ? "kg Muskelmasse" : "kg lean mass",
+                            delay: 0.24
+                        )
+                    }
+                    .padding(.horizontal, 20)
 
-                // Info-Text
-                Text(t.resultInfo)
-                    .font(.poppins(size: 13, weight: .regular))
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    Spacer().frame(height: 32)
+
+                    // Info-Button statt Text
+                    Button {
+                        showBMRInfo = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 16))
+                            Text(selectedLanguage == "de" ? "Was bedeutet dieser Wert?" : "What does this value mean?")
+                                .font(.poppins(size: 14, weight: .medium))
+                        }
+                        .foregroundStyle(accentBlue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(accentBlue.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
                     .opacity(showCards ? 1 : 0)
                     .offset(y: showCards ? 0 : 16)
                     .animation(.easeOut(duration: 0.5).delay(0.5), value: showCards)
 
-                Spacer().frame(height: 36)
+                    Spacer().frame(height: 40)
 
-                // Weiter-Button
-                Button(t.resultContinue) {
-                    navigate(to: 8)
-                }
-                .font(.poppins(size: 18, weight: .medium))
-                .buttonStyle(.caloricPrimary)
-                .opacity(showCards ? 1 : 0)
-                .offset(y: showCards ? 0 : 12)
-                .animation(.easeOut(duration: 0.4).delay(0.6), value: showCards)
+                    // Weiter-Button
+                    Button(t.resultContinue) {
+                        navigate(to: 8)
+                    }
+                    .buttonStyle(.caloricPrimary)
+                    .opacity(showCards ? 1 : 0)
+                    .offset(y: showCards ? 0 : 12)
+                    .animation(.easeOut(duration: 0.4).delay(0.6), value: showCards)
 
-                // Neu-berechnen
-                Button {
-                    showResult = false
-                    animatedBMR = 0
-                    showCards = false
-                    navigate(to: 1)
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
+                    // Neu-berechnen
+                    Button {
+                        showResult = false
+                        animatedBMR = 0
+                        showCards = false
+                        navigate(to: 1)
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .font(.system(size: 16))
+                    .foregroundStyle(accentBlue.opacity(0.5))
+                    .padding(.top, 16)
+                    .padding(.bottom, 50)
+                    .opacity(showCards ? 1 : 0)
+                    .animation(.easeOut(duration: 0.4).delay(0.65), value: showCards)
                 }
-                .font(.system(size: 16))
-                .foregroundStyle(accentBlue.opacity(0.5))
-                .padding(.top, 16)
-                .padding(.bottom, 50)
-                .opacity(showCards ? 1 : 0)
-                .animation(.easeOut(duration: 0.4).delay(0.65), value: showCards)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {

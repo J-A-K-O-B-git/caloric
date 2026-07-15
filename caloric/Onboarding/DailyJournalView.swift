@@ -67,8 +67,12 @@ struct DailyJournalView: View {
     @State private var showSavedBadge = false
     @State private var showCalendarPicker = false
     @State private var confirmPulse = false
+    @State private var showAddWorkoutSheet = false
+    @State private var newWorkoutName = ""
+    @State private var newWorkoutKcal = ""
 
     @Environment(JournalStore.self) private var store
+    @Environment(HealthKitImportService.self) private var healthKit
     @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
 
@@ -118,6 +122,11 @@ struct DailyJournalView: View {
             "dinner":    e.fatByMeal["dinner"].map    { $0 == 0 ? "" : "\(Int($0))" } ?? "",
             "daily":     e.fatByMeal["daily"].map     { $0 == 0 ? "" : "\(Int($0))" } ?? ""
         ]
+    }
+
+    private var selectedWorkouts: [HKWorkoutSnapshot] {
+        let key = HealthKitImportService.dateKey(selectedDate)
+        return healthKit.history[key]?.workouts ?? []
     }
 
     private var isFutureDate: Bool {
@@ -383,6 +392,21 @@ struct DailyJournalView: View {
                 },
                 cardBackground: AnyView(cardBackground)
             )
+
+            WorkoutsCard(
+                language: language,
+                accentBlue: accentBlue,
+                workouts: selectedWorkouts,
+                manualWorkouts: store.entry(for: selectedDate).manualWorkouts,
+                onAddManual: { showAddWorkoutSheet = true },
+                onRemoveManual: { id in
+                    store.update(for: selectedDate) { $0.manualWorkouts.removeAll { $0.id == id } }
+                },
+                cardBackground: AnyView(cardBackground)
+            )
+            .sheet(isPresented: $showAddWorkoutSheet) {
+                addWorkoutSheet
+            }
         }
         .padding(.horizontal, 20)
         .disabled(isFutureDate)
@@ -659,6 +683,76 @@ struct DailyJournalView: View {
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
     }
+
+        private var addWorkoutSheet: some View {
+        NavigationStack {
+            ZStack {
+                CaloricBackground()
+                VStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(language == "de" ? "Art des Workouts" : "Workout Type")
+                            .font(.poppins(size: 14, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField(language == "de" ? "z.B. Joggen, Krafttraining..." : "e.g. Jogging, Weightlifting...", text: $newWorkoutName)
+                            .font(.poppins(size: 18, weight: .semibold))
+                            .padding()
+                            .background(Theme.fieldFill)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(language == "de" ? "Kalorienverbrauch (kcal)" : "Calories burned (kcal)")
+                            .font(.poppins(size: 14, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField("0", text: $newWorkoutKcal)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                            .font(.poppins(size: 18, weight: .semibold))
+                            .padding()
+                            .background(Theme.fieldFill)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        if let kcal = Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")), !newWorkoutName.isEmpty {
+                            store.update(for: selectedDate) { 
+                                $0.manualWorkouts.append(JournalStore.ManualWorkout(id: UUID(), name: newWorkoutName, kcal: kcal))
+                            }
+                            newWorkoutName = ""
+                            newWorkoutKcal = ""
+                            showAddWorkoutSheet = false
+                        }
+                    } label: {
+                        Text(language == "de" ? "Workout speichern" : "Save Workout")
+                            .font(.poppins(size: 16, weight: .semibold))
+                            .foregroundStyle(accentBlue)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(accentBlue.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
+                    }
+                    .disabled(newWorkoutName.isEmpty || Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")) == nil)
+                    .opacity(newWorkoutName.isEmpty || Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")) == nil ? 0.5 : 1.0)
+                }
+                .padding(24)
+            }
+            .navigationTitle(language == "de" ? "Manuelles Workout" : "New Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(language == "de" ? "Abbrechen" : "Cancel") {
+                        showAddWorkoutSheet = false
+                    }
+                    .foregroundStyle(accentBlue)
+                }
+            }
+        }
+    }
+
 
     // MARK: - KI-Netzwerk-Logik
     

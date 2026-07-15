@@ -76,6 +76,14 @@ final class HealthKitImportService {
     /// Per-day history keyed by "yyyy-MM-dd". Populated for the last 30 days on launch.
     var history: [String: DaySnapshot] = [:]
 
+    private var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     // MARK: Private
 
     /// Injected by MainTabView so cache reads/writes run on the same ModelContext as SwiftData.
@@ -152,6 +160,12 @@ final class HealthKitImportService {
     // MARK: - Authorization & Entry Point
 
     func requestAuthorization() async throws {
+        if isSimulator {
+            isAuthorized = true
+            await fetchAll()
+            await fetchHistory(days: 90)
+            return
+        }
         guard HKHealthStore.isHealthDataAvailable() else { return }
         loadCachedHistory()
         try await store.requestAuthorization(toShare: [], read: Self.readSet)
@@ -200,6 +214,7 @@ final class HealthKitImportService {
     // MARK: - Workouts
 
     private func fetchWorkoutsData(for date: Date = Date()) async -> [HKWorkoutSnapshot] {
+        if isSimulator { return mockWorkoutsData(for: date) }
         let cal   = Calendar.current
         let start = cal.startOfDay(for: date)
         let end   = cal.isDateInToday(date) ? Date() : cal.date(byAdding: .day, value: 1, to: start)!
@@ -279,6 +294,7 @@ final class HealthKitImportService {
     // MARK: - Activity (steps + distance + stand + HR)
 
     private func fetchActivityData(for date: Date = Date()) async -> HKActivitySnapshot {
+        if isSimulator { return mockActivityData(for: date) }
         let cal   = Calendar.current
         let start = cal.startOfDay(for: date)
         let end   = cal.isDateInToday(date) ? Date() : cal.date(byAdding: .day, value: 1, to: start)!
@@ -548,5 +564,42 @@ final class HealthKitImportService {
         return await hkStatistic(type: type, predicate: predicate, options: .cumulativeSum, requireWatch: requireWatch) {
             $0.sumQuantity()?.doubleValue(for: unit)
         }
+    }
+
+    private func mockActivityData(for date: Date) -> HKActivitySnapshot {
+        let seed = Double(date.timeIntervalSince1970).truncatingRemainder(dividingBy: 1000)
+        let steps = 4000 + Int(abs(sin(seed)) * 8000)
+        let dist = Double(steps) * 0.75
+        let stand = 300.0 + abs(cos(seed)) * 400.0
+        let resting = 55.0 + abs(sin(seed * 0.5)) * 15.0
+        let avgHR = resting + 15.0 + abs(cos(seed * 0.8)) * 25.0
+        
+        return HKActivitySnapshot(
+            steps: steps,
+            distanceMeters: dist,
+            fetchedAt: date,
+            standTimeMinutes: stand,
+            restingHeartRate: resting,
+            avgHeartRateWaking: avgHR,
+            hrSegments: []
+        )
+    }
+
+    private func mockWorkoutsData(for date: Date) -> [HKWorkoutSnapshot] {
+        let seed = Double(date.timeIntervalSince1970).truncatingRemainder(dividingBy: 1000)
+        if seed.truncatingRemainder(dividingBy: 2) > 0.5 {
+            let start = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: date)!
+            let end = start.addingTimeInterval(3600)
+            return [HKWorkoutSnapshot(
+                id: UUID(),
+                activityType: .functionalStrengthTraining,
+                startDate: start,
+                endDate: end,
+                averageHeartRate: 125.0,
+                sourceName: "Simulator",
+                sourceBundleID: "com.apple.Health"
+            )]
+        }
+        return []
     }
 }
