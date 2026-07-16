@@ -461,12 +461,6 @@ struct DashboardView: View {
 
     private var vsSelectedDayColor: Color { vsSelectedDayPercent >= 0 ? .green : .red }
 
-    private var calendarDays: [Date] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return (-90...7).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
-    }
-
     private var hkLastUpdatedText: String {
         guard healthKit.isAuthorized else {
             return language == "de" ? "Nicht verbunden" : "Not connected"
@@ -610,32 +604,73 @@ struct DashboardView: View {
         self._selectedDate = selectedDate
     }
 
-        private var fullDateButton: some View {
-        Button {
-            showCalendarPicker = true
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 11, weight: .semibold))
+    private var dateNavigationRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(accentBlue)
-                Text(selectedDateString)
-                    .font(.poppins(size: 13, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(Theme.card)
+                            .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    )
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Theme.card)
-                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
-            )
-            .contentShape(Capsule())
+            .buttonStyle(SpringyButtonStyle())
+
+            Button {
+                showCalendarPicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                    Text(selectedDateString)
+                        .font(.poppins(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Theme.card)
+                        .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                        .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(SpringyButtonStyle())
+
+            let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                    if next <= maxDate {
+                        selectedDate = next
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(selectedDate >= maxDate ? accentBlue.opacity(0.3) : accentBlue)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(Theme.card)
+                            .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    )
+            }
+            .buttonStyle(SpringyButtonStyle())
+            .disabled(selectedDate >= maxDate)
         }
-        .buttonStyle(SpringyButtonStyle())
     }
 
     private var profileIconButton: some View {
@@ -665,16 +700,19 @@ struct DashboardView: View {
 
             VStack(spacing: 0) {
                 // STATIC HEADER
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(spacing: 6) {
+                    HStack {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
                             .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
                             .foregroundStyle(Theme.textPrimary)
-                        
-                        fullDateButton
+                        Spacer()
+                        profileIconButton
                     }
-                    Spacer()
-                    profileIconButton
+                    HStack {
+                        Spacer()
+                        dateNavigationRow
+                        Spacer()
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
@@ -682,8 +720,6 @@ struct DashboardView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
-                        datePicker
-
                         calorieRingWidget
                             .padding(.horizontal, 20)
 
@@ -801,89 +837,6 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Datumsleiste
-
-    private var datePicker: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 4) {
-                    ForEach(calendarDays, id: \.self) { date in
-                        dayChip(date: date)
-                            .id(date)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 6)
-            }
-            .onAppear {
-                proxy.scrollTo(Calendar.current.startOfDay(for: Date()), anchor: .center)
-            }
-            .onChange(of: selectedDate) { _, date in
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                    proxy.scrollTo(date, anchor: .center)
-                }
-            }
-        }
-    }
-
-    private func dayChip(date: Date) -> some View {
-        let cal = Calendar.current
-        let isSelected = cal.isDate(date, inSameDayAs: selectedDate)
-        let isToday = cal.isDateInToday(date)
-        _ = dayDistanceFromToday(date)
-        let day = cal.component(.day, from: date)
-
-        let chipW: CGFloat  = isToday ? 38 : isSelected ? 34 : 30
-        let chipH: CGFloat  = isToday ? 46 : isSelected ? 42 : 36
-        let dayFS: CGFloat  = isToday ? 15 : isSelected ? 13 : 11
-        let weekFS: CGFloat = isToday ? 9 : 8
-        let chipOpacity: Double = (isToday || isSelected) ? 1.0 : 0.65
-
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                selectedDate = date
-            }
-        } label: {
-            VStack(spacing: 2) {
-                Text(weekdayAbbrev(for: date))
-                    .font(.poppins(size: weekFS, weight: .regular))
-                Text("\(day)")
-                    .font(.poppins(size: dayFS, weight: .semibold))
-                Circle()
-                    .fill(isToday && !isSelected ? accentBlue : Color.clear)
-                    .frame(width: 4, height: 4)
-            }
-            .frame(width: chipW, height: chipH)
-            .foregroundStyle(
-                isSelected ? Color.white :
-                isToday    ? accentBlue :
-                             Color.primary
-            )
-            .opacity(chipOpacity)
-            .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(isSelected ? accentBlue : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isSelected)
-    }
-
-    private func dayDistanceFromToday(_ date: Date) -> Int {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return abs(cal.dateComponents([.day], from: today, to: date).day ?? 0)
-    }
-
-    private func weekdayAbbrev(for date: Date) -> String {
-        let weekday = Calendar.current.component(.weekday, from: date)
-        if language == "de" {
-            return ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][weekday - 1]
-        } else {
-            return ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][weekday - 1]
-        }
-    }
-
     private func runBurnAnimation() {
         ringProgress = 0
         animatedBurn = 0
@@ -979,19 +932,19 @@ struct DashboardView: View {
         return segs
     } 
 
-    @ViewBuilder
+        @ViewBuilder
     private func expandedContent(for type: EnergySegmentType, currentKcal: Double) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             let prev = previousValue(for: type)
-            let diff = currentKcal - prev
+            let diffPct = (prev > 0) ? ((currentKcal - prev) / prev) * 100.0 : 0.0
 
             HStack {
                 HStack(spacing: 4) {
-                    Image(systemName: diff >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    Text(String(format: "%+.0f kcal %@", diff, language == "de" ? "vs. gestern" : "vs. yesterday"))
+                    Image(systemName: diffPct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                    Text(String(format: "%+.1f%% %@", diffPct, language == "de" ? "vs. gestern" : "vs. yesterday"))
                 }
                 .font(.poppins(size: 12, weight: .medium))
-                .foregroundStyle(diff >= 0 ? .green : .red)
+                .foregroundStyle(diffPct >= 0 ? .green : .red)
 
                 Spacer()
 
@@ -1008,27 +961,38 @@ struct DashboardView: View {
             VStack(spacing: 8) {
                 switch type {
                 case .neat:
-                    breakdownItem(label: language == "de" ? "Schritte" : "Steps", value: activityResult.neatBreakdown.neatSteps)
-                    breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand)
-                    breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR)
+                    let prev = previousActivityResult.neatBreakdown
+                    breakdownItem(label: language == "de" ? "Schritte" : "Steps", value: activityResult.neatBreakdown.neatSteps, prevValue: prev.neatSteps)
+                    breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand, prevValue: prev.neatStand)
+                    breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR, prevValue: prev.neatHR)
                 case .eat:
+                    let prevDetails = previousActivityResult.workoutDetails
                     ForEach(activityResult.workoutDetails) { detail in
-                        breakdownItem(label: detail.name, value: detail.kcal)
+                        let matchedPrev = prevDetails.first(where: { $0.name == detail.name })?.kcal
+                        breakdownItem(label: detail.name, value: detail.kcal, prevValue: matchedPrev)
                     }
                     if activityResult.workoutDetails.isEmpty {
                         breakdownItem(label: language == "de" ? "Keine Workouts" : "No workouts", value: 0)
                     }
                 case .tef:
+                    let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
                     let inputs = store.journalInputs(for: selectedDate)
+                    let pInputs = store.journalInputs(for: prevDate)
                     let p = inputs.proteinGramsByMeal.values.reduce(0, +) * 1.0
                     let c = inputs.carbsGramsByMeal.values.reduce(0, +) * 0.3
                     let f = inputs.fatGramsByMeal.values.reduce(0, +) * 0.135
-                    breakdownItem(label: language == "de" ? "Protein" : "Protein", value: p)
-                    breakdownItem(label: language == "de" ? "Kohlenhydrate" : "Carbs", value: c)
-                    breakdownItem(label: language == "de" ? "Fett" : "Fat", value: f)
+                    let pp = pInputs.proteinGramsByMeal.values.reduce(0, +) * 1.0
+                    let pc = pInputs.carbsGramsByMeal.values.reduce(0, +) * 0.3
+                    let pf = pInputs.fatGramsByMeal.values.reduce(0, +) * 0.135
+                    breakdownItem(label: language == "de" ? "Protein" : "Protein", value: p, prevValue: pp)
+                    breakdownItem(label: language == "de" ? "Kohlenhydrate" : "Carbs", value: c, prevValue: pc)
+                    breakdownItem(label: language == "de" ? "Fett" : "Fat", value: f, prevValue: pf)
                 case .caffeine:
+                    let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
                     let inputs = store.journalInputs(for: selectedDate)
-                    breakdownItem(label: language == "de" ? "Koffein (\(Int(inputs.caffeineMg)) mg)" : "Caffeine (\(Int(inputs.caffeineMg)) mg)", value: tdeeResult.koffeinBonus)
+                    let pInputs = store.journalInputs(for: prevDate)
+                    let pBonus = TDEECalculationService.calculate(bmrStandard: activeFinalBMR, inputs: pInputs, isFemale: selectedGender == femaleText).koffeinBonus
+                    breakdownItem(label: language == "de" ? "Koffein (\(Int(inputs.caffeineMg)) mg)" : "Caffeine (\(Int(inputs.caffeineMg)) mg)", value: tdeeResult.koffeinBonus, prevValue: pBonus)
                 case .bmr:
                     breakdownItem(label: language == "de" ? "Basis-Grundumsatz" : "Base BMR", value: currentKcal)
                 }
@@ -1039,11 +1003,27 @@ struct DashboardView: View {
         }
     }
 
-    private func breakdownItem(label: String, value: Double) -> some View {
+    
+
+    private func breakdownItem(label: String, value: Double, prevValue: Double? = nil) -> some View {
         HStack {
-            Text(label)
-                .font(.poppins(size: 13, weight: .regular))
-                .foregroundStyle(Theme.textSecondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.poppins(size: 13, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                
+                if let prev = prevValue, prev > 0 {
+                    let diffPct = ((value - prev) / prev) * 100.0
+                    HStack(spacing: 3) {
+                        Image(systemName: diffPct >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(String(format: "%+.1f%%", diffPct))
+                    }
+                    .font(.poppins(size: 10, weight: .semibold))
+                    .foregroundStyle(diffPct >= 0 ? .green : .red)
+                    .opacity(0.8)
+                }
+            }
             Spacer()
             Text(String(format: "%.0f kcal", value))
                 .font(.poppins(size: 13, weight: .semibold))
@@ -1051,24 +1031,20 @@ struct DashboardView: View {
         }
     }
 
-    private func previousValue(for type: EnergySegmentType) -> Double {
+        private var previousActivityResult: ActivityCalculationService.ActivityResult {
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
         let key = HealthKitImportService.dateKey(prevDate)
-
         let inputs = store.journalInputs(for: prevDate)
         let tdee = TDEECalculationService.calculate(
             bmrStandard: activeFinalBMR,
             inputs: inputs,
             isFemale: selectedGender == femaleText
         )
-
-        let fraction = isSelectedToday ? nowFraction / 24.0 : 1.0
-
         if let snap = healthKit.history[key] {
             let manual = store.entry(for: prevDate).manualWorkouts.map {
                 ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
             }
-            let res = ActivityCalculationService.calculate(
+            return ActivityCalculationService.calculate(
                 steps: snap.activity.steps,
                 standTimeMinutes: snap.activity.standTimeMinutes,
                 restingHR: snap.activity.restingHeartRate,
@@ -1083,20 +1059,27 @@ struct DashboardView: View {
                 bmrDynamisch: tdee.bmrDynamisch,
                 referenceDate: prevDate
             )
-            switch type {
-            case .bmr:  return isSelectedToday ? bmrBurnedSoFar : tdee.bmrDynamisch
-            case .neat: return res.neatKcal
-            case .eat:  return res.eatKcal
-            case .tef:  return tdee.tefKcal * fraction
-            case .caffeine: return tdee.koffeinBonus * fraction
-            }
-        } else {
-            switch type {
-            case .bmr:  return isSelectedToday ? bmrBurnedSoFar : tdee.bmrDynamisch
-            case .tef:  return tdee.tefKcal * fraction
-            case .caffeine: return tdee.koffeinBonus * fraction
-            default:    return 0
-            }
+        }
+        return ActivityCalculationService.ActivityResult(neatKcal: 0, eatKcal: 0)
+    }
+
+    private func previousValue(for type: EnergySegmentType) -> Double {
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        let inputs = store.journalInputs(for: prevDate)
+        let tdee = TDEECalculationService.calculate(
+            bmrStandard: activeFinalBMR,
+            inputs: inputs,
+            isFemale: selectedGender == femaleText
+        )
+        let fraction = isSelectedToday ? nowFraction / 24.0 : 1.0
+        let res = previousActivityResult
+
+        switch type {
+        case .bmr:      return tdee.bmrDynamisch * fraction
+        case .neat:     return res.neatKcal
+        case .eat:      return res.eatKcal
+        case .tef:      return tdee.tefKcal * fraction
+        case .caffeine: return tdee.koffeinBonus * fraction
         }
     }
 

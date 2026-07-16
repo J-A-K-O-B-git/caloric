@@ -67,10 +67,7 @@ struct DailyJournalView: View {
     @State private var showSavedBadge = false
     @State private var showCalendarPicker = false
     @State private var confirmPulse = false
-    @State private var showAddWorkoutSheet = false
-    @State private var newWorkoutName = ""
-    @State private var newWorkoutKcal = ""
-
+    
     @Environment(JournalStore.self) private var store
     @Environment(HealthKitImportService.self) private var healthKit
     @Environment(\.colorScheme) private var colorScheme
@@ -124,25 +121,8 @@ struct DailyJournalView: View {
         ]
     }
 
-    private var selectedWorkouts: [HKWorkoutSnapshot] {
-        let key = HealthKitImportService.dateKey(selectedDate)
-        return healthKit.history[key]?.workouts ?? []
-    }
-
-    private var isFutureDate: Bool {
+        private var isFutureDate: Bool {
         selectedDate > Calendar.current.startOfDay(for: Date())
-    }
-
-    private var calendarDays: [Date] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return (-90...7).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
-    }
-
-    private func dayDistanceFromToday(_ date: Date) -> Int {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return abs(cal.dateComponents([.day], from: today, to: date).day ?? 0)
     }
 
     // MARK: - Body
@@ -241,82 +221,6 @@ struct DailyJournalView: View {
         }
     }
 
-    // MARK: - Datumsleiste (Scrolling alignment with Dashboard)
-
-    private var journalDatePicker: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 4) {
-                    ForEach(calendarDays, id: \.self) { date in
-                        journalDayChip(date: date)
-                            .id(date)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 6)
-            }
-            .onAppear {
-                proxy.scrollTo(selectedDate, anchor: .center)
-            }
-            .onChange(of: selectedDate) { _, date in
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                    proxy.scrollTo(date, anchor: .center)
-                }
-            }
-        }
-    }
-
-    private func journalDayChip(date: Date) -> some View {
-        let cal = Calendar.current
-        let isSelected = cal.isDate(date, inSameDayAs: selectedDate)
-        let isToday = cal.isDateInToday(date)
-        let day = cal.component(.day, from: date)
-
-        let chipW: CGFloat  = isToday ? 38 : isSelected ? 34 : 30
-        let chipH: CGFloat  = isToday ? 46 : isSelected ? 42 : 36
-        let dayFS: CGFloat  = isToday ? 15 : isSelected ? 13 : 11
-        let weekFS: CGFloat = isToday ? 9 : 8
-        let chipOpacity: Double = (isToday || isSelected) ? 1.0 : 0.65
-
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                selectedDate = date
-            }
-        } label: {
-            VStack(spacing: 2) {
-                Text(journalWeekdayAbbrev(for: date))
-                    .font(.poppins(size: weekFS, weight: .regular))
-                Text("\(day)")
-                    .font(.poppins(size: dayFS, weight: .semibold))
-                Circle()
-                    .fill(isToday && !isSelected ? accentBlue : Color.clear)
-                    .frame(width: 4, height: 4)
-            }
-            .frame(width: chipW, height: chipH)
-            .foregroundStyle(
-                isSelected ? Color.white :
-                isToday    ? accentBlue :
-                             Color.primary
-            )
-            .opacity(chipOpacity)
-            .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(isSelected ? accentBlue : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isSelected)
-    }
-
-    private func journalWeekdayAbbrev(for date: Date) -> String {
-        let weekday = Calendar.current.component(.weekday, from: date)
-        if language == "de" {
-            return ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][weekday - 1]
-        } else {
-            return ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][weekday - 1]
-        }
-    }
-
     // MARK: - Cards Section
 
     private var cardsSection: some View {
@@ -392,22 +296,8 @@ struct DailyJournalView: View {
                 },
                 cardBackground: AnyView(cardBackground)
             )
-
-            WorkoutsCard(
-                language: language,
-                accentBlue: accentBlue,
-                workouts: selectedWorkouts,
-                manualWorkouts: store.entry(for: selectedDate).manualWorkouts,
-                onAddManual: { showAddWorkoutSheet = true },
-                onRemoveManual: { id in
-                    store.update(for: selectedDate) { $0.manualWorkouts.removeAll { $0.id == id } }
-                },
-                cardBackground: AnyView(cardBackground)
-            )
-            .sheet(isPresented: $showAddWorkoutSheet) {
-                addWorkoutSheet
-            }
         }
+
         .padding(.horizontal, 20)
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
@@ -483,39 +373,83 @@ struct DailyJournalView: View {
 
     private var journalScrollView: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+            VStack(spacing: 6) {
+                HStack {
                     Text("Daily Journal")
                         .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
-                    
-                    Button {
-                        showCalendarPicker = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(accentBlue)
-                            Text(selectedDateString)
-                                .font(.poppins(size: 13, weight: .medium))
-                                .foregroundStyle(Theme.textSecondary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Theme.card)
-                                .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
-                        )
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(SpringyButtonStyle())
+                    Spacer()
                 }
-                Spacer()
+                HStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                            }
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(accentBlue)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Theme.card)
+                                        .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                )
+                        }
+                        .buttonStyle(SpringyButtonStyle())
+
+                        Button {
+                            showCalendarPicker = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(accentBlue)
+                                Text(selectedDateString)
+                                    .font(.poppins(size: 13, weight: .medium))
+                                    .foregroundStyle(Theme.textSecondary)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Theme.card)
+                                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(SpringyButtonStyle())
+
+                        let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                                if next <= maxDate {
+                                    selectedDate = next
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(selectedDate >= maxDate ? accentBlue.opacity(0.3) : accentBlue)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(Theme.card)
+                                        .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                )
+                        }
+                        .buttonStyle(SpringyButtonStyle())
+                        .disabled(selectedDate >= maxDate)
+                    }
+                    Spacer()
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -523,8 +457,6 @@ struct DailyJournalView: View {
             
         ScrollView {
             VStack(spacing: LayoutMetrics.sectionSpacing) {
-                journalDatePicker
-                
                 if isFutureDate {
                     HStack(spacing: 10) {
                         Image(systemName: "lock.fill")
@@ -684,76 +616,7 @@ struct DailyJournalView: View {
         .opacity(isFutureDate ? 0.45 : 1.0)
     }
 
-        private var addWorkoutSheet: some View {
-        NavigationStack {
-            ZStack {
-                CaloricBackground()
-                VStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(language == "de" ? "Art des Workouts" : "Workout Type")
-                            .font(.poppins(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
-                        TextField(language == "de" ? "z.B. Joggen, Krafttraining..." : "e.g. Jogging, Weightlifting...", text: $newWorkoutName)
-                            .font(.poppins(size: 18, weight: .semibold))
-                            .padding()
-                            .background(Theme.fieldFill)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(language == "de" ? "Kalorienverbrauch (kcal)" : "Calories burned (kcal)")
-                            .font(.poppins(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
-                        TextField("0", text: $newWorkoutKcal)
-                            #if os(iOS)
-                            .keyboardType(.numberPad)
-                            #endif
-                            .font(.poppins(size: 18, weight: .semibold))
-                            .padding()
-                            .background(Theme.fieldFill)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    
-                    Spacer()
-                    
-                    Button {
-                        if let kcal = Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")), !newWorkoutName.isEmpty {
-                            store.update(for: selectedDate) { 
-                                $0.manualWorkouts.append(JournalStore.ManualWorkout(id: UUID(), name: newWorkoutName, kcal: kcal))
-                            }
-                            newWorkoutName = ""
-                            newWorkoutKcal = ""
-                            showAddWorkoutSheet = false
-                        }
-                    } label: {
-                        Text(language == "de" ? "Workout speichern" : "Save Workout")
-                            .font(.poppins(size: 16, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 54)
-                            .background(accentBlue.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
-                    }
-                    .disabled(newWorkoutName.isEmpty || Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")) == nil)
-                    .opacity(newWorkoutName.isEmpty || Double(newWorkoutKcal.replacingOccurrences(of: ",", with: ".")) == nil ? 0.5 : 1.0)
-                }
-                .padding(24)
-            }
-            .navigationTitle(language == "de" ? "Manuelles Workout" : "New Workout")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(language == "de" ? "Abbrechen" : "Cancel") {
-                        showAddWorkoutSheet = false
-                    }
-                    .foregroundStyle(accentBlue)
-                }
-            }
-        }
-    }
-
-
+        
     // MARK: - KI-Netzwerk-Logik
     
         private func analyzeFoodWithAI() async {
