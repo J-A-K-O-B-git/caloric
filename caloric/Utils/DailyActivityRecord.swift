@@ -1,21 +1,27 @@
 import Foundation
 import SwiftData
 
+// CHANGES v2:
+// - @Attribute(.unique) on dateKey → upsert is enforced at store level.
+// - Real optionals instead of "0 encodes nil" sentinels (SwiftData supports
+//   Double? natively). NOTE: this is a schema change — bump your schema
+//   version / test lightweight migration before shipping.
+
 @Model
 final class DailyActivityRecord {
 
     // MARK: - Identity
-    var dateKey: String   // "yyyy-MM-dd" — logical primary key used for upsert
-    var date: Date        // start of day (midnight)
+    @Attribute(.unique) var dateKey: String   // "yyyy-MM-dd" — primary key used for upsert
+    var date: Date                            // start of day (midnight)
 
     // MARK: - Raw inputs
     var steps: Int
     var standTimeMinutes: Double
-    var restingHR: Double        // 0 encodes nil
-    var vo2Max: Double           // 0 encodes nil
+    var restingHR: Double?
+    var vo2Max: Double?
     var workoutSeconds: Double
     var sleepHours: Double
-    var weightKg: Double         // 0 encodes nil
+    var weightKg: Double?
 
     // MARK: - Calculated outputs
     var bmrDynamisch: Double
@@ -46,11 +52,11 @@ final class DailyActivityRecord {
         self.date = date
         self.steps = steps
         self.standTimeMinutes = standTimeMinutes
-        self.restingHR = restingHR ?? 0
-        self.vo2Max = vo2Max ?? 0
+        self.restingHR = restingHR
+        self.vo2Max = vo2Max
         self.workoutSeconds = workoutSeconds
         self.sleepHours = sleepHours
-        self.weightKg = weightKg ?? 0
+        self.weightKg = weightKg
         self.bmrDynamisch = bmrDynamisch
         self.neatSteps = neatSteps
         self.neatStand = neatStand
