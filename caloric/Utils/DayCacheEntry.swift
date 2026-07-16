@@ -6,6 +6,12 @@
 //  Populated after every fetchHistory() call; read immediately on launch so the
 //  dashboard has data before HealthKit responds.
 //
+//  CHANGES v2:
+//  - @Attribute(.unique) on dateKey → upsert enforced at store level.
+//  - Real optionals instead of "0 encodes nil" sentinels.
+//    NOTE: schema change — bump schema version / test migration. Since this is
+//    only a cache, wiping and refetching on migration failure is also fine.
+//
 
 import Foundation
 import SwiftData
@@ -18,17 +24,22 @@ struct CachedWorkout: Codable {
     var activityTypeRaw: UInt
     var startDate: Date
     var endDate: Date
-    var averageHeartRate: Double   // 0 encodes nil
+    var averageHeartRate: Double?   // JSON encodes nil natively
     var sourceName: String
     var sourceBundleID: String
 
     func toSnapshot() -> HKWorkoutSnapshot {
-        HKWorkoutSnapshot(
+        // Legacy cache entries encoded nil as 0 — map that back to nil.
+        let hr: Double? = {
+            guard let v = averageHeartRate, v > 0 else { return nil }
+            return v
+        }()
+        return HKWorkoutSnapshot(
             id: UUID(uuidString: id) ?? UUID(),
             activityType: HKWorkoutActivityType(rawValue: activityTypeRaw) ?? .other,
             startDate: startDate,
             endDate: endDate,
-            averageHeartRate: averageHeartRate > 0 ? averageHeartRate : nil,
+            averageHeartRate: hr,
             sourceName: sourceName,
             sourceBundleID: sourceBundleID
         )
@@ -39,13 +50,13 @@ struct CachedWorkout: Codable {
 
 @Model
 final class DayCacheEntry {
-    var dateKey: String            // "yyyy-MM-dd" — used as logical primary key
+    @Attribute(.unique) var dateKey: String   // "yyyy-MM-dd" — primary key
     var steps: Int
     var distanceMeters: Double
     var standTimeMinutes: Double
-    var restingHeartRate: Double   // 0 encodes nil
-    var avgHeartRateWaking: Double // 0 encodes nil
-    
+    var restingHeartRate: Double?
+    var avgHeartRateWaking: Double?
+
     var workoutsData: Data         // JSON-encoded [CachedWorkout]
     var cachedAt: Date
 
@@ -54,9 +65,9 @@ final class DayCacheEntry {
         self.steps               = snapshot.activity.steps
         self.distanceMeters      = snapshot.activity.distanceMeters
         self.standTimeMinutes    = snapshot.activity.standTimeMinutes
-        self.restingHeartRate    = snapshot.activity.restingHeartRate ?? 0
-        self.avgHeartRateWaking  = snapshot.activity.avgHeartRateWaking ?? 0
-        
+        self.restingHeartRate    = snapshot.activity.restingHeartRate
+        self.avgHeartRateWaking  = snapshot.activity.avgHeartRateWaking
+
         self.cachedAt            = Date()
 
         let items = snapshot.workouts.map { w in
@@ -65,7 +76,7 @@ final class DayCacheEntry {
                 activityTypeRaw: w.activityType.rawValue,
                 startDate: w.startDate,
                 endDate: w.endDate,
-                averageHeartRate: w.averageHeartRate ?? 0,
+                averageHeartRate: w.averageHeartRate,
                 sourceName: w.sourceName,
                 sourceBundleID: w.sourceBundleID
             )
@@ -82,8 +93,8 @@ final class DayCacheEntry {
                 distanceMeters: distanceMeters,
                 fetchedAt: cachedAt,
                 standTimeMinutes: standTimeMinutes,
-                restingHeartRate: restingHeartRate > 0 ? restingHeartRate : nil,
-                avgHeartRateWaking: avgHeartRateWaking > 0 ? avgHeartRateWaking : nil,
+                restingHeartRate: restingHeartRate,
+                avgHeartRateWaking: avgHeartRateWaking,
                 hrSegments: []
             ),
             workouts: workouts
