@@ -400,21 +400,9 @@ enum LayoutMetrics {
     static var titleFontSize: CGFloat  { (30  * scale).rounded() }
 }
 
-// MARK: - Poppins Font Helper
+// MARK: - SF Pro Font Helper
 extension Font {
     static func poppins(size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        let name: String
-        switch weight {
-        case .ultraLight: name = "Poppins-ExtraLight"
-        case .thin:       name = "Poppins-Thin"
-        case .light:      name = "Poppins-Light"
-        case .medium:     name = "Poppins-Medium"
-        case .semibold:   name = "Poppins-SemiBold"
-        case .bold:       name = "Poppins-Bold"
-        case .heavy:      name = "Poppins-ExtraBold"
-        case .black:      name = "Poppins-Black"
-        default:          name = "Poppins-Regular"
-        }
-        return .custom(name, size: size)
+        .system(size: size, weight: weight, design: .default)
     }
 }

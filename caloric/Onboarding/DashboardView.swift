@@ -20,7 +20,7 @@ struct DashboardView: View {
     let selectedGender: String?
     let noConditionText: String
     let femaleText: String
-
+    
     @Binding var accountUsername: String
     @Binding var birthDate: Date
     @Binding var weightText: String
@@ -33,9 +33,9 @@ struct DashboardView: View {
     @Binding var selectedConditions: Set<String>
     @Binding var metabolismFactor: Double
     @Binding var selectedDate: Date
-
+    
     @State private var editingField: String? = nil
-        @State private var showProfileSidebar = false
+    @State private var showProfileSidebar = false
     @State private var showActivityBreakdown = false
     @State private var ringProgress: Double = 0
     @State private var animatedBurn: Double = 0
@@ -61,11 +61,11 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(JournalStore.self)           private var store
     @Environment(HealthKitImportService.self) private var healthKit
-
-
-
+    
+    
+    
     private var ringSize: CGFloat { LayoutMetrics.ringSize }
-
+    
     private var topSafeArea: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -76,7 +76,7 @@ struct DashboardView: View {
     private var cardAlpha: Double { isDark ? 0.17 : 0.07 }
     private var controlAlpha: Double { isDark ? 0.22 : 0.10 }
     private var borderAlpha: Double { isDark ? 0.35 : 0.15 }
-
+    
     private var heightInCm: Double {
         if heightUnit == "cm" {
             return Double(heightText.replacingOccurrences(of: ",", with: ".")) ?? 0
@@ -87,7 +87,7 @@ struct DashboardView: View {
             return Double(feet * 12 + inches) * 2.54
         }
     }
-
+    
     private var computedThyroidFactor: Double {
         guard let cond = thyroidCondition, cond != "none" else { return 1.0 }
         guard thyroidWellControlled == false else { return 1.0 }
@@ -106,7 +106,7 @@ struct DashboardView: View {
         }
         return 1.0
     }
-
+    
     private var computedPCOSFactor: Double {
         guard selectedGender == femaleText, hasPCOS == true else { return 1.0 }
         if pcosInsulinResistance == true { return 0.85 }
@@ -116,13 +116,13 @@ struct DashboardView: View {
         if count >= 3 || (hasBlocked && hasCarbFatigue) { return 0.85 }
         return 1.0
     }
-
+    
     private var computedConditionFactor: Double {
         let tf = computedThyroidFactor
         let pf = computedPCOSFactor
         return abs(tf - 1.0) >= abs(pf - 1.0) ? tf : pf
     }
-
+    
     private var conditionQuestionnaireDone: Bool {
         guard thyroidCondition != nil else { return false }
         if thyroidCondition != "none" { guard thyroidWellControlled != nil else { return false } }
@@ -132,24 +132,24 @@ struct DashboardView: View {
         }
         return true
     }
-
+    
     private var metabolismSliderRange: ClosedRange<Double> {
         if selectedConditions.contains(t.hyperthyroidism) { return 1.0...1.3 }
         if !selectedConditions.isEmpty && !selectedConditions.contains(noConditionText) { return 0.7...1.0 }
         return 0.7...1.3
     }
-
+    
     private var t: Translations { Translations(language: language) }
-
+    
     private var weightInKg: Double {
         let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 0
         return weightUnit == "kg" ? v : v * 0.453592
     }
-
+    
     private var bodyFatPercent: Double {
         Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
     }
-
+    
     // Reactive BMR — recomputes whenever the user edits weight, bodyFat, conditions, or sleep.
     private var activeFinalBMR: Double {
         let lbm    = weightInKg * (1.0 - bodyFatPercent / 100.0)
@@ -164,23 +164,23 @@ struct DashboardView: View {
         let wake   = 24.0 - sleepHours
         return (sleepHours * hourly * 0.9) + (wake * hourly)
     }
-
+    
     private var hourlyBMR: Double {
         activeFinalBMR / (24 - sleepHoursValue * 0.1)
     }
-
+    
     private var calorieSlots: [CalorieSlot] {
         let now = nowFraction
         let workoutList = healthKit.isAuthorized && !isSelectedFuture ? selectedWorkouts : []
         let totalWorkoutMinutes = workoutList.reduce(0.0) { $0 + $1.duration / 60.0 }
         let totalEatKcal = healthKit.isAuthorized && !isSelectedFuture ? activityResult.eatKcal : 0.0
         let dayStart = Calendar.current.startOfDay(for: selectedDate)
-
+        
         return stride(from: 0.0, to: 24.0, by: 0.5).map { hour in
             let slotEnd = hour + 0.5
             let sleeping = hour < sleepHoursValue
             let isFuture = isSelectedFuture || (isSelectedToday && hour >= now)
-
+            
             var workoutKcal = 0.0
             var isWorkout = false
             if !sleeping && !isFuture && totalWorkoutMinutes > 0 {
@@ -194,7 +194,7 @@ struct DashboardView: View {
                     }
                 }
             }
-
+            
             var mult: Double = sleeping ? 0.88 : 1.0
             if !sleeping {
                 switch hour {
@@ -217,22 +217,22 @@ struct DashboardView: View {
             )
         }
     }
-
+    
     private var nowFraction: Double {
         let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
         return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60.0
     }
-
+    
     private var bmrBurnedSoFar: Double {
         calorieSlots.filter { $0.hour < nowFraction }.reduce(0) { $0 + $1.calories }
     }
-
+    
     private var burnedSoFar: Double {
         let activeKcal = healthKit.isAuthorized ? activityResult.totalActiveKcal : 0
         let fractionalBonuses = (tdeeResult.tefKcal + tdeeResult.koffeinBonus) * (nowFraction / 24.0)
         return bmrBurnedSoFar + activeKcal + fractionalBonuses
     }
-
+    
     private var tdeeResult: TDEECalculationService.TDEEResult {
         TDEECalculationService.calculate(
             bmrStandard: activeFinalBMR,
@@ -240,7 +240,7 @@ struct DashboardView: View {
             isFemale: selectedGender == femaleText
         )
     }
-
+    
     private var activityResult: ActivityCalculationService.ActivityResult {
         let act = selectedActivity
         let manual = store.entry(for: selectedDate).manualWorkouts.map {
@@ -262,7 +262,7 @@ struct DashboardView: View {
             referenceDate:    selectedDate
         )
     }
-
+    
     private func saveActivityRecord() {
         guard healthKit.isAuthorized else { return }
         let result = activityResult
@@ -287,7 +287,7 @@ struct DashboardView: View {
         ActivityRepository.save(record: record, context: modelContext)
         ActivityRepository.deleteOlderThan(days: 90, context: modelContext)
     }
-
+    
     private func backfillActivityHistory() {
         guard healthKit.isAuthorized, !healthKit.history.isEmpty else { return }
         let calendar = Calendar.current
@@ -340,28 +340,28 @@ struct DashboardView: View {
             ActivityRepository.save(record: record, context: modelContext)
         }
     }
-
+    
     private var burnProgress: Double {
         let target = todayProjected
         guard target > 0 else { return 0 }
         return min(1.0, burnedSoFar / target)
     }
-
+    
     private var isSelectedToday: Bool { Calendar.current.isDateInToday(selectedDate) }
     private var isSelectedFuture: Bool { selectedDate > Calendar.current.startOfDay(for: Date()) }
-
+    
     private var selectedActivity: HKActivitySnapshot {
         if isSelectedToday { return healthKit.activity }
         let key = HealthKitImportService.dateKey(selectedDate)
         return healthKit.history[key]?.activity ?? healthKit.activity
     }
-
+    
     private var selectedWorkouts: [HKWorkoutSnapshot] {
         if isSelectedToday { return healthKit.workouts }
         let key = HealthKitImportService.dateKey(selectedDate)
         return healthKit.history[key]?.workouts ?? []
     }
-
+    
     private var displayBurnedSoFar: Double {
         if isSelectedToday {
             return burnedSoFar
@@ -369,7 +369,7 @@ struct DashboardView: View {
             return 0
         } else {
             return tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal +
-                   (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
+            (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
         }
     }
     
@@ -382,11 +382,11 @@ struct DashboardView: View {
             return 1.0
         }
     }
-
+    
     private var todayProjected: Double {
         tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal + (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
     }
-
+    
     private var yesterdayProjected: Double {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
         let inputs = store.journalInputs(for: yesterday)
@@ -415,16 +415,16 @@ struct DashboardView: View {
         }
         return result.bmrDynamisch + result.koffeinBonus + result.tefKcal + activeKcal
     }
-
+    
     private var vsYesterdayPercent: Double {
         guard yesterdayProjected > 0 else { return 0 }
         return (todayProjected - yesterdayProjected) / yesterdayProjected * 100
     }
-
+    
     private var vsYesterdayColor: Color {
         vsYesterdayPercent >= 0 ? .green : .red
     }
-
+    
     private var previousDayTotal: Double {
         if isSelectedToday { return yesterdayProjected }
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
@@ -451,16 +451,16 @@ struct DashboardView: View {
         )
         return prevTDEE.bmrDynamisch + prevTDEE.koffeinBonus + prevTDEE.tefKcal + prevActive.totalActiveKcal
     }
-
+    
     private var vsSelectedDayPercent: Double {
         if isSelectedToday { return vsYesterdayPercent }
         let prev = previousDayTotal
         guard prev > 0 else { return 0 }
         return (displayBurnedSoFar - prev) / prev * 100
     }
-
+    
     private var vsSelectedDayColor: Color { vsSelectedDayPercent >= 0 ? .green : .red }
-
+    
     private var hkLastUpdatedText: String {
         guard healthKit.isAuthorized else {
             return language == "de" ? "Nicht verbunden" : "Not connected"
@@ -471,21 +471,21 @@ struct DashboardView: View {
         let time = f.string(from: healthKit.activity.fetchedAt)
         return "🔄 " + (language == "de" ? "Zuletzt: " : "Updated: ") + time
     }
-
+    
     private var selectedDateString: String {
         let f = DateFormatter()
         f.dateStyle = .full
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: selectedDate)
     }
-
+    
     private var currentTimeString: String {
         let f = DateFormatter()
         f.timeStyle = .short
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: Date())
     }
-
+    
     private var calendarPickerSheet: some View {
         NavigationStack {
             ZStack {
@@ -548,7 +548,7 @@ struct DashboardView: View {
         .presentationDetents([.height(520)])
         .presentationDragIndicator(.visible)
     }
-
+    
     struct SpringyButtonStyle: ButtonStyle {
         func makeBody(configuration: Configuration) -> some View {
             configuration.label
@@ -557,7 +557,7 @@ struct DashboardView: View {
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
         }
     }
-
+    
     init(
         accentBlue: Color,
         language: String,
@@ -603,9 +603,10 @@ struct DashboardView: View {
         self._metabolismFactor = metabolismFactor
         self._selectedDate = selectedDate
     }
-
+    
     private var dateNavigationRow: some View {
-        HStack(spacing: 8) {
+        let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+        return HStack(spacing: 8) {
             Button {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                     selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
@@ -613,8 +614,8 @@ struct DashboardView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                    .frame(width: 28, height: 28)
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(width: 34, height: 34)
                     .background(
                         Circle()
                             .fill(Theme.card)
@@ -622,34 +623,36 @@ struct DashboardView: View {
                     )
             }
             .buttonStyle(SpringyButtonStyle())
-
+            
             Button {
                 showCalendarPicker = true
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     Image(systemName: "calendar")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(accentBlue)
                     Text(selectedDateString)
-                        .font(.poppins(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
+                        .font(.poppins(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.7))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
                 .background(
                     Capsule()
                         .fill(Theme.card)
                         .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                        .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
+                        .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
                 )
                 .contentShape(Capsule())
             }
             .buttonStyle(SpringyButtonStyle())
-
-            let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+            
             Button {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                     let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
@@ -660,8 +663,8 @@ struct DashboardView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(selectedDate >= maxDate ? accentBlue.opacity(0.3) : accentBlue)
-                    .frame(width: 28, height: 28)
+                    .foregroundStyle(selectedDate >= maxDate ? Theme.textPrimary.opacity(0.25) : Theme.textPrimary)
+                    .frame(width: 34, height: 34)
                     .background(
                         Circle()
                             .fill(Theme.card)
@@ -672,7 +675,7 @@ struct DashboardView: View {
             .disabled(selectedDate >= maxDate)
         }
     }
-
+    
     private var profileIconButton: some View {
         Button {
             withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
@@ -693,30 +696,26 @@ struct DashboardView: View {
                 )
         }
     }
-
-        var body: some View {
+    
+    var body: some View {
         ZStack {
             CaloricBackground()
 
             VStack(spacing: 0) {
                 // STATIC HEADER
-                VStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
                         profileIconButton
                     }
-                    HStack {
-                        Spacer()
-                        dateNavigationRow
-                        Spacer()
-                    }
+                    dateNavigationRow
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
@@ -727,7 +726,7 @@ struct DashboardView: View {
                             .padding(.horizontal, 20)
 
                         caloriesChartSection
-                        
+
                         Spacer().frame(height: 100)
                     }
                 }
@@ -799,7 +798,7 @@ struct DashboardView: View {
                 .ignoresSafeArea(edges: .top)
                 .allowsHitTesting(false)
             }
-        }
+    }
         .onAppear {
             runBurnAnimation()
             saveActivityRecord()
@@ -1609,21 +1608,9 @@ struct DashboardView: View {
                             .foregroundStyle(Theme.textPrimary)
                             .contentTransition(.numericText())
                         
-                        HStack(spacing: 3) {
-                            Text("kcal")
-                                .font(.poppins(size: 12, weight: .regular))
-                                .foregroundStyle(Theme.textSecondary)
-                            
-                            if isSelectedToday {
-                                Text("•")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(accentBlue.opacity(0.5))
-                                
-                                Text(currentTimeString)
-                                    .font(.poppins(size: 11, weight: .regular))
-                                    .foregroundStyle(Theme.textSecondary.opacity(0.8))
-                            }
-                        }
+                        Text("kcal")
+                            .font(.poppins(size: 12, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary)
                     }
                     .offset(y: -4) // Slight upward shift to center visually in the open arc
                 }
@@ -1689,60 +1676,23 @@ struct DashboardView: View {
                 }
             }
 
-            Chart {
-                ForEach(calorieSlots) { slot in
-                    BarMark(
-                        x: .value("Zeit", slot.hour),
-                        y: .value("kcal", slot.isFuture ? slot.calories : slot.total)
-                    )
-                    .foregroundStyle(slotBarColor(slot))
-                    .cornerRadius(2)
-                }
-                if isSelectedToday {
-                    RuleMark(x: .value("Jetzt", nowFraction))
-                        .foregroundStyle(accentBlue)
-                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                        .annotation(position: .top, spacing: 2) {
-                            Text(language == "de" ? "Jetzt" : "Now")
-                                .font(.poppins(size: 7, weight: .semibold))
-                                .foregroundStyle(accentBlue)
-                        }
-                }
-            }
+            DailyCalorieAreaChart(
+                slots: calorieSlots,
+                accentBlue: accentBlue,
+                nowFraction: nowFraction,
+                isSelectedToday: isSelectedToday,
+                sleepEndHour: sleepHoursValue,
+                language: language
+            )
             .frame(height: LayoutMetrics.chartHeight)
-            .chartXScale(domain: 0...24)
-            .chartXAxis {
-                AxisMarks(values: [0, 6, 12, 18, 24]) { value in
-                    AxisValueLabel {
-                        if let d = value.as(Double.self) {
-                            Text(String(format: "%02d:00", Int(d)))
-                                .font(.poppins(size: 8, weight: .regular))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
-                    AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
-                    AxisValueLabel()
-                        .font(.poppins(size: 8, weight: .regular))
-                        .foregroundStyle(.secondary)
-                }
-            }
 
             HStack(spacing: 14) {
-                legendItem(color: accentBlue.opacity(isDark ? 0.40 : 0.25),
-                           label: language == "de" ? "Schlaf" : "Sleep")
                 legendItem(color: accentBlue,
                            label: language == "de" ? "Wachphase" : "Awake")
                 if healthKit.isAuthorized && !isSelectedFuture && !selectedWorkouts.isEmpty {
                     legendItem(color: Theme.segEAT,
                                label: language == "de" ? "Sport" : "Workout")
                 }
-                legendItem(color: Theme.ink.opacity(isDark ? 0.15 : 0.10),
-                           label: language == "de" ? "Zukunft" : "Future")
             }
         }
         .padding(14)
@@ -1751,13 +1701,6 @@ struct DashboardView: View {
             showCalorieDetail = true
         }
         .padding(.horizontal, 20)
-    }
-
-    private func slotBarColor(_ slot: CalorieSlot) -> Color {
-        if slot.isFuture  { return Theme.ink.opacity(isDark ? 0.13 : 0.09) }
-        if slot.isWorkout { return Theme.segEAT }
-        if slot.isSleep   { return accentBlue.opacity(isDark ? 0.40 : 0.25) }
-        return accentBlue.opacity(0.85)
     }
 
     private var kpiRow: some View {
@@ -1791,33 +1734,34 @@ struct DashboardView: View {
     }
 
     private func kpiBox(icon: String, value: String, unit: String, accent: Bool, tint: Color? = nil) -> some View {
-        let fg: Color = tint ?? (accent ? .white : accentBlue)
-        let valueFg: Color = tint ?? (accent ? .white : Color.primary)
-        let unitFg: Color = tint.map { $0.opacity(0.7) } ?? (accent ? .white.opacity(0.75) : accentBlue.opacity(0.7))
-        return VStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(fg)
+        let iconColor: Color = tint ?? accentBlue
+        let valueFg: Color  = tint ?? Theme.textPrimary
+        return VStack(alignment: .leading, spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.13))
+                    .frame(width: 38, height: 38)
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(iconColor)
+            }
+            Spacer(minLength: 10)
             Text(value)
-                .font(.poppins(size: 20, weight: .semibold))
+                .font(.poppins(size: 20, weight: .bold))
                 .foregroundStyle(valueFg)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(0.6)
                 .lineLimit(1)
             Text(unit)
-                .font(.poppins(size: 9, weight: .regular))
-                .foregroundStyle(unitFg)
+                .font(.poppins(size: 10, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 9)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
         .background(
-            Group {
-                if accent {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(accentBlue)
-                } else {
-                    GlassCardBackground(cornerRadius: 16)
-                }
-            }
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.card)
+                .shadow(color: Theme.cardShadow, radius: 12, x: 0, y: 4)
         )
     }
 
@@ -2415,7 +2359,6 @@ struct DashboardView: View {
             )
         }
     }
-
 }
 
 struct InfographicHeroCard: View {

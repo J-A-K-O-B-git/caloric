@@ -20,6 +20,7 @@
 		5D2E62BA2FCE1AE20057E84D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2E62B22FCE1AE20057E84D /* Theme.swift */; };
 		5D2E62BB2FCE1AE20057E84D /* ConfettiView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2E62AD2FCE1AE20057E84D /* ConfettiView.swift */; };
 		5D2E62BD2FCE261C0057E84D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5D2E62BC2FCE261C0057E84D /* Assets.xcassets */; };
+		5D32A1C8300A5ABD00582F50 /* DailyCalorieAreaChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32A1C7300A5ABC00582F50 /* DailyCalorieAreaChart.swift */; };
 		5D8016A12FEB1EC3004446E7 /* ActivityCalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */; };
 		5D84F9A1300396FE00EBA31D /* AppMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */; };
 		5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA00002FD60001000000A1 /* MainTabView.swift */; };
@@ -55,6 +56,7 @@
 		5D2E62B22FCE1AE20057E84D /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		5D2E62B32FCE1AE20057E84D /* Translations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translations.swift; sourceTree = "<group>"; };
 		5D2E62BC2FCE261C0057E84D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5D32A1C7300A5ABC00582F50 /* DailyCalorieAreaChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCalorieAreaChart.swift; sourceTree = "<group>"; };
 		5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCalculationService.swift; sourceTree = "<group>"; };
 		5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMigrationPlan.swift; sourceTree = "<group>"; };
 		5DAA00002FD60001000000A1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -104,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				5D2E62AD2FCE1AE20057E84D /* ConfettiView.swift */,
+				5D32A1C7300A5ABC00582F50 /* DailyCalorieAreaChart.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -265,6 +268,7 @@
 				5DCAF4DE2FE82B6D005AE38A /* HealthKitPermissionView.swift in Sources */,
 				5D2E62B72FCE1AE20057E84D /* Translations.swift in Sources */,
 				5D1CB62B2FF6F8950052B1A4 /* NEATModel.swift in Sources */,
+				5D32A1C8300A5ABD00582F50 /* DailyCalorieAreaChart.swift in Sources */,
 				5D2E62B82FCE1AE20057E84D /* caloricApp.swift in Sources */,
 				5D0BE1122FD47B480029CE62 /* DashboardView.swift in Sources */,
 				5DD033B82FF1819F00D1D4EE /* ManualDataView.swift in Sources */,

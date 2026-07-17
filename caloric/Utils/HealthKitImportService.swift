@@ -586,20 +586,44 @@ final class HealthKitImportService {
     }
 
     private func mockWorkoutsData(for date: Date) -> [HKWorkoutSnapshot] {
-        let seed = Double(date.timeIntervalSince1970).truncatingRemainder(dividingBy: 1000)
-        if seed.truncatingRemainder(dividingBy: 2) > 0.5 {
-            let start = Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: date)!
-            let end = start.addingTimeInterval(3600)
-            return [HKWorkoutSnapshot(
+        let seed = Int(Double(date.timeIntervalSince1970).truncatingRemainder(dividingBy: 10000))
+        let cal = Calendar.current
+
+        func snap(_ type: HKWorkoutActivityType, hour: Int, minute: Int = 0, minutes: Double, hr: Double) -> HKWorkoutSnapshot {
+            let start = cal.date(bySettingHour: hour, minute: minute, second: 0, of: date)!
+            return HKWorkoutSnapshot(
                 id: UUID(),
-                activityType: .functionalStrengthTraining,
+                activityType: type,
                 startDate: start,
-                endDate: end,
-                averageHeartRate: 125.0,
+                endDate: start.addingTimeInterval(minutes * 60),
+                averageHeartRate: hr,
                 sourceName: "Simulator",
                 sourceBundleID: "com.apple.Health"
-            )]
+            )
         }
-        return []
+
+        switch seed % 10 {
+        case 0, 1:
+            return []
+        case 2:
+            return [snap(.running,                       hour: 7,  minute: 0,  minutes: 42, hr: 158)]
+        case 3:
+            return [snap(.cycling,                       hour: 18, minute: 15, minutes: 65, hr: 138)]
+        case 4:
+            return [snap(.swimming,                      hour: 8,  minute: 0,  minutes: 38, hr: 126)]
+        case 5:
+            return [snap(.highIntensityIntervalTraining, hour: 17, minute: 30, minutes: 28, hr: 171)]
+        case 6:
+            return [snap(.yoga,                          hour: 7,  minute: 15, minutes: 52, hr: 94)]
+        case 7:
+            return [snap(.functionalStrengthTraining,    hour: 19, minute: 0,  minutes: 55, hr: 124)]
+        case 8:
+            return [snap(.rowing,                        hour: 6,  minute: 30, minutes: 36, hr: 154)]
+        default: // 9 – zwei Workouts
+            return [
+                snap(.running,                    hour: 7,  minute: 0,  minutes: 35, hr: 162),
+                snap(.functionalStrengthTraining, hour: 19, minute: 30, minutes: 45, hr: 118)
+            ]
+        }
     }
 }

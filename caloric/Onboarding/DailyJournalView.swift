@@ -372,88 +372,87 @@ struct DailyJournalView: View {
     }
 
     private var journalScrollView: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 6) {
+        let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
+        return VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Daily Journal")
-                        .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .bold))
+                        .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                 }
-                HStack {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                            }
-                        } label: {
-                            Image(systemName: "chevron.left")
+                HStack(spacing: 8) {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                            selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(Theme.card)
+                                    .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                            )
+                    }
+                    .buttonStyle(SpringyButtonStyle())
+
+                    Button {
+                        showCalendarPicker = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "calendar")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(accentBlue)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    Circle()
-                                        .fill(Theme.card)
-                                        .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                )
+                            Text(selectedDateString)
+                                .font(.poppins(size: 14, weight: .medium))
+                                .foregroundStyle(Theme.textPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Theme.textSecondary.opacity(0.7))
                         }
-                        .buttonStyle(SpringyButtonStyle())
-
-                        Button {
-                            showCalendarPicker = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(accentBlue)
-                                Text(selectedDateString)
-                                    .font(.poppins(size: 13, weight: .medium))
-                                    .foregroundStyle(Theme.textSecondary)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule()
-                                    .fill(Theme.card)
-                                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                    .shadow(color: Theme.cardShadow, radius: 10, x: 0, y: 4)
-                            )
-                            .contentShape(Capsule())
-                        }
-                        .buttonStyle(SpringyButtonStyle())
-
-                        let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                                let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                                if next <= maxDate {
-                                    selectedDate = next
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(selectedDate >= maxDate ? accentBlue.opacity(0.3) : accentBlue)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    Circle()
-                                        .fill(Theme.card)
-                                        .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                )
-                        }
-                        .buttonStyle(SpringyButtonStyle())
-                        .disabled(selectedDate >= maxDate)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(
+                            Capsule()
+                                .fill(Theme.card)
+                                .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                                .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
+                        )
+                        .contentShape(Capsule())
                     }
-                    Spacer()
+                    .buttonStyle(SpringyButtonStyle())
+
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                            let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                            if next <= maxDate {
+                                selectedDate = next
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(selectedDate >= maxDate ? Theme.textPrimary.opacity(0.25) : Theme.textPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(Theme.card)
+                                    .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                            )
+                    }
+                    .buttonStyle(SpringyButtonStyle())
+                    .disabled(selectedDate >= maxDate)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 4)
-            .padding(.bottom, 4)
+            .padding(.top, 14)
+            .padding(.bottom, 16)
             
         ScrollView {
             VStack(spacing: LayoutMetrics.sectionSpacing) {
