@@ -2,15 +2,11 @@
 //  DailyCalorieAreaChart.swift
 //  caloric
 //
-//  Ersatz für die BarMark-Darstellung im Tagesverlauf.
-//  Features:
-//    · AreaMark + LineMark (catmullRom) statt BarMark
-//    · Vergangenheit: voller Gradient, Zukunft: ≈13 % Opacity
-//    · Schlafzone: dezente RectangleMark-Hintergrundschraffur
-//    · Workout-EAT-Band am Fuß der Fläche
-//    · Peak-Markierungen: PointMark wenn Wert > 30 % über 2h-Schnitt
-//    · „Jetzt"-RuleMark
-//    · Alle Farben über Theme-Tokens (Dark-Mode-safe)
+//  Gradient-Aktivitätsbalken: BarMark mit vertikalem Farbverlauf.
+//  · Vergangenheit: sattes Blau oben → transparent unten (globaler Gradient → kurze Balken = heller)
+//  · Zukunft: sehr blasse Variante desselben Gradienten
+//  · Tooltip auf dem Spitzen-Slot (auto, kein Fingerdruck nötig)
+//  · Dashed „Jetzt"-RuleMark
 //
 
 import SwiftUI
@@ -26,87 +22,32 @@ struct DailyCalorieAreaChart: View {
     let accentBlue: Color
     let nowFraction: Double
     let isSelectedToday: Bool
-    /// Stunde, zu der der Schlaf endet (= Beginn der Wachphase). Typisch 6–8.
     let sleepEndHour: Double
     let language: String
-    /// Faktor, ab dem ein Slot als Peak gilt (1.30 = 30 % über Schnitt).
-    var peakThreshold: Double = 1.30
+    var peakThreshold: Double = 1.30      // unused externally but kept for API compatibility
 
     // MARK: Environment
 
     @Environment(\.colorScheme) private var colorScheme
     private var isDark: Bool { colorScheme == .dark }
 
-    // MARK: Internal types
+    // MARK: State
 
-    /// Datenpunkt für einen Chart-Series-Eintrag.
-    private struct AreaPt: Identifiable { let id: Int; let x, y: Double }
-    private struct LinePt: Identifiable { let id: Int; let x, y: Double }
-    private struct PeakPt: Identifiable { let id: Int; let x, y: Double }
-
-    // MARK: Derived series
-
-    private var pastArea: [AreaPt] {
-        slots.enumerated().compactMap { i, s in
-            guard !s.isFuture else { return nil }
-            return AreaPt(id: i, x: s.hour + 0.25, y: s.total)
-        }
-    }
-
-    private var pastLine: [LinePt] {
-        slots.enumerated().compactMap { i, s in
-            guard !s.isFuture else { return nil }
-            return LinePt(id: i, x: s.hour + 0.25, y: s.total)
-        }
-    }
-
-    private var futureArea: [AreaPt] {
-        slots.enumerated().compactMap { i, s in
-            guard s.isFuture else { return nil }
-            return AreaPt(id: i, x: s.hour + 0.25, y: s.calories)
-        }
-    }
-
-    private var futureLine: [LinePt] {
-        slots.enumerated().compactMap { i, s in
-            guard s.isFuture else { return nil }
-            return LinePt(id: i, x: s.hour + 0.25, y: s.calories)
-        }
-    }
-
-    private var workoutArea: [AreaPt] {
-        slots.enumerated().compactMap { i, s in
-            guard !s.isFuture, s.isWorkout, s.workoutKcal > 0 else { return nil }
-            return AreaPt(id: i + 10_000, x: s.hour + 0.25, y: s.workoutKcal)
-        }
-    }
-
-    private var peakMarkers: [PeakPt] {
-        var result: [PeakPt] = []
-        for (i, s) in slots.enumerated() {
-            guard !s.isFuture, !s.isSleep, s.total > 0 else { continue }
-            let windowStart = max(0, i - 4)
-            let window = slots[windowStart..<i].filter { !$0.isSleep && !$0.isFuture }
-            guard window.count >= 2 else { continue }
-            let avg = window.reduce(0.0) { $0 + $1.total } / Double(window.count)
-            guard avg > 5, s.total > avg * peakThreshold else { continue }
-            result.append(PeakPt(id: i, x: s.hour + 0.25, y: s.total))
-        }
-        return result
-    }
+    @State private var selectedSlot: CalorieSlot? = nil
 
     // MARK: Gradients
+    // Applied globally across chart height → tall bars appear dark, short bars appear light.
 
     private var pastGradient: LinearGradient {
         LinearGradient(
-            colors: [accentBlue.opacity(0.58), accentBlue.opacity(0.02)],
+            colors: [accentBlue, accentBlue.opacity(0.25)],
             startPoint: .top, endPoint: .bottom
         )
     }
 
     private var futureGradient: LinearGradient {
         LinearGradient(
-            colors: [accentBlue.opacity(0.13), accentBlue.opacity(0.01)],
+            colors: [accentBlue.opacity(0.28), accentBlue.opacity(0.06)],
             startPoint: .top, endPoint: .bottom
         )
     }
@@ -115,89 +56,50 @@ struct DailyCalorieAreaChart: View {
 
     var body: some View {
         Chart {
-            // ① Schlaf-Hintergrundzone
-            if sleepEndHour > 0 {
-                RectangleMark(
-                    xStart: .value("", 0.0),
-                    xEnd:   .value("", sleepEndHour)
+            // ① Past bars
+            ForEach(slots.filter { !$0.isFuture }, id: \.id) { slot in
+                BarMark(
+                    x: .value("Zeit", slot.hour + 0.25),
+                    y: .value("kcal", slot.total),
+                    width: .fixed(4)
                 )
-                .foregroundStyle(Theme.ink.opacity(isDark ? 0.08 : 0.04))
-            }
-
-            // ② Vergangenheit — Fläche
-            ForEach(pastArea) { pt in
-                AreaMark(
-                    x:      .value("Zeit", pt.x),
-                    yStart: .value("",     0.0),
-                    yEnd:   .value("kcal", pt.y)
-                )
-                .interpolationMethod(.catmullRom)
                 .foregroundStyle(pastGradient)
+                .cornerRadius(2)
             }
 
-            // ② Vergangenheit — Linie
-            ForEach(pastLine) { pt in
-                LineMark(
-                    x: .value("Zeit", pt.x),
-                    y: .value("kcal", pt.y)
+            // ② Future bars (lighter)
+            ForEach(slots.filter { $0.isFuture }, id: \.id) { slot in
+                BarMark(
+                    x: .value("Zeit", slot.hour + 0.25),
+                    y: .value("kcal", slot.calories),
+                    width: .fixed(4)
                 )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(accentBlue)
-                .lineStyle(StrokeStyle(lineWidth: 1.8))
-            }
-
-            // ③ Zukunft — blasse Fläche
-            ForEach(futureArea) { pt in
-                AreaMark(
-                    x:      .value("Zeit", pt.x),
-                    yStart: .value("",     0.0),
-                    yEnd:   .value("kcal", pt.y)
-                )
-                .interpolationMethod(.catmullRom)
                 .foregroundStyle(futureGradient)
+                .cornerRadius(2)
             }
 
-            // ③ Zukunft — sehr blasse Linie
-            ForEach(futureLine) { pt in
-                LineMark(
-                    x: .value("Zeit", pt.x),
-                    y: .value("kcal", pt.y)
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(accentBlue.opacity(0.22))
-                .lineStyle(StrokeStyle(lineWidth: 1.0))
+            // ③ Tap-tooltip on selected slot
+            if let sel = selectedSlot, sel.total > 0 {
+                RuleMark(x: .value("Selected", sel.hour + 0.25))
+                    .foregroundStyle(.clear)
+                    .annotation(
+                        position: .top,
+                        spacing: 6,
+                        overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                    ) {
+                        tooltipBubble(for: sel)
+                    }
             }
 
-            // ④ Workout-EAT-Band am Fuß
-            ForEach(workoutArea) { pt in
-                AreaMark(
-                    x:      .value("Zeit", pt.x),
-                    yStart: .value("",     0.0),
-                    yEnd:   .value("kcal", pt.y)
-                )
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(Theme.segEAT.opacity(0.40))
-            }
-
-            // ⑤ Peak-Marker
-            ForEach(peakMarkers) { pt in
-                PointMark(
-                    x: .value("Zeit", pt.x),
-                    y: .value("kcal", pt.y)
-                )
-                .foregroundStyle(Theme.segEAT)
-                .symbolSize(22)
-            }
-
-            // ⑥ „Jetzt"-RuleMark
+            // ④ „Jetzt" dashed line
             if isSelectedToday {
                 RuleMark(x: .value("Jetzt", nowFraction))
-                    .foregroundStyle(accentBlue)
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.4))
+                    .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
                     .annotation(position: .top, spacing: 2) {
                         Text(language == "de" ? "Jetzt" : "Now")
-                            .font(.poppins(size: 7, weight: .semibold))
-                            .foregroundStyle(accentBlue)
+                            .font(.poppins(size: 8, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.55))
                     }
             }
         }
@@ -207,21 +109,53 @@ struct DailyCalorieAreaChart: View {
                 AxisValueLabel {
                     if let d = value.as(Double.self) {
                         Text(String(format: "%02d:00", Int(d)))
-                            .font(.poppins(size: 8, weight: .regular))
-                            .foregroundStyle(.secondary)
+                            .font(.poppins(size: 9, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.55))
                     }
                 }
-                AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
+                AxisGridLine().foregroundStyle(.clear)
             }
         }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
-                AxisGridLine().foregroundStyle(.secondary.opacity(0.12))
-                AxisValueLabel()
-                    .font(.poppins(size: 8, weight: .regular))
-                    .foregroundStyle(.secondary)
+        .chartYAxis(.hidden)
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let origin = geo[proxy.plotAreaFrame].origin
+                                let lx = value.location.x - origin.x
+                                guard let x: Double = proxy.value(atX: lx) else { return }
+                                let closest = slots.min(by: {
+                                    abs($0.hour + 0.25 - x) < abs($1.hour + 0.25 - x)
+                                })
+                                withAnimation(.easeOut(duration: 0.08)) {
+                                    selectedSlot = closest
+                                }
+                            }
+                            .onEnded { _ in
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    selectedSlot = nil
+                                }
+                            }
+                    )
             }
         }
+    }
+
+    // MARK: Tooltip bubble
+
+    private func tooltipBubble(for slot: CalorieSlot) -> some View {
+        let hour   = Int(slot.hour)
+        let minute = slot.hour.truncatingRemainder(dividingBy: 1) >= 0.5 ? 30 : 0
+        let time   = String(format: "%02d:%02d", hour, minute)
+        let kcal   = Int(slot.total.rounded())
+        return Text("\(time) · \(kcal) kcal")
+            .font(.poppins(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(isDark ? Color(white: 0.22) : Color(white: 0.12)))
     }
 }
 
@@ -240,20 +174,20 @@ private extension [CalorieSlot] {
             } else {
                 switch hour {
                 case sleepHours..<(sleepHours + 1.5): mult = 0.94
-                case 8..<10:   mult = 1.14
+                case 8..<10:    mult = 1.14
                 case 12..<13.5: mult = 1.10
-                case 17..<19:  mult = 1.20
-                case 21..<23:  mult = 0.90
-                default:       mult = 1.0
+                case 17..<19:   mult = 1.20
+                case 21..<23:   mult = 0.90
+                default:        mult = 1.0
                 }
             }
             return CalorieSlot(
-                hour: hour,
-                calories: base * 0.5 * mult,
+                hour:       hour,
+                calories:   base * 0.5 * mult,
                 workoutKcal: isWorkout ? 90.0 : 0.0,
-                isSleep: sleeping,
-                isWorkout: isWorkout,
-                isFuture: isFuture
+                isSleep:    sleeping,
+                isWorkout:  isWorkout,
+                isFuture:   isFuture
             )
         }
     }

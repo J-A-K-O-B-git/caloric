@@ -709,6 +709,8 @@ struct DashboardView: View {
                             .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
+                    }
+                    .overlay(alignment: .trailing) {
                         profileIconButton
                     }
                     dateNavigationRow
@@ -875,6 +877,11 @@ struct DashboardView: View {
         let icon: String
         let color: Color
         let kcal: Double
+    }
+
+    private struct InfoComponent {
+        let icon: String
+        let label: String
     }
 
     /// Ordered energy-expenditure components — for today shows burned so far, for past/future shows full day.
@@ -1186,15 +1193,17 @@ struct DashboardView: View {
 
     private func infoSheet(for type: EnergySegmentType) -> some View {
         let seg = energySegments.first(where: { $0.type == type })
+        let segColor = seg?.color ?? accentBlue
+        let components = infoComponents(for: type)
         return VStack(spacing: 20) {
             HStack(spacing: 14) {
                 Image(systemName: seg?.icon ?? "info.circle")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(seg?.color ?? accentBlue)
+                    .foregroundStyle(segColor)
                     .frame(width: 44, height: 44)
-                    .background((seg?.color ?? accentBlue).opacity(0.14))
+                    .background(segColor.opacity(0.14))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text(seg?.title ?? "")
                         .font(.poppins(size: 18, weight: .bold))
@@ -1212,17 +1221,41 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)
-            
+
             Text(infoText(for: type))
                 .font(.poppins(size: 15, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
                 .lineSpacing(5)
                 .multilineTextAlignment(.leading)
                 .padding(.horizontal, 24)
-            
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(language == "de" ? "Einflussfaktoren" : "Factors")
+                    .font(.poppins(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+
+                HStack(spacing: 8) {
+                    ForEach(components, id: \.label) { comp in
+                        HStack(spacing: 5) {
+                            Image(systemName: comp.icon)
+                                .font(.system(size: 11, weight: .medium))
+                            Text(comp.label)
+                                .font(.poppins(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(segColor)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(segColor.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 24)
+
             Spacer()
         }
-        .presentationDetents([.height(240)])
+        .presentationDetents([.height(340)])
         .presentationDragIndicator(.visible)
     }
 
@@ -1233,6 +1266,40 @@ struct DashboardView: View {
         case .eat: return language == "de" ? "EAT bezeichnet die Energie, die du während geplanter sportlicher Aktivitäten und Workouts verbrauchst." : "EAT refers to the energy consumed during planned physical activities and workouts."
         case .tef: return language == "de" ? "TEF ist die Energie, die dein Körper für die Verdauung, Aufnahme und Verarbeitung von Nährstoffen aus der Nahrung aufwendet." : "TEF is the energy your body spends on digesting, absorbing, and processing nutrients from food."
         case .caffeine: return language == "de" ? "Koffein kann den Stoffwechsel und die Wärmeproduktion des Körpers kurzzeitig leicht erhöhen." : "Caffeine can slightly increase metabolism and the body's heat production for a short period."
+        }
+    }
+
+    private func infoComponents(for type: EnergySegmentType) -> [InfoComponent] {
+        switch type {
+        case .bmr:
+            return [
+                InfoComponent(icon: "person.fill",        label: language == "de" ? "Körpermasse"  : "Body Mass"),
+                InfoComponent(icon: "moon.fill",           label: language == "de" ? "Schlaf"       : "Sleep"),
+                InfoComponent(icon: "calendar",            label: language == "de" ? "Alter"         : "Age"),
+                InfoComponent(icon: "slider.horizontal.3", label: language == "de" ? "Stoffwechsel" : "Metabolism")
+            ]
+        case .neat:
+            return [
+                InfoComponent(icon: "figure.walk",  label: language == "de" ? "Schritte"     : "Steps"),
+                InfoComponent(icon: "figure.stand", label: language == "de" ? "Stehzeit"     : "Stand Time"),
+                InfoComponent(icon: "heart.fill",   label: language == "de" ? "Herzfrequenz" : "Heart Rate")
+            ]
+        case .eat:
+            return [
+                InfoComponent(icon: "dumbbell.fill",     label: language == "de" ? "Workouts" : "Workouts"),
+                InfoComponent(icon: "pencil.circle.fill", label: language == "de" ? "Manuell"  : "Manual")
+            ]
+        case .tef:
+            return [
+                InfoComponent(icon: "flame.fill", label: "Protein"),
+                InfoComponent(icon: "leaf.fill",  label: language == "de" ? "Kohlenhydrate" : "Carbs"),
+                InfoComponent(icon: "drop.fill",  label: language == "de" ? "Fett"          : "Fat")
+            ]
+        case .caffeine:
+            return [
+                InfoComponent(icon: "cup.and.heat.waves.fill", label: language == "de" ? "Koffein (mg)" : "Caffeine (mg)"),
+                InfoComponent(icon: "thermometer.medium",       label: language == "de" ? "Thermogenese" : "Thermogenesis")
+            ]
         }
     }
 
@@ -1323,7 +1390,6 @@ struct DashboardView: View {
         .caloricAppearance()
         .presentationDetents([.medium, .large])
         .presentationBackground(Theme.canvas)
-        .task { await healthKit.fetchAll() }
     }
 
     // MARK: - Berechnungsmethoden View

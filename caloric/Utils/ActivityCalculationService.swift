@@ -175,7 +175,7 @@ struct ActivityCalculationService {
     /// days use the full 24 h window instead of clamping to the current clock time.
     /// Pass `hrSegments` from `HKActivitySnapshot.hrSegments` for an HR-informed result;
     /// omit (default `[]`) when only aggregated data is available.
-        struct ManualWorkoutData: Sendable {
+    struct ManualWorkoutData: Sendable {
         let id: UUID
         let name: String
         let kcal: Double
@@ -201,17 +201,46 @@ struct ActivityCalculationService {
         let workoutSeconds = workouts.reduce(0.0) { $0 + $1.duration }
         let workoutMin     = workoutSeconds / 60.0
 
-        // Stand minutes inside workouts belong to EAT, not NEAT.
-        let netStandMin = max(0, standTimeMinutes - workoutMin)
+        // Build workout windows for the reference day
+        let dayStart = calendar.startOfDay(for: referenceDate)
+        let isToday  = calendar.isDateInToday(referenceDate)
+        let dayEnd   = calendar.date(byAdding: .day, value: 1, to: dayStart)!
 
-        // Wake / day-end window (minutes of day).
-        let isToday   = calendar.isDateInToday(referenceDate)
-        let dayStart  = calendar.startOfDay(for: referenceDate)
+        let workoutWindows: [DateInterval] = workouts.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+            .compactMap { w in
+                let s = max(w.start, dayStart)
+                let e = min(w.end, isToday ? referenceDate : dayEnd)
+                return e > s ? DateInterval(start: s, end: e) : nil
+            }
+
+        // Estimate the fraction of the counted day spent in workouts
+        let countedStart = dayStart.addingTimeInterval((sleepHours > 0 ? sleepHours : 8.0) * 60 * 60)
+        let countedEnd   = max(countedStart, isToday ? referenceDate : dayEnd)
+        let countedWindow = DateInterval(start: countedStart, end: countedEnd)
+
+        var overlapSeconds: Double = 0
+        for w in workoutWindows {
+            if let overlap = intersection(w, countedWindow) {
+                overlapSeconds += overlap.duration
+            }
+        }
+        let countedSeconds = max(1.0, countedWindow.duration)
+        let workoutFractionOfCountedTime = min(1.0, max(0.0, overlapSeconds / countedSeconds))
+
+        // Proportionally exclude workout-time steps from the total day steps.
+        // This approximates removing steps that occurred during workouts when
+        // per-minute step samples are not available in this layer.
+        let nonWorkoutSteps = max(0, Int(round(Double(steps) * (1.0 - workoutFractionOfCountedTime))))
+
+        // Recompute netStandMin using the same workout duration already derived above
+        // (net stand = total stand − workout minutes)
+        let netStandMin = max(0, standTimeMinutes - (overlapSeconds / 60.0))
+
         let dayEndMin = isToday ? referenceDate.timeIntervalSince(dayStart) / 60.0 : 1440.0
         let wakeMin   = (sleepHours > 0 ? sleepHours : 8.0) * 60.0
 
         let inputs = NEATInputs(
-            nonWorkoutSteps:   steps,
+            nonWorkoutSteps:   nonWorkoutSteps,
             standTimeMinutes:  netStandMin,
             restingHR:         restingHR,
             workoutSeconds:    workoutSeconds,
@@ -244,4 +273,10 @@ struct ActivityCalculationService {
         
         return ActivityResult(neatKcal: breakdown.total, eatKcal: totalEatKcal, neatBreakdown: breakdown, workoutDetails: details)
     }
+}
+
+private func intersection(_ a: DateInterval, _ b: DateInterval) -> DateInterval? {
+    let s = max(a.start, b.start)
+    let e = min(a.end, b.end)
+    return e > s ? DateInterval(start: s, end: e) : nil
 }

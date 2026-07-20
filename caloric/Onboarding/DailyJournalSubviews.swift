@@ -57,31 +57,34 @@ struct SicknessCard: View {
     let feverButton: (String, String?, TDEECalculationService.JournalInputs.FeverLevel, Color) -> AnyView
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Text(language == "de" ? "Krankheit" : "Illness")
-                    .font(.poppins(size: 16, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Toggle("", isOn: $sickToggle.animation(.spring(response: 0.38, dampingFraction: 0.85)))
-                    .labelsHidden()
-                    .tint(accentBlue)
-                    .onChange(of: sickToggle) { _, newVal in
-                        if !newVal { sickEnergyLevel = nil; feverLevel = nil }
+        VStack(alignment: .leading, spacing: 14) {
+            Text(language == "de" ? "Bist du heute krank?" : "Are you feeling sick today?")
+                .font(.poppins(size: 16, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+
+            HStack(spacing: 10) {
+                sickPill(label: language == "de" ? "Nein" : "No", isSelected: !sickToggle) {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                        sickToggle = false
+                        sickEnergyLevel = nil
+                        feverLevel = nil
                     }
+                }
+                sickPill(label: language == "de" ? "Ja" : "Yes", isSelected: sickToggle) {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                        sickToggle = true
+                    }
+                }
             }
 
             if sickToggle {
                 VStack(alignment: .leading, spacing: 16) {
-                    Divider()
-                        .background(Theme.divider)
-                        .padding(.top, 12)
+                    Divider().background(Theme.divider)
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(language == "de" ? "Wie fühlst du dich energetisch?" : "How is your energy level?")
                             .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
-
                         HStack(spacing: 8) {
                             energyButton(language == "de" ? "Leicht angeschlagen" : "Slightly off", .mild)
                             energyButton(language == "de" ? "Platt / Bettruhe" : "Bedridden", .bedridden)
@@ -92,7 +95,6 @@ struct SicknessCard: View {
                         Text(language == "de" ? "Hast du Fieber?" : "Do you have a fever?")
                             .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
-
                         HStack(spacing: 8) {
                             feverButton(language == "de" ? "Nein" : "None", nil, .none, accentBlue)
                             feverButton(language == "de" ? "Leicht" : "Low", "< 38.5 °C", .low, .orange)
@@ -104,7 +106,6 @@ struct SicknessCard: View {
                         let isFeverHigh = feverLevel == .high
                         let tint: Color = isFeverHigh ? .red : .orange
                         let delta = isFeverHigh ? "+18 %" : "+10 %"
-
                         HStack(spacing: 8) {
                             Image(systemName: "info.circle.fill")
                                 .font(.system(size: 14))
@@ -129,12 +130,28 @@ struct SicknessCard: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .leading)))
                     }
                 }
-                .padding(.top, 4)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(16)
         .background(cardBackground)
+    }
+
+    private func sickPill(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.poppins(size: 15, weight: .semibold))
+                .foregroundStyle(isSelected ? .white : accentBlue)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -149,78 +166,100 @@ struct CaffeineCard: View {
     let store: JournalStore
     let cardBackground: AnyView
 
+    private let presets = [0, 80, 150, 200, 300]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        caffeineInfoExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle().fill(Theme.segCaf.opacity(0.15)).frame(width: 32, height: 32)
-                            Image(systemName: "cup.and.heat.waves.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Theme.segCaf)
-                        }
-                        Text(language == "de" ? "Koffein" : "Caffeine")
-                            .font(.poppins(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(accentBlue.opacity(0.6))
-                            .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
-                    }
+
+            // Header: title + expand chevron
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    caffeineInfoExpanded.toggle()
                 }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                HStack(spacing: 12) {
-                    Button {
-                        let v = max(0, (Int(caffeineText) ?? 0) - 10)
-                        caffeineText = "\(v)"
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(accentBlue)
-                            .background(Circle().fill(accentBlue.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        TextField("0", text: $caffeineText)
-                            #if os(iOS)
-                            .keyboardType(.numberPad)
-                            #endif
-                            .focused($caffeineFocused)
-                            .font(.poppins(size: 28, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .multilineTextAlignment(.center)
-                            .frame(width: 60)
-                        Text("mg")
-                            .font(.poppins(size: 14, weight: .regular))
-                            .foregroundStyle(accentBlue.opacity(0.6))
-                    }
-
-                    Button {
-                        let v = (Int(caffeineText) ?? 0) + 10
-                        caffeineText = "\(v)"
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(accentBlue)
-                            .background(Circle().fill(accentBlue.opacity(0.12)))
-                    }
-                    .buttonStyle(.plain)
+            } label: {
+                HStack {
+                    Text(language == "de" ? "Koffein heute" : "Caffeine today")
+                        .font(.poppins(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(accentBlue.opacity(0.6))
+                        .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
                 }
             }
+            .buttonStyle(.plain)
 
+            // Large -/value/+ display
+            HStack {
+                Button {
+                    let v = max(0, (Int(caffeineText) ?? 0) - 10)
+                    caffeineText = "\(v)"
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 18, weight: .bold))
+                        .frame(width: 48, height: 48)
+                        .foregroundStyle(accentBlue)
+                        .background(Circle().fill(accentBlue.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    TextField("0", text: $caffeineText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                        .focused($caffeineFocused)
+                        .font(.poppins(size: 44, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 110)
+                    Text("mg")
+                        .font(.poppins(size: 18, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    let v = (Int(caffeineText) ?? 0) + 10
+                    caffeineText = "\(v)"
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
+                        .frame(width: 48, height: 48)
+                        .foregroundStyle(accentBlue)
+                        .background(Circle().fill(accentBlue.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Preset pills
+            HStack(spacing: 8) {
+                ForEach(presets, id: \.self) { mg in
+                    let isSelected = (Int(caffeineText) ?? -1) == mg
+                    Button {
+                        caffeineText = "\(mg)"
+                    } label: {
+                        Text(mg == 0 ? (language == "de" ? "Keins" : "None") : "\(mg)")
+                            .font(.poppins(size: 13, weight: .medium))
+                            .foregroundStyle(isSelected ? .white : accentBlue)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(isSelected ? accentBlue : accentBlue.opacity(0.10)))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+
+            // Expandable: full drinks grid
             if caffeineInfoExpanded {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
+                    Divider().background(Theme.divider)
+
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         caffeineQuickAdd(label: language == "de" ? "Espresso" : "Espresso", mg: 80)
                         caffeineQuickAdd(label: language == "de" ? "Kaffee" : "Coffee", mg: 90)
@@ -231,12 +270,12 @@ struct CaffeineCard: View {
                         caffeineQuickAdd(label: "Mate (330ml)", mg: 70)
                         caffeineQuickAdd(label: "Cola (330ml)", mg: 35)
                         caffeineQuickAdd(label: "Pre-Workout", mg: 200)
-                        
+
                         ForEach(store.customDrinks) { drink in
                             caffeineQuickAdd(label: drink.name, mg: drink.caffeineMg, isCustom: true, id: drink.id)
                         }
                     }
-                    
+
                     Button {
                         showAddDrinkSheet = true
                     } label: {
@@ -323,23 +362,33 @@ struct MacrosCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+
+            // Header
+            HStack(alignment: .top, spacing: 12) {
                 ZStack {
                     Circle().fill(Theme.segTEF.opacity(0.15)).frame(width: 32, height: 32)
                     Image(systemName: "fork.knife")
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.segTEF)
                 }
-                Text(language == "de" ? "Makros" : "Macros")
-                    .font(.poppins(size: 16, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(language == "de" ? "Makros heute" : "Today's Macros")
+                        .font(.poppins(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(language == "de"
+                         ? "Beschreib, was du gegessen hast – die KI schätzt Protein, Kohlenhydrate und Fett"
+                         : "Describe what you ate – AI estimates protein, carbs and fat")
+                        .font(.poppins(size: 11, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Spacer()
-                
+
                 if selectedMeal == "breakfast" {
                     Button(action: copyYesterdayBreakfast) {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.counterclockwise")
-                            Text(language == "de" ? "Vom Vortag" : "From Yesterday")
+                            Text(language == "de" ? "Vom Vortag" : "Yesterday")
                         }
                         .font(.poppins(size: 11, weight: .medium))
                         .foregroundStyle(accentBlue)
@@ -353,16 +402,18 @@ struct MacrosCard: View {
                 }
             }
 
+            // Meal tabs
             HStack(spacing: 0) {
-                mealTab(key: "breakfast", name: language == "de" ? "Frühstück" : "Breakfast")
-                mealTab(key: "lunch",     name: language == "de" ? "Mittag" : "Lunch")
-                mealTab(key: "dinner",    name: language == "de" ? "Abend" : "Dinner")
-                mealTab(key: "daily",     name: language == "de" ? "Gesamt" : "Total")
+                mealTab(key: "breakfast", name: language == "de" ? "Frühstück"  : "Breakfast")
+                mealTab(key: "lunch",     name: language == "de" ? "Mittagessen" : "Lunch")
+                mealTab(key: "dinner",    name: language == "de" ? "Abendessen"  : "Dinner")
+                mealTab(key: "snack",     name: language == "de" ? "Snack"       : "Snack")
             }
             .padding(4)
             .background(Theme.fieldFill)
             .clipShape(Capsule())
 
+            // AI input
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     TextField(language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...", text: $aiInputText, axis: .vertical)
@@ -370,9 +421,9 @@ struct MacrosCard: View {
                         .font(.poppins(size: 13, weight: .regular))
                         .foregroundColor(Theme.textPrimary)
                         .disabled(aiIsLoading)
-                    
+
                     HStack(spacing: 8) {
-                        Button { 
+                        Button {
                             if isRecording { stopRecording() }
                             else { startRecording() }
                         } label: {
@@ -387,69 +438,66 @@ struct MacrosCard: View {
                         .buttonStyle(.plain)
 
                         Button { analyzeFoodWithAI() } label: {
-                            ZStack {
-                                Circle().fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue).frame(width: 32, height: 32)
-                                if aiIsLoading {
-                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)).scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "sparkles").font(.system(size: 14, weight: .bold)).foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.4) : .white)
-                                }
+                            if aiIsLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                                    .frame(width: 80, height: 32)
+                                    .background(Capsule().fill(accentBlue))
+                            } else {
+                                Text(language == "de" ? "Schätzen" : "Estimate")
+                                    .font(.poppins(size: 13, weight: .semibold))
+                                    .foregroundStyle(aiInputText.isEmpty ? accentBlue.opacity(0.5) : .white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(aiInputText.isEmpty ? accentBlue.opacity(0.1) : accentBlue))
                             }
                         }
                         .buttonStyle(.plain)
                         .disabled(aiInputText.isEmpty || aiIsLoading)
                     }
                 }
-                .padding(.horizontal, 12).padding(.vertical, 8).background(Theme.fieldFill).clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
-                
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Theme.fieldFill)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
+
                 if let error = aiErrorMessage {
-                    Text(error).font(.poppins(size: 11, weight: .regular)).foregroundColor(.red).padding(.leading, 4)
+                    Text(error)
+                        .font(.poppins(size: 11, weight: .regular))
+                        .foregroundColor(.red)
+                        .padding(.leading, 4)
                 }
             }
             .padding(.vertical, 4)
 
+            // Macro input fields for selected meal
             if let meal = selectedMeal {
-                if meal == "daily" {
-                    VStack(spacing: 16) {
-                        totalSummaryView
-                        
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(language == "de" ? "Manuelle Gesamteingabe" : "Manual Daily Entry")
-                                .font(.poppins(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.textSecondary)
-                            
-                            VStack(spacing: 12) {
-                                macroInputField("Protein", "0", Binding(get: { proteinByMeal["daily"] ?? "" }, set: { proteinByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.protein("daily")), Theme.segNEAT)
-                                HStack(spacing: 12) {
-                                    macroInputField(language == "de" ? "Kohlenhydrate" : "Carbs", "0", Binding(get: { carbsByMeal["daily"] ?? "" }, set: { carbsByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.carbs("daily")), accentBlue)
-                                    macroInputField(language == "de" ? "Fett" : "Fat", "0", Binding(get: { fatByMeal["daily"] ?? "" }, set: { fatByMeal["daily"] = $0 }), AnyHashable(MacrosCardMacroField.fat("daily")), .orange)
-                                }
-                            }
-                        }
-                        .padding(14)
-                        .background(Theme.fieldFill.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                VStack(spacing: 12) {
+                    macroInputField("Protein", "0",
+                        Binding(get: { proteinByMeal[meal] ?? "" }, set: { proteinByMeal[meal] = $0 }),
+                        AnyHashable(MacrosCardMacroField.protein(meal)), Theme.segNEAT)
+                    HStack(spacing: 12) {
+                        macroInputField(language == "de" ? "Kohlenhydrate" : "Carbs", "0",
+                            Binding(get: { carbsByMeal[meal] ?? "" }, set: { carbsByMeal[meal] = $0 }),
+                            AnyHashable(MacrosCardMacroField.carbs(meal)), accentBlue)
+                        macroInputField(language == "de" ? "Fett" : "Fat", "0",
+                            Binding(get: { fatByMeal[meal] ?? "" }, set: { fatByMeal[meal] = $0 }),
+                            AnyHashable(MacrosCardMacroField.fat(meal)), .orange)
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                } else {
-                    VStack(spacing: 12) {
-                        macroInputField("Protein", "0", Binding(get: { proteinByMeal[meal] ?? "" }, set: { proteinByMeal[meal] = $0 }), AnyHashable(MacrosCardMacroField.protein(meal)), Theme.segNEAT)
-                        HStack(spacing: 12) {
-                            macroInputField(language == "de" ? "Kohlenhydrate" : "Carbs", "0", Binding(get: { carbsByMeal[meal] ?? "" }, set: { carbsByMeal[meal] = $0 }), AnyHashable(MacrosCardMacroField.carbs(meal)), accentBlue)
-                            macroInputField(language == "de" ? "Fett" : "Fat", "0", Binding(get: { fatByMeal[meal] ?? "" }, set: { fatByMeal[meal] = $0 }), AnyHashable(MacrosCardMacroField.fat(meal)), .orange)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
+
         }
         .padding(16)
         .background(cardBackground)
     }
 
     private func mealSum(_ dict: [String: String]) -> Int {
-        ["breakfast", "lunch", "dinner"].compactMap { Int(dict[$0] ?? "") }.reduce(0, +)
+        ["breakfast", "lunch", "dinner", "snack"].compactMap { Int(dict[$0] ?? "") }.reduce(0, +)
     }
 
     private var totalSummaryView: some View {
@@ -458,17 +506,23 @@ struct MacrosCard: View {
         let totalFat     = mealSum(fatByMeal)
         let totalKcal    = totalProtein * 4 + totalCarbs * 4 + totalFat * 9
 
-        return VStack(spacing: 12) {
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(language == "de" ? "GESAMT-MAKROS HEUTE" : "TODAY'S TOTAL MACROS")
+                .font(.poppins(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .tracking(1)
+
             HStack(spacing: 12) {
                 macroTotalPill(label: "Protein", value: totalProtein, unit: "g", color: Theme.segNEAT)
-                macroTotalPill(label: language == "de" ? "Kohlenhydrate" : "Carbs", value: totalCarbs, unit: "g", color: accentBlue)
+                macroTotalPill(label: language == "de" ? "Kohlenhydrat" : "Carbs", value: totalCarbs, unit: "g", color: accentBlue)
                 macroTotalPill(label: language == "de" ? "Fett" : "Fat", value: totalFat, unit: "g", color: .orange)
             }
+
             HStack {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(.orange.opacity(0.8))
-                Text("\(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
+                Text("= \(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
                     .font(.poppins(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
@@ -517,7 +571,7 @@ struct MacrosCard: View {
             }
         } label: {
             Text(name)
-                .font(.poppins(size: 12, weight: .medium))
+                .font(.poppins(size: 11, weight: .medium))
                 .foregroundStyle(isSelected ? .white : Theme.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
