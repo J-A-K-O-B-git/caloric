@@ -1778,8 +1778,8 @@ struct DashboardView: View {
                     : isSelectedFuture
                         ? "\(Int(tdeeResult.tdeeTotal))"
                         : "\(Int(displayBurnedSoFar))",
-                unit: "kcal",
-                accent: false
+                unit: language == "de" ? "Schätzung für den kompletten Tag" : "Estimate for the full day",
+                accent: false,
             )
             kpiBox(
                 icon: "arrow.up.arrow.down",
@@ -1793,7 +1793,7 @@ struct DashboardView: View {
                 value: healthKit.isAuthorized && !isSelectedFuture
                     ? "\(Int(activityResult.totalActiveKcal))"
                     : "–",
-                unit: language == "de" ? "Aktiv kcal" : "Active kcal",
+                unit: language == "de" ? "Aktiver Kalorienverbrauch" : "Active Calorie Burn",
                 accent: false
             )
         }
