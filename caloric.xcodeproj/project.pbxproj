@@ -23,6 +23,7 @@
 		5D32A1C8300A5ABD00582F50 /* DailyCalorieAreaChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D32A1C7300A5ABC00582F50 /* DailyCalorieAreaChart.swift */; };
 		5D8016A12FEB1EC3004446E7 /* ActivityCalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */; };
 		5D84F9A1300396FE00EBA31D /* AppMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */; };
+		5D8FC34A301156F500C61D1A /* DataInsightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8FC349301156F500C61D1A /* DataInsightView.swift */; };
 		5DAA00012FD60001000000A1 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA00002FD60001000000A1 /* MainTabView.swift */; };
 		5DAA00032FD60001000000A2 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAA00022FD60001000000A2 /* SettingsView.swift */; };
 		5DCAF4DB2FE826D5005AE38A /* HealthKitImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCAF4DA2FE826D5005AE38A /* HealthKitImportService.swift */; };
@@ -59,6 +60,7 @@
 		5D32A1C7300A5ABC00582F50 /* DailyCalorieAreaChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyCalorieAreaChart.swift; sourceTree = "<group>"; };
 		5D8016A02FEB1EC3004446E7 /* ActivityCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityCalculationService.swift; sourceTree = "<group>"; };
 		5D84F9A0300396FE00EBA31D /* AppMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMigrationPlan.swift; sourceTree = "<group>"; };
+		5D8FC349301156F500C61D1A /* DataInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataInsightView.swift; sourceTree = "<group>"; };
 		5DAA00002FD60001000000A1 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		5DAA00022FD60001000000A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5DCAF4DA2FE826D5005AE38A /* HealthKitImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitImportService.swift; sourceTree = "<group>"; };
@@ -125,6 +127,7 @@
 				5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */,
 				5D097FB33000332400BABE78 /* InfographicViews.swift */,
 				5DCDD994300258C100E17788 /* CalorieDetailView.swift */,
+				5D8FC349301156F500C61D1A /* DataInsightView.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -282,6 +285,7 @@
 				5D2E62BA2FCE1AE20057E84D /* Theme.swift in Sources */,
 				5DCAF4E22FE8325F005AE38A /* AppRootView.swift in Sources */,
 				5DCAF4DB2FE826D5005AE38A /* HealthKitImportService.swift in Sources */,
+				5D8FC34A301156F500C61D1A /* DataInsightView.swift in Sources */,
 				5D2E62BB2FCE1AE20057E84D /* ConfettiView.swift in Sources */,
 				5D0279922FFC24A200388A2C /* DailyJournalSubviews.swift in Sources */,
 				5D097FB43000332500BABE78 /* InfographicViews.swift in Sources */,

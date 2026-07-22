@@ -31,8 +31,6 @@ struct MainTabView: View {
     @Binding var metabolismFactor: Double
 
     @State private var selectedTab: Int = 0
-    @State private var previousTab: Int = 0
-    @State private var showManualDataSheet: Bool = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var journalStore = JournalStore()
     @State private var healthKit = HealthKitImportService()
@@ -69,32 +67,12 @@ struct MainTabView: View {
                       systemImage: "square.grid.2x2.fill")
             }
 
-            Color.clear
-                .tag(1)
-                .tabItem {
-                    Label(language == "de" ? "Meine Daten" : "My Data",
-                          systemImage: "slider.horizontal.3")
-                }
-
-            DailyJournalView(
+            DataInsightView(
                 accentBlue: accentBlue,
                 language: language,
                 selectedGender: selectedGender,
-                femaleText: femaleText,
-                selectedDate: $selectedDate
-            )
-            .tag(2)
-            .tabItem {
-                Label("Journal", systemImage: "book.pages.fill")
-            }
-        }
-        .sheet(isPresented: $showManualDataSheet) {
-            ManualDataView(
-                accentBlue: accentBlue,
-                language: language,
                 femaleText: femaleText,
                 noConditionText: noConditionText,
-                selectedGender: selectedGender,
                 userAge: userAge,
                 weightText: $weightText,
                 weightUnit: $weightUnit,
@@ -106,13 +84,22 @@ struct MainTabView: View {
                 selectedConditions: $selectedConditions,
                 metabolismFactor: $metabolismFactor
             )
-            .presentationDetents([.medium, .large])
-            .presentationBackground(Theme.canvas)
-        }
-        .onChange(of: selectedTab) { old, new in
-            if new == 1 {
-                selectedTab = old // Stay on the current tab
-                showManualDataSheet = true
+            .tag(1)
+            .tabItem {
+                Label(language == "de" ? "Meine Daten" : "My Data",
+                      systemImage: "slider.horizontal.3")
+            }
+
+            DailyJournalView(
+                accentBlue: accentBlue,
+                language: language,
+                selectedGender: selectedGender,
+                femaleText: femaleText,
+                selectedDate: $selectedDate
+            )
+            .tag(2)
+            .tabItem {
+                Label("Journal", systemImage: "book.pages.fill")
             }
         }
         .tint(accentBlue)
