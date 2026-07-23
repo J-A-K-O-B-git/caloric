@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct MainTabView: View {
     let accentBlue: Color
@@ -74,6 +75,7 @@ struct MainTabView: View {
                 femaleText: femaleText,
                 noConditionText: noConditionText,
                 userAge: userAge,
+                selectedTab: $selectedTab,
                 weightText: $weightText,
                 weightUnit: $weightUnit,
                 heightText: $heightText,

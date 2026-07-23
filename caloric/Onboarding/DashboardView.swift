@@ -263,6 +263,7 @@ struct DashboardView: View {
         )
     }
     
+    @MainActor
     private func saveActivityRecord() {
         guard healthKit.isAuthorized else { return }
         let result = activityResult
@@ -288,6 +289,7 @@ struct DashboardView: View {
         ActivityRepository.deleteOlderThan(days: 90, context: modelContext)
     }
     
+    @MainActor
     private func backfillActivityHistory() {
         guard healthKit.isAuthorized, !healthKit.history.isEmpty else { return }
         let calendar = Calendar.current
@@ -1670,18 +1672,18 @@ struct DashboardView: View {
                     // 3. Center Instrument Data
                     VStack(spacing: 2) {
                         Text(!isSelectedFuture ? "\(Int(animatedBurn))" : "–")
-                            .font(.poppins(size: 38, weight: .semibold))
+                            .font(.poppins(size: 42, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .contentTransition(.numericText())
                         
                         Text("kcal")
-                            .font(.poppins(size: 12, weight: .regular))
+                            .font(.poppins(size: 14, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .offset(y: -4) // Slight upward shift to center visually in the open arc
                 }
-                .frame(width: ringSize, height: ringSize)
-                .padding(.top, 28)
+                .frame(width: ringSize * 1.15, height: ringSize * 1.15)
+                .padding(.top, 20)
 
                 // Tap affordance / Status
                 if !isSelectedFuture {
@@ -1703,14 +1705,13 @@ struct DashboardView: View {
                         .shadow(color: accentBlue.opacity(0.30), radius: 8, x: 0, y: 4)
                     )
                     .padding(.top, 24)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 10)
                 } else {
                     Spacer().frame(height: 22)
                 }
             }
             .frame(maxWidth: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.hero, style: .continuous))
-            .glassCard(Theme.Radius.hero, tint: accentBlue, tintStrength: 0.05)
         }
         .buttonStyle(.plain)
         .disabled(isSelectedFuture)

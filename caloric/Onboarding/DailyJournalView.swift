@@ -59,10 +59,7 @@ struct DailyJournalView: View {
     @State private var recognitionTask: SFSpeechRecognitionTask?
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "de-DE"))
 
-    private enum MacroField: Hashable {
-        case protein(String), carbs(String), fat(String)
-    }
-    @FocusState private var macroFocus: MacroField?
+    @FocusState private var macroFocus: MacrosCardMacroField?
 
     @State private var showSavedModal = false
     @State private var showCalendarPicker = false
@@ -199,11 +196,7 @@ struct DailyJournalView: View {
                 MenstruationCard(
                     language: language,
                     menstruationActive: $menstruationActive,
-                    accentBlue: accentBlue,
-                    cardBackground: AnyView(cardBackground),
-                    trackingToggle: { label, isSelected, tint, action in
-                        AnyView(trackingToggle(label: label, isSelected: isSelected, tint: tint, action: action))
-                    }
+                    accentBlue: accentBlue
                 )
             }
             
@@ -212,14 +205,7 @@ struct DailyJournalView: View {
                 sickToggle: $sickToggle,
                 sickEnergyLevel: $sickEnergyLevel,
                 feverLevel: $feverLevel,
-                accentBlue: accentBlue,
-                cardBackground: AnyView(cardBackground),
-                energyButton: { label, level in
-                    AnyView(energyButton(label: label, icon: "", level: level))
-                },
-                feverButton: { label, sublabel, level, tint in
-                    AnyView(feverButton(label: label, sublabel: sublabel, level: level, tint: tint))
-                }
+                accentBlue: accentBlue
             )
 
             CaffeineCard(
@@ -229,8 +215,7 @@ struct DailyJournalView: View {
                 caffeineInfoExpanded: $caffeineInfoExpanded,
                 showAddDrinkSheet: $showAddDrinkSheet,
                 caffeineFocused: $caffeineFocused,
-                store: store,
-                cardBackground: AnyView(cardBackground)
+                store: store
             )
             .sheet(isPresented: $showAddDrinkSheet) {
                 addDrinkSheet
@@ -251,20 +236,7 @@ struct DailyJournalView: View {
                 isRecording: isRecording,
                 startRecording: { startRecording() },
                 stopRecording: { stopRecording() },
-                macroInputField: { label, placeholder, text, focus, tint in
-                    let field: MacroField
-                    if let f = focus as? MacrosCardMacroField {
-                        switch f {
-                        case .protein(let m): field = .protein(m)
-                        case .carbs(let m):   field = .carbs(m)
-                        case .fat(let m):     field = .fat(m)
-                        }
-                    } else {
-                        field = .protein("")
-                    }
-                    return AnyView(macroInputField(label: label, placeholder: placeholder, text: text, focusValue: field, tint: tint))
-                },
-                cardBackground: AnyView(cardBackground)
+                macroFocus: $macroFocus
             )
         }
 
@@ -712,221 +684,106 @@ struct DailyJournalView: View {
         
     // MARK: - KI-Netzwerk-Logik
     
-        private func analyzeFoodWithAI() async {
-            let trimmed = aiInputText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, let meal = selectedMeal else { return }
-            
-            aiIsLoading = true
-            aiErrorMessage = nil
-            
-            // 1. Dein funktionierender API-Key aus dem Terminal-Test
-            let apiKey = Secrets.gcpApiKey
-            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { return }
+    @MainActor
+    private func analyzeFoodWithAI() async {
+        let trimmed = aiInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let meal = selectedMeal else { return }
+        
+        aiIsLoading = true
+        aiErrorMessage = nil
+        
+        // 1. Dein funktionierender API-Key aus dem Terminal-Test
+        let apiKey = Secrets.gcpApiKey
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { 
+            aiIsLoading = false
+            return 
+        }
 
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-            let payload: [String: Any] = [
-                "systemInstruction": [
-                    "parts": [
-                        ["text": "Du bist ein präziser Ernährungsanalyst für die App Caloric. Analysiere die Mahlzeit des Nutzers. Schätze das Gesamtgewicht der Zutaten, falls keine genauen Grammangaben vorhanden sind. Berechne Protein, Kohlenhydrate und Fett in Gramm für die gesamte Mahlzeit. Antworte ausschließlich im vorgegebenen JSON-Schema ohne Erklärungen oder Markdown."]
-                    ]
-                ],
-                "contents": [
-                    ["parts": [["text": trimmed]]]
-                ],
-                "generationConfig": [
-                    "responseMimeType": "application/json",
-                    "responseSchema": [
-                        "type": "OBJECT",
-                        "properties": [
-                            "protein": ["type": "NUMBER"],
-                            "carbs": ["type": "NUMBER"],
-                            "fat": ["type": "NUMBER"]
-                        ],
-                        "required": ["protein", "carbs", "fat"]
-                    ]
+        let payload: [String: Any] = [
+            "systemInstruction": [
+                "parts": [
+                    ["text": "Du bist ein präziser Ernährungsanalyst für die App Caloric. Analysiere die Mahlzeit des Nutzers. Schätze das Gesamtgewicht der Zutaten, falls keine genauen Grammangaben vorhanden sind. Berechne Protein, Kohlenhydrate und Fett in Gramm für die gesamte Mahlzeit. Antworte ausschließlich im vorgegebenen JSON-Schema ohne Erklärungen oder Markdown."]
+                ]
+            ],
+            "contents": [
+                ["parts": [["text": trimmed]]]
+            ],
+            "generationConfig": [
+                "responseMimeType": "application/json",
+                "responseSchema": [
+                    "type": "OBJECT",
+                    "properties": [
+                        "protein": ["type": "NUMBER"],
+                        "carbs": ["type": "NUMBER"],
+                        "fat": ["type": "NUMBER"]
+                    ],
+                    "required": ["protein", "carbs", "fat"]
                 ]
             ]
+        ]
 
-            request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                    let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-                    let body = String(data: data, encoding: .utf8) ?? "–"
-                    throw NSError(domain: "GeminiAPI", code: statusCode,
-                                  userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(body)"])
-                }
-                
-                // 3. Google API Wrapper-Strukturen für das Parsing
-                struct GeminiResponse: Codable {
-                    let candidates: [Candidate]
-                }
-                struct Candidate: Codable {
-                    let content: Content
-                }
-                struct Content: Codable {
-                    let parts: [Part]
-                }
-                struct Part: Codable {
-                    let text: String
-                }
-                
-                struct MacroValues: Codable {
-                    let protein: Double
-                    let carbs: Double
-                    let fat: Double
-                }
-                
-                // 4. Verschachteltes JSON decodieren
-                let geminiResult = try JSONDecoder().decode(GeminiResponse.self, from: data)
-                
-                if let jsonString = geminiResult.candidates.first?.content.parts.first?.text,
-                   let jsonData = jsonString.data(using: .utf8) {
-                    
-                    let result = try JSONDecoder().decode(MacroValues.self, from: jsonData)
-                    
-                    await MainActor.run {
-                        // Werte runden und als String in deine TextFields eintragen
-                        proteinByMeal[meal] = "\(Int(result.protein))"
-                        carbsByMeal[meal]   = "\(Int(result.carbs))"
-                        fatByMeal[meal]     = "\(Int(result.fat))"
-                        
-                        aiInputText = "" // Eingabefeld nach Erfolg leeren
-                    }
-                } else {
-                    throw URLError(.cannotParseResponse)
-                }
-            } catch {
-                await MainActor.run {
-                    aiErrorMessage = error.localizedDescription
-                }
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+                let body = String(data: data, encoding: .utf8) ?? "–"
+                throw NSError(domain: "GeminiAPI", code: statusCode,
+                              userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(body)"])
             }
             
-            aiIsLoading = false
+            // 3. Google API Wrapper-Strukturen für das Parsing
+            struct GeminiResponse: Codable {
+                let candidates: [Candidate]
+            }
+            struct Candidate: Codable {
+                let content: Content
+            }
+            struct Content: Codable {
+                let parts: [Part]
+            }
+            struct Part: Codable {
+                let text: String
+            }
+            
+            struct MacroValues: Codable {
+                let protein: Double
+                let carbs: Double
+                let fat: Double
+            }
+            
+            // 4. Verschachteltes JSON decodieren
+            let geminiResult = try JSONDecoder().decode(GeminiResponse.self, from: data)
+            
+            if let jsonString = geminiResult.candidates.first?.content.parts.first?.text,
+               let jsonData = jsonString.data(using: .utf8) {
+                
+                let result = try JSONDecoder().decode(MacroValues.self, from: jsonData)
+                
+                // Werte runden und als String in deine TextFields eintragen
+                proteinByMeal[meal] = "\(Int(result.protein))"
+                carbsByMeal[meal]   = "\(Int(result.carbs))"
+                fatByMeal[meal]     = "\(Int(result.fat))"
+                
+                aiInputText = "" // Eingabefeld nach Erfolg leeren
+            } else {
+                throw URLError(.cannotParseResponse)
+            }
+        } catch {
+            aiErrorMessage = error.localizedDescription
         }
+        
+        aiIsLoading = false
+    }
    
 
     // MARK: - Helpers
-
-    private var cardBackground: some View {
-        GlassCardBackground(cornerRadius: 20)
-    }
-
-    private func macroInputField(label: String, placeholder: String,
-                                  text: Binding<String>, focusValue: MacroField, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.poppins(size: 11, weight: .medium))
-                .foregroundStyle(Theme.textSecondary)
-            
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                TextField(placeholder, text: text)
-                    #if os(iOS)
-                    .keyboardType(.numberPad)
-                    #endif
-                    .focused($macroFocus, equals: focusValue)
-                    .font(.poppins(size: 20, weight: .semibold))
-                    .foregroundStyle(tint)
-                Text("g")
-                    .font(.poppins(size: 12, weight: .medium))
-                    .foregroundStyle(tint.opacity(0.6))
-            }
-            
-            // Integrated mini instrument bar for feedback
-            let val = Double(text.wrappedValue.replacingOccurrences(of: ",", with: ".")) ?? 0
-            let ref: Double = label.contains("Protein") ? 150 : (label.contains("Fat") || label.contains("Fett") ? 80 : 300)
-            InstrumentProgressBar(progress: min(1.0, val / ref), color: tint, height: 3, showScale: false)
-                .padding(.top, 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(tint.opacity(0.08))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(tint.opacity(0.15), lineWidth: 1))
-        )
-    }
-
-    private func energyButton(label: String, icon: String, level: SickEnergyLevel) -> some View {
-        let isSelected = sickEnergyLevel == level
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                sickEnergyLevel = isSelected ? nil : level
-            }
-        } label: {
-            Text(label)
-                .font(.poppins(size: 12, weight: .medium))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .foregroundStyle(isSelected ? .white : accentBlue)
-                .padding(.horizontal, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func feverButton(label: String, sublabel: String?, level: FeverLevel, tint: Color) -> some View {
-        let isSelected = feverLevel == level
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                feverLevel = isSelected ? nil : level
-            }
-        } label: {
-            VStack(spacing: 1) {
-                Text(label)
-                    .font(.poppins(size: 13, weight: .semibold))
-                if let sub = sublabel {
-                    Text(sub)
-                        .font(.poppins(size: 10, weight: .regular))
-                        .opacity(0.8)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .foregroundStyle(isSelected ? .white : tint)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? tint : tint.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func trackingToggle(label: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : tint)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? tint : tint.opacity(0.12))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1))
-                )
-        }
-        .buttonStyle(.plain)
-    }
 
     private func copyYesterdayBreakfast() {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
@@ -943,7 +800,7 @@ struct DailyJournalView: View {
 
     private func startRecording() {
         SFSpeechRecognizer.requestAuthorization { authStatus in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 if authStatus == .authorized {
                     do {
                         try self.performStartRecording()
@@ -957,6 +814,7 @@ struct DailyJournalView: View {
         }
     }
 
+    @MainActor
     private func performStartRecording() throws {
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -970,11 +828,13 @@ struct DailyJournalView: View {
         request.shouldReportPartialResults = true
         
         recognitionTask = speechRecognizer?.recognitionTask(with: request) { result, error in
-            if let result = result {
-                self.aiInputText = result.bestTranscription.formattedString
-            }
-            if error != nil || result?.isFinal == true {
-                self.stopRecording()
+            Task { @MainActor in
+                if let result = result {
+                    self.aiInputText = result.bestTranscription.formattedString
+                }
+                if error != nil || result?.isFinal == true {
+                    self.stopRecording()
+                }
             }
         }
         
@@ -988,6 +848,7 @@ struct DailyJournalView: View {
         isRecording = true
     }
 
+    @MainActor
     private func stopRecording() {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)

@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Charts
 
 // MARK: - ProfileField
 
@@ -43,6 +44,7 @@ struct DataInsightView: View {
     let userAge: Int
 
     // MARK: Bindings
+    @Binding var selectedTab: Int
     @Binding var weightText: String
     @Binding var weightUnit: String
     @Binding var heightText: String
@@ -65,11 +67,54 @@ struct DataInsightView: View {
     @AppStorage("pLM_koerperfett")   private var lastModKoerperfett:   Double = 0
     @AppStorage("pLM_besonderheiten")private var lastModBesonderheiten:Double = 0
 
-    @State private var selectedTab = 0
+    @State private var selectedTabSource = 0
     @State private var editingField: ProfileField? = nil
     @State private var checkinExpanded = false
+    @State private var selectedHistoryType: HistoryType? = nil
 
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
+
+    enum HistoryType: String, Identifiable {
+        case steps, distance, hr, restingHR, stand, sleep, vo2, workouts
+        var id: String { rawValue }
+        
+        func title(language: String) -> String {
+            switch self {
+            case .steps:     return language == "de" ? "Schritte" : "Steps"
+            case .distance:  return language == "de" ? "Gehstrecke" : "Distance"
+            case .hr:        return language == "de" ? "Herzfrequenz" : "Heart Rate"
+            case .restingHR: return language == "de" ? "Ruheherzfrequenz" : "Resting HR"
+            case .stand:     return language == "de" ? "Stehzeit" : "Stand Time"
+            case .sleep:     return language == "de" ? "Schlaf" : "Sleep"
+            case .vo2:       return "VO₂max"
+            case .workouts:  return "Workouts"
+            }
+        }
+        
+        var unit: String {
+            switch self {
+            case .steps: return ""
+            case .distance: return "km"
+            case .hr, .restingHR: return "bpm"
+            case .stand: return "min"
+            case .sleep: return "h"
+            case .vo2: return "ml/kg·min"
+            case .workouts: return ""
+            }
+        }
+        
+        var healthKitPath: String {
+            switch self {
+            case .steps: return "Activity/Steps"
+            case .distance: return "Activity/DistanceWalkingRunning"
+            case .hr, .restingHR: return "Vitals/HeartRate"
+            case .stand: return "Activity/AppleStandTime"
+            case .sleep: return "Sleep/SleepAnalysis"
+            case .vo2: return "Vitals/VO2Max"
+            case .workouts: return "Workouts"
+            }
+        }
+    }
 
     // MARK: Body
 
@@ -80,7 +125,7 @@ struct DataInsightView: View {
                 headerSection
                 tabPicker
                 ScrollView {
-                    if selectedTab == 0 { liveSourcesTab } else { stammdatenTab }
+                    if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -105,6 +150,12 @@ struct DataInsightView: View {
                 onSave: { setLastMod(for: $0) }
             )
             .presentationBackground(Theme.canvas)
+        }
+        .sheet(item: $selectedHistoryType) { type in
+            HistoryDetailSheet(type: type, healthKit: healthKit, language: language, accentBlue: accentBlue)
+                .presentationDetents([.height(580)]) // Increased height
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Theme.canvas)
         }
     }
 
@@ -151,9 +202,6 @@ struct DataInsightView: View {
             Text(language == "de" ? "Deine Daten" : "Your Data")
                 .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                 .foregroundStyle(Theme.textPrimary)
-            Text(language == "de" ? "Stammdaten & Datenquellen im System" : "Profile data & data sources")
-                .font(.poppins(size: 13, weight: .regular))
-                .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -177,14 +225,14 @@ struct DataInsightView: View {
 
     private func tabButton(title: String, tag: Int) -> some View {
         Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { selectedTab = tag }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { selectedTabSource = tag }
         } label: {
             Text(title)
                 .font(.poppins(size: 13, weight: .medium))
-                .foregroundStyle(selectedTab == tag ? .white : Theme.textSecondary)
+                .foregroundStyle(selectedTabSource == tag ? .white : Theme.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(Group { if selectedTab == tag { Capsule().fill(accentBlue) } })
+                .background(Group { if selectedTabSource == tag { Capsule().fill(accentBlue) } })
         }
         .buttonStyle(.plain)
     }
@@ -201,44 +249,53 @@ struct DataInsightView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 14)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 liveCard(icon: "figure.run", iconColor: Theme.segEAT,
-                         title: "Workouts", subtitle: "Apple Watch · Fitness-App",
-                         frequency: language == "de" ? "täglich" : "daily", freqColor: Theme.segEAT,
-                         tags: ["→ EAT"], value: workoutValue)
+                         title: "Workouts",
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
+                         frequency: language == "de" ? "laufend" : "live", freqColor: Theme.segEAT,
+                         tags: ["EAT"], historyType: .workouts)
+                
                 liveCard(icon: "figure.walk", iconColor: Theme.segNEAT,
-                         title: language == "de" ? "Schritte" : "Steps", subtitle: "Apple Watch · iPhone",
+                         title: language == "de" ? "Schritte" : "Steps", subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "laufend" : "live", freqColor: .green,
-                         tags: ["→ NEAT"], value: stepsValue)
+                         tags: ["NEAT"], historyType: .steps)
+                
                 liveCard(icon: "map.fill", iconColor: Theme.segNEAT,
-                         title: language == "de" ? "Gehstrecke" : "Walking Distance", subtitle: "Apple Watch · iPhone",
+                         title: language == "de" ? "Gehstrecke" : "Walking Distance", subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "laufend" : "live", freqColor: .green,
-                         tags: ["→ NEAT"], value: distanceValue)
+                         tags: ["NEAT"], historyType: .distance)
+                
                 liveCard(icon: "waveform.path.ecg", iconColor: .pink,
                          title: language == "de" ? "Herzfrequenz" : "Heart Rate",
-                         subtitle: language == "de" ? "Optischer Sensor · Apple Watch" : "Optical sensor · Apple Watch",
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "alle 5 Sek." : "every 5 s", freqColor: .pink,
-                         tags: ["→ NEAT", "→ EAT"], value: heartRateValue)
+                         tags: ["NEAT", "EAT"], historyType: .hr)
+                
                 liveCard(icon: "heart.fill", iconColor: .red,
                          title: language == "de" ? "Ruheherzfrequenz" : "Resting Heart Rate",
-                         subtitle: language == "de" ? "Tägl. Schätzung · Apple Health" : "Daily estimate · Apple Health",
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "täglich" : "daily", freqColor: .orange,
-                         tags: ["→ NEAT", "→ EAT"], value: restingHRValue)
+                         tags: ["NEAT", "EAT"], historyType: .restingHR)
+                
                 liveCard(icon: "figure.stand", iconColor: .teal,
                          title: language == "de" ? "Stehzeit" : "Stand Time",
-                         subtitle: language == "de" ? "Apple Watch · Bewegungssensor" : "Apple Watch · Motion sensor",
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "stündlich" : "hourly", freqColor: .teal,
-                         tags: ["→ NEAT"], value: standValue)
+                         tags: ["NEAT"], historyType: .stand)
+                
                 liveCard(icon: "moon.zzz.fill", iconColor: .indigo,
                          title: language == "de" ? "Schlafanalyse" : "Sleep Analysis",
-                         subtitle: language == "de" ? "Apple Watch · Schlafsensor" : "Apple Watch · Sleep sensor",
-                         frequency: language == "de" ? "nächtlich" : "nightly", freqColor: .indigo,
-                         tags: ["→ BMR"], value: sleepValue)
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
+                         frequency: language == "de" ? "täglich" : "daily", freqColor: .indigo,
+                         tags: ["BMR"], historyType: .sleep)
+                
                 liveCard(icon: "lungs.fill", iconColor: .cyan,
                          title: "VO₂max",
-                         subtitle: language == "de" ? "Laufmessung · Apple Watch" : "Run measurement · Apple Watch",
+                         subtitle: language == "de" ? "von Apple Health importiert" : "Imported from Apple Health",
                          frequency: language == "de" ? "wöchentlich" : "weekly", freqColor: .cyan,
-                         tags: ["→ EAT"], value: vo2Value)
+                         tags: ["EAT"], historyType: .vo2)
+                
                 checkinCard
             }
             .padding(.horizontal, 20)
@@ -266,45 +323,58 @@ struct DataInsightView: View {
                             .font(.system(size: 16, weight: .medium)).foregroundStyle(accentBlue)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(language == "de" ? "Heutiges Check-in" : "Today's Check-in")
+                        Text(language == "de" ? "Heutiger Check-in" : "Today's Check-in")
                             .font(.poppins(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
-                        Text(language == "de" ? "Manuell · Daily Journal" : "Manual · Daily Journal")
-                            .font(.poppins(size: 11, weight: .regular)).foregroundStyle(Theme.textSecondary)
+                        Text(language == "de" ? "Manuell aus dem Daily Journal" : "Manually from the Daily Journal")
+                            .font(.poppins(size: 9, weight: .regular)).foregroundStyle(Theme.textSecondary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
                         HStack(spacing: 4) {
-                            Circle().fill(accentBlue).frame(width: 6, height: 6)
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(accentBlue)
                             Text(language == "de" ? "täglich" : "daily")
                                 .font(.poppins(size: 10, weight: .medium)).foregroundStyle(accentBlue)
                         }
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(accentBlue.opacity(0.5))
-                            .rotationEffect(.degrees(checkinExpanded ? 180 : 0))
                     }
                 }
             }
             .buttonStyle(.plain)
 
             HStack(spacing: 8) {
-                Text("→ TEF").font(.poppins(size: 11, weight: .medium)).foregroundStyle(accentBlue)
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.right").font(.system(size: 7, weight: .bold))
+                        Text("TEF")
+                    }
+                    .font(.poppins(size: 11, weight: .medium)).foregroundStyle(accentBlue)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(accentBlue.opacity(0.08)).clipShape(Capsule())
-                Text("→ BMR").font(.poppins(size: 11, weight: .medium)).foregroundStyle(accentBlue)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.right").font(.system(size: 7, weight: .bold))
+                        Text("BMR")
+                    }
+                    .font(.poppins(size: 11, weight: .medium)).foregroundStyle(accentBlue)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(accentBlue.opacity(0.08)).clipShape(Capsule())
+                }
+                .padding(.leading, 52)
+                
                 Spacer()
-                Text(entry.sickActive
-                     ? (language == "de" ? "Krank" : "Sick")
-                     : (entry.caffeineMg > 0 ? "\(Int(entry.caffeineMg)) mg Koffein"
-                        : (language == "de" ? "Keine Einträge" : "No entries")))
-                    .font(.poppins(size: 11, weight: .semibold)).foregroundStyle(Theme.textSecondary)
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(accentBlue.opacity(0.5))
+                    .rotationEffect(.degrees(checkinExpanded ? 180 : 0))
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { checkinExpanded.toggle() }
+                    }
             }
 
             if checkinExpanded {
                 VStack(spacing: 0) {
-                    Divider().padding(.bottom, 10)
                     VStack(spacing: 8) {
                         if selectedGender == femaleText {
                             checkinRow(icon: "drop.fill", iconColor: .pink, label: "Menstruation",
@@ -325,16 +395,30 @@ struct DataInsightView: View {
                         checkinRow(icon: "drop.triangle.fill", iconColor: .orange,
                                    label: language == "de" ? "Fett" : "Fat",
                                    value: totalFat > 0 ? "\(Int(totalFat)) g" : "– g")
-                        let kcal = Int(totalProtein * 4 + totalCarbs * 4 + totalFat * 9)
-                        checkinRow(icon: "flame.fill", iconColor: Theme.segTEF,
-                                   label: language == "de" ? "Makros gesamt" : "Total macros",
-                                   value: kcal > 0 ? "\(kcal) kcal" : "– kcal")
                     }
+                    .padding(.bottom, 16)
+                    
+                    Button {
+                        withAnimation { selectedTab = 2 }
+                    } label: {
+                        HStack {
+                            Image(systemName: "pencil.and.outline")
+                            Text(language == "de" ? "Im Daily Journal bearbeiten" : "Edit in Daily Journal")
+                        }
+                        .font(.poppins(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(accentBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: accentBlue.opacity(0.3), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(14)
+        .padding(16)
         .background(GlassCardBackground(cornerRadius: 16))
     }
 
@@ -348,51 +432,12 @@ struct DataInsightView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: Live Values
-
-    private var workoutValue: String? {
-        let c = healthKit.workouts.count
-        guard c > 0 else { return language == "de" ? "Keine heute" : "None today" }
-        return "\(c) Workout\(c == 1 ? "" : "s")"
-    }
-    private var stepsValue: String? {
-        let s = healthKit.activity.steps; guard s > 0 else { return nil }
-        let f = NumberFormatter(); f.numberStyle = .decimal; f.groupingSeparator = "."
-        return (f.string(from: s as NSNumber) ?? "\(s)") + (language == "de" ? " Schritte" : " steps")
-    }
-    private var distanceValue: String? {
-        let m = healthKit.activity.distanceMeters; guard m > 0 else { return nil }
-        return String(format: "%.2f km", m / 1000)
-    }
-    private var heartRateValue: String? {
-        guard let bpm = healthKit.activity.avgHeartRateWaking, bpm > 0 else { return nil }
-        return String(format: "Ø %.0f bpm", bpm)
-    }
-    private var restingHRValue: String? {
-        guard let bpm = healthKit.activity.restingHeartRate, bpm > 0 else { return nil }
-        return String(format: "%.0f bpm", bpm)
-    }
-    private var standValue: String? {
-        let m = healthKit.activity.standTimeMinutes; guard m > 0 else { return nil }
-        return String(format: "%.0f min", m)
-    }
-    private var sleepValue: String? {
-        guard let s = healthKit.sleep else { return nil }
-        let totalH = s.durationSeconds / 3600
-        let h = Int(totalH); let m = Int((totalH - Double(h)) * 60)
-        return language == "de" ? "\(h) Std \(m) Min" : "\(h)h \(m)m"
-    }
-    private var vo2Value: String? {
-        guard let v = healthKit.vo2Max, v > 0 else { return nil }
-        return String(format: "%.1f ml/kg·min", v)
-    }
-
     // MARK: Stammdaten Tab
 
     private var stammdatenTab: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text(language == "de"
-                 ? "Fest hinterlegte Profilwerte. Tippe auf eine Kachel, um sie zu bearbeiten."
+                 ? "Deine fest hinterlegten Profilwerte. Tippe auf eine Kachel, um sie zu bearbeiten."
                  : "Fixed profile values. Tap a tile to edit it.")
                 .font(.poppins(size: 13, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
@@ -504,37 +549,334 @@ struct DataInsightView: View {
     private func liveCard(icon: String, iconColor: Color,
                           title: String, subtitle: String,
                           frequency: String, freqColor: Color,
-                          tags: [String], value: String?) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+                          tags: [String], historyType: HistoryType) -> some View {
+        Button {
+            selectedHistoryType = historyType
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                // Primary Icon centered vertically
                 ZStack {
                     Circle().fill(iconColor.opacity(0.12)).frame(width: 40, height: 40)
                     Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(iconColor)
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.poppins(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
-                    Text(subtitle).font(.poppins(size: 11, weight: .regular)).foregroundStyle(Theme.textSecondary)
+                
+                VStack(alignment: .leading, spacing: 14) { // More spacing between header and tags
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(.poppins(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                        Text(subtitle).font(.poppins(size: 9, weight: .regular)).foregroundStyle(Theme.textSecondary)
+                    }
+                    
+                    // Tags with refined Arrow prefix
+                    HStack(spacing: 6) {
+                        ForEach(tags, id: \.self) { tag in
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 7, weight: .bold))
+                                Text(tag)
+                            }
+                            .font(.poppins(size: 10, weight: .medium)).foregroundStyle(accentBlue)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(accentBlue.opacity(0.08)).clipShape(Capsule())
+                        }
+                    }
                 }
+                
                 Spacer()
+                
+                // Frequency label centered vertically on the right
                 HStack(spacing: 4) {
-                    Circle().fill(freqColor).frame(width: 6, height: 6)
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(freqColor)
                     Text(frequency).font(.poppins(size: 10, weight: .medium)).foregroundStyle(freqColor)
                 }
             }
-            HStack(spacing: 8) {
-                ForEach(tags, id: \.self) { tag in
-                    Text(tag).font(.poppins(size: 11, weight: .medium)).foregroundStyle(accentBlue)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(accentBlue.opacity(0.08)).clipShape(Capsule())
+            .padding(.horizontal, 14)
+            .padding(.vertical, 16)
+            .background(GlassCardBackground(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - HistoryDetailSheet
+
+private struct HistoryDetailSheet: View {
+    let type: DataInsightView.HistoryType
+    let healthKit: HealthKitImportService
+    let language: String
+    let accentBlue: Color
+    
+    @State private var rawSelectedDate: Date?
+    
+    struct HistoryPoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let value: Double
+    }
+    
+    private var historyData: [HistoryPoint] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        var points = [HistoryPoint]()
+        
+        for i in (0..<28).reversed() {
+            guard let date = cal.date(byAdding: .day, value: -i, to: today) else { continue }
+            let key = HealthKitImportService.dateKey(date)
+            let val: Double = {
+                guard let snap = healthKit.history[key] else { return 0 }
+                switch type {
+                case .steps:     return Double(snap.activity.steps)
+                case .distance:  return snap.activity.distanceMeters / 1000.0
+                case .hr:        return snap.activity.avgHeartRateWaking ?? 0
+                case .restingHR: return snap.activity.restingHeartRate ?? 0
+                case .stand:     return snap.activity.standTimeMinutes
+                case .sleep:     return snap.sleep?.totalAsleepSeconds ?? 0
+                case .vo2:       return healthKit.vo2Max ?? 0
+                case .workouts:  return Double(snap.workouts.count)
                 }
-                if let v = value {
+            }()
+            points.append(HistoryPoint(date: date, value: val))
+        }
+        return points
+    }
+    
+    private var selectedPoint: HistoryPoint? {
+        if let d = rawSelectedDate {
+            return historyData.min(by: { abs($0.date.timeIntervalSince(d)) < abs($1.date.timeIntervalSince(d)) })
+        }
+        return nil
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(type.title(language: language))
+                        .font(.poppins(size: 22, weight: .bold))
                     Spacer()
-                    Text(v).font(.poppins(size: 11, weight: .semibold)).foregroundStyle(Theme.textSecondary)
+                    Text(language == "de" ? "Verlauf" : "History")
+                        .font(.poppins(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                
+                if let sel = selectedPoint {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        let displayVal: String = {
+                            if type == .sleep {
+                                let h = Int(sel.value / 3600)
+                                let m = Int((sel.value.truncatingRemainder(dividingBy: 3600)) / 60)
+                                return "\(h)h \(m)m"
+                            }
+                            return String(format: type.rawValue.contains("distance") || type.rawValue.contains("vo2") ? "%.2f" : "%.0f", sel.value)
+                        }()
+                        Text(displayVal)
+                            .font(.poppins(size: 34, weight: .heavy))
+                            .foregroundStyle(accentBlue)
+                        if type != .sleep {
+                            Text(type.unit)
+                                .font(.poppins(size: 18, weight: .semibold))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Spacer()
+                        Text(sel.date.formatted(.dateTime.day().month().year()))
+                            .font(.poppins(size: 14, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .leading)))
+                } else {
+                    Text(language == "de" ? "Halte den Finger auf das Diagramm" : "Press and hold on the chart")
+                        .font(.poppins(size: 14, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                        .frame(height: 50)
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 36)
+            .padding(.bottom, 28)
+            
+            // Content (Chart or List)
+            ScrollView {
+                VStack(spacing: 32) {
+                    if type == .hr {
+                        heartRateLogView
+                    } else if type == .sleep {
+                        sleepDetailView
+                    } else {
+                        genericChartView
+                    }
+                    
+                    appleHealthButton
+                        .padding(.top, 10)
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 40)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var genericChartView: some View {
+        Chart {
+            ForEach(historyData) { point in
+                BarMark(
+                    x: .value("Date", point.date, unit: .day),
+                    y: .value("Value", point.value)
+                )
+                .foregroundStyle(accentBlue.gradient)
+                .cornerRadius(4)
+                .opacity(selectedPoint == nil || selectedPoint?.date == point.date ? 1.0 : 0.4)
+            }
+        }
+        .chartXSelection(value: $rawSelectedDate)
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: 7)) { value in
+                AxisGridLine().foregroundStyle(Theme.divider)
+                AxisValueLabel(format: .dateTime.day().month())
+                    .font(.poppins(size: 11, weight: .regular))
+            }
+        }
+        .frame(height: 200)
+    }
+    
+    @ViewBuilder
+    private var heartRateLogView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(language == "de" ? "Letzte Messungen" : "Recent Samples")
+                .font(.poppins(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+            
+            VStack(spacing: 1) {
+                ForEach(healthKit.recentHR.prefix(40)) { sample in
+                    HStack {
+                        Text("\(Int(sample.bpm))")
+                            .font(.poppins(size: 17, weight: .bold))
+                            .foregroundStyle(.pink)
+                        Text("bpm")
+                            .font(.poppins(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                        Spacer()
+                        Text(sample.date.formatted(.dateTime.hour().minute()))
+                            .font(.poppins(size: 13, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary)
+                        Text(sample.date.formatted(.dateTime.day().month()))
+                            .font(.poppins(size: 12, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    }
+                    .padding(.vertical, 12)
+                    if sample.id != healthKit.recentHR.prefix(40).last?.id {
+                        Divider().background(Theme.divider)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .background(Theme.fieldFill.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+        }
+    }
+    
+    @ViewBuilder
+    private var sleepDetailView: some View {
+        VStack(spacing: 32) {
+            // Stacked Bar Chart for Stages
+            Chart {
+                ForEach(historyData) { point in
+                    if let stages = healthKit.history[HealthKitImportService.dateKey(point.date)]?.sleep?.stages {
+                        ForEach(stages) { stage in
+                            BarMark(
+                                x: .value("Day", point.date, unit: .day),
+                                y: .value("Duration", stage.duration / 3600.0)
+                            )
+                            .foregroundStyle(by: .value("Stage", stage.type.rawValue))
+                        }
+                    }
+                }
+            }
+            .chartForegroundStyleScale([
+                "deep": Color.indigo,
+                "core": Color.blue,
+                "rem":  Color.teal,
+                "awake": Color.orange,
+                "inBed": Color.gray.opacity(0.3)
+            ])
+            .chartXSelection(value: $rawSelectedDate)
+            .frame(height: 200)
+            
+            if let sel = selectedPoint, let stages = healthKit.history[HealthKitImportService.dateKey(sel.date)]?.sleep?.stages {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(language == "de" ? "Aufschlüsselung" : "Breakdown")
+                        .font(.poppins(size: 15, weight: .semibold))
+                    
+                    let grouped = Dictionary(grouping: stages, by: { $0.type })
+                    VStack(spacing: 10) {
+                        ForEach(HKSleepType.allCases, id: \.self) { type in
+                            let duration = grouped[type]?.reduce(0) { $0 + $1.duration } ?? 0
+                            if duration > 0 {
+                                HStack {
+                                    Circle().fill(sleepColor(for: type)).frame(width: 8, height: 8)
+                                    Text(sleepLabel(for: type))
+                                        .font(.poppins(size: 14, weight: .medium))
+                                    Spacer()
+                                    Text("\(Int(duration/3600))h \(Int((duration.truncatingRemainder(dividingBy: 3600))/60))m")
+                                        .font(.poppins(size: 14, weight: .semibold))
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .background(Theme.fieldFill.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
             }
         }
-        .padding(14)
-        .background(GlassCardBackground(cornerRadius: 16))
+    }
+    
+    private func sleepColor(for type: HKSleepType) -> Color {
+        switch type {
+        case .deep: return .indigo
+        case .core: return .blue
+        case .rem: return .teal
+        case .awake: return .orange
+        case .inBed: return .gray.opacity(0.5)
+        }
+    }
+    
+    private func sleepLabel(for type: HKSleepType) -> String {
+        switch type {
+        case .deep: return language == "de" ? "Tiefschlaf" : "Deep"
+        case .core: return language == "de" ? "Kernschlaf" : "Core"
+        case .rem: return "REM"
+        case .awake: return language == "de" ? "Wach" : "Awake"
+        case .inBed: return language == "de" ? "Im Bett" : "In Bed"
+        }
+    }
+    
+    private var appleHealthButton: some View {
+        Button {
+            let urlStr = "x-apple-health://app/\(type.healthKitPath)"
+            if let url = URL(string: urlStr) {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "heart.text.square.fill")
+                    .font(.system(size: 20))
+                Text(language == "de" ? "Details in Apple Health ansehen" : "View Details in Apple Health")
+                    .font(.poppins(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(accentBlue)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(accentBlue.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(accentBlue.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -605,306 +947,152 @@ private struct FieldEditSheet: View {
                     .font(.poppins(size: 15, weight: .semibold))
                     .foregroundStyle(accentBlue)
                 }
-                if field.isEditable {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button(language == "de" ? "Abbrechen" : "Cancel") { dismiss() }
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                }
             }
         }
-        .onAppear {
-            editWeightKg = Int(Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 70)
-            editWeightLb = Int(Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 154)
-            editHeightCm = Int(Double(heightText.replacingOccurrences(of: ",", with: ".")) ?? 170)
-        }
     }
-
-    // MARK: Field routing
 
     @ViewBuilder
     private var fieldContent: some View {
         switch field {
         case .geschlecht:
-            readOnlyCard(
-                icon: "person.fill",
-                value: selectedGender ?? (language == "de" ? "Nicht gesetzt" : "Not set"),
-                note: language == "de"
-                    ? "Das Geschlecht wurde beim Onboarding festgelegt und kann hier nicht geändert werden."
-                    : "Gender was set during onboarding and cannot be changed here.")
-        case .alter:
-            readOnlyCard(
-                icon: "calendar",
-                value: "\(userAge) \(language == "de" ? "Jahre" : "years")",
-                note: language == "de"
-                    ? "Das Alter wird automatisch aus deinem Geburtsdatum berechnet."
-                    : "Age is computed automatically from your birth date.")
-        case .gewicht:
-            weightEditor
-        case .groesse:
-            heightEditor
-        case .koerperfett:
-            bodyFatEditor
-        case .besonderheiten:
-            conditionsEditor
-        }
-    }
-
-    // MARK: Read-only card
-
-    private func readOnlyCard(icon: String, value: String, note: String) -> some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 32))
-                    .foregroundStyle(accentBlue.opacity(0.5))
-                Text(value)
-                    .font(.poppins(size: 28, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(24)
-            .background(GlassCardBackground(cornerRadius: 18))
-
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
-                    .padding(.top, 1)
-                Text(note)
-                    .font(.poppins(size: 13, weight: .regular))
+            VStack(alignment: .leading, spacing: 10) {
+                Text(language == "de" ? "Biologisches Geschlecht" : "Biological Gender")
+                    .font(.poppins(size: 14, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.leading)
+                Text(selectedGender ?? "–")
+                    .font(.poppins(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(language == "de" ? "Dieses Feld ist nach der Ersteinrichtung schreibgeschützt." : "This field is read-only after setup.")
+                    .font(.poppins(size: 12, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
             }
-            .padding(.horizontal, 4)
-        }
-    }
-
-    // MARK: Weight Editor
-
-    private var weightEditor: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Picker("", selection: $weightUnit) {
-                Text("kg").tag("kg")
-                Text("lb").tag("lb")
+        case .alter:
+            VStack(alignment: .leading, spacing: 10) {
+                Text(language == "de" ? "Alter" : "Age")
+                    .font(.poppins(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                Text("\(userAge) \(language == "de" ? "Jahre" : "yrs")")
+                    .font(.poppins(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(language == "de" ? "Das Alter basiert auf deinem Geburtsdatum." : "Age is based on your birth date.")
+                    .font(.poppins(size: 12, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 180)
-
-            HStack {
-                Spacer()
-                Picker("", selection: weightUnit == "kg" ? $editWeightKg : $editWeightLb) {
-                    if weightUnit == "kg" {
-                        ForEach(20...300, id: \.self) { v in Text("\(v)").tag(v) }
-                    } else {
-                        ForEach(44...661, id: \.self) { v in Text("\(v)").tag(v) }
+        case .groesse:
+            VStack(spacing: 20) {
+                Picker("", selection: $heightUnit) {
+                    Text("cm").tag("cm")
+                    Text("ft/in").tag("ft")
+                }
+                .pickerStyle(.segmented)
+                
+                if heightUnit == "cm" {
+                    HStack {
+                        TextField("170", text: $heightText)
+                            .keyboardType(.numberPad)
+                            .font(.poppins(size: 32, weight: .bold))
+                            .multilineTextAlignment(.center)
+                        Text("cm")
+                            .font(.poppins(size: 18, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
                     }
-                }
-                .pickerStyle(.wheel)
-                .frame(width: 130, height: 200)
-                .clipped()
-                .onChange(of: editWeightKg) {
-                    if weightUnit == "kg" { weightText = "\(editWeightKg)" }
-                }
-                .onChange(of: editWeightLb) {
-                    if weightUnit != "kg" { weightText = "\(editWeightLb)" }
-                }
-
-                Text(weightUnit)
-                    .font(.poppins(size: 26, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                    .frame(width: 44, alignment: .leading)
-                Spacer()
-            }
-        }
-        .padding(20)
-        .background(GlassCardBackground(cornerRadius: 18))
-    }
-
-    // MARK: Height Editor
-
-    private var heightEditor: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Spacer()
-                Picker("", selection: $editHeightCm) {
-                    ForEach(100...230, id: \.self) { v in Text("\(v)").tag(v) }
-                }
-                .pickerStyle(.wheel)
-                .frame(width: 130, height: 200)
-                .clipped()
-                .onChange(of: editHeightCm) { heightText = "\(editHeightCm)" }
-
-                Text("cm")
-                    .font(.poppins(size: 26, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                    .frame(width: 50, alignment: .leading)
-                Spacer()
-            }
-        }
-        .padding(20)
-        .background(GlassCardBackground(cornerRadius: 18))
-    }
-
-    // MARK: Body Fat Editor
-
-    private var bodyFatEditor: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 10) {
-                pillToggle(label: language == "de" ? "Ich kenne ihn" : "I know it",
-                           isActive: knowsBodyFat == true) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        knowsBodyFat = knowsBodyFat == true ? nil : true
-                    }
-                }
-                pillToggle(label: language == "de" ? "Nicht bekannt" : "Unknown",
-                           isActive: knowsBodyFat == false) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if knowsBodyFat == true { bodyFatText = "" }
-                        knowsBodyFat = knowsBodyFat == false ? nil : false
-                    }
+                    .padding()
+                    .glassCard(16)
+                } else {
+                    // Logic for ft/in input if needed
+                    Text(heightText)
                 }
             }
-
-            if knowsBodyFat == true {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+        case .gewicht:
+            VStack(spacing: 20) {
+                Picker("", selection: $weightUnit) {
+                    Text("kg").tag("kg")
+                    Text("lb").tag("lb")
+                }
+                .pickerStyle(.segmented)
+                
+                HStack {
+                    TextField("70", text: $weightText)
+                        .keyboardType(.decimalPad)
+                        .font(.poppins(size: 32, weight: .bold))
+                        .multilineTextAlignment(.center)
+                    Text(weightUnit)
+                        .font(.poppins(size: 18, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .padding()
+                .glassCard(16)
+            }
+        case .koerperfett:
+            VStack(spacing: 20) {
+                HStack {
                     TextField("15", text: $bodyFatText)
                         .keyboardType(.decimalPad)
-                        .font(.poppins(size: 56, weight: .semibold))
-                        .foregroundStyle(accentBlue)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 160)
                         .focused($bodyFatFocused)
+                        .font(.poppins(size: 32, weight: .bold))
+                        .multilineTextAlignment(.center)
                     Text("%")
-                        .font(.poppins(size: 26, weight: .regular))
-                        .foregroundStyle(accentBlue.opacity(0.55))
+                        .font(.poppins(size: 18, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                .frame(maxWidth: .infinity)
-                .onAppear { bodyFatFocused = true }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding()
+                .glassCard(16)
+                
+                Toggle(language == "de" ? "Körperfettanteil bekannt" : "Know body fat", isOn: Binding(
+                    get: { knowsBodyFat ?? false },
+                    set: { knowsBodyFat = $0 }
+                ))
+                .font(.poppins(size: 15, weight: .medium))
             }
-        }
-        .padding(20)
-        .background(GlassCardBackground(cornerRadius: 18))
-    }
-
-    // MARK: Conditions Editor
-
-    private var conditionsEditor: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(language == "de"
-                 ? "Wähle Besonderheiten, die deinen Stoffwechsel beeinflussen."
-                 : "Select conditions that affect your metabolism.")
-                .font(.poppins(size: 13, weight: .regular))
-                .foregroundStyle(Theme.textSecondary)
-
-            VStack(spacing: 8) {
-                ForEach(conditionOptions, id: \.label) { option in
-                    let isActive = activeConditions.contains(option.label)
+        case .besonderheiten:
+            VStack(alignment: .leading, spacing: 16) {
+                Text(language == "de" ? "Wähle zutreffende Bedingungen aus:" : "Select applicable conditions:")
+                    .font(.poppins(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                
+                ForEach(conditionOptions, id: \.label) { opt in
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            if isActive {
-                                selectedConditions.remove(option.label)
-                                if selectedConditions.filter({ $0 != noConditionText }).isEmpty {
-                                    selectedConditions = [noConditionText]
-                                    metabolismFactor = 1.0
-                                } else {
-                                    recomputeFactor()
-                                }
-                            } else {
-                                selectedConditions.remove(noConditionText)
-                                selectedConditions.insert(option.label)
-                                recomputeFactor()
-                            }
+                        if selectedConditions.contains(opt.label) {
+                            selectedConditions.remove(opt.label)
+                        } else {
+                            selectedConditions.insert(opt.label)
                         }
                     } label: {
-                        conditionRow(label: option.label, factor: option.factor, isActive: isActive)
+                        HStack {
+                            Text(opt.label)
+                                .font(.poppins(size: 15, weight: .medium))
+                            Spacer()
+                            if selectedConditions.contains(opt.label) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(accentBlue)
+                            } else {
+                                Image(systemName: "circle")
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.3))
+                            }
+                        }
+                        .padding()
+                        .background(Theme.fieldFill)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
                 }
-
-                let noActive = activeConditions.isEmpty
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        selectedConditions = [noConditionText]
-                        metabolismFactor = 1.0
+                
+                Divider().padding(.vertical, 10)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(language == "de" ? "Stoffwechsel-Anpassung" : "Metabolism Factor")
+                        .font(.poppins(size: 14, weight: .medium))
+                    HStack {
+                        Text("\(Int(metabolismFactor * 100))%")
+                            .font(.poppins(size: 18, weight: .bold))
+                            .foregroundStyle(accentBlue)
+                        Slider(value: $metabolismFactor, in: 0.7...1.3, step: 0.01)
+                            .tint(accentBlue)
                     }
-                } label: {
-                    conditionRow(label: noConditionText, factor: 1.0, isActive: noActive)
                 }
-                .buttonStyle(.plain)
-            }
-
-            // Sleep section at bottom of Besonderheiten
-            Divider().padding(.top, 4)
-
-            Text(language == "de" ? "Schlaf" : "Sleep")
-                .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            VStack(spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(String(format: "%.1f", sleepHours))
-                        .font(.poppins(size: 38, weight: .bold))
-                        .foregroundStyle(accentBlue)
-                    Text(language == "de" ? "Stunden" : "hours")
-                        .font(.poppins(size: 15, weight: .regular))
-                        .foregroundStyle(Theme.textSecondary)
-                    Spacer()
-                }
-                Slider(value: $sleepHours, in: 4...12, step: 0.5).tint(accentBlue)
-                HStack {
-                    Text("4h").font(.poppins(size: 11, weight: .regular)).foregroundStyle(Theme.textSecondary)
-                    Spacer()
-                    Text("12h").font(.poppins(size: 11, weight: .regular)).foregroundStyle(Theme.textSecondary)
-                }
+                .padding()
+                .glassCard(16)
             }
         }
-        .padding(20)
-        .background(GlassCardBackground(cornerRadius: 18))
-    }
-
-    private func conditionRow(label: String, factor: Double, isActive: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 20))
-                .foregroundStyle(isActive ? accentBlue : Theme.textSecondary.opacity(0.35))
-            Text(label)
-                .font(.poppins(size: 13, weight: .medium))
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.leading)
-            Spacer()
-            if isActive && factor != 1.0 {
-                Text(String(format: "× %.2f", factor))
-                    .font(.poppins(size: 11, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isActive ? accentBlue.opacity(0.09) : Theme.fieldFill.opacity(0.5))
-        )
-    }
-
-    private func recomputeFactor() {
-        let active = selectedConditions.filter { $0 != noConditionText }
-        let factors = conditionOptions.filter { active.contains($0.label) }.map { $0.factor }
-        metabolismFactor = factors.max(by: { abs($0 - 1.0) < abs($1 - 1.0) }) ?? 1.0
-    }
-
-    // MARK: Helpers
-
-    private func pillToggle(label: String, isActive: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.poppins(size: 13, weight: .medium))
-                .foregroundStyle(isActive ? .white : accentBlue)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(RoundedRectangle(cornerRadius: 10).fill(isActive ? accentBlue : accentBlue.opacity(0.1)))
-        }
-        .buttonStyle(.plain)
     }
 }

@@ -10,8 +10,6 @@ struct MenstruationCard: View {
     let language: String
     @Binding var menstruationActive: Bool?
     let accentBlue: Color
-    let cardBackground: AnyView
-    let trackingToggle: (String, Bool, Color, @escaping () -> Void) -> AnyView
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -28,12 +26,12 @@ struct MenstruationCard: View {
                 Spacer()
             }
             HStack(spacing: 10) {
-                trackingToggle(language == "de" ? "Ja" : "Yes", menstruationActive == true, .pink) {
+                trackingToggle(label: language == "de" ? "Ja" : "Yes", isSelected: menstruationActive == true, tint: .pink) {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         menstruationActive = menstruationActive == true ? nil : true
                     }
                 }
-                trackingToggle(language == "de" ? "Nein" : "No", menstruationActive == false, accentBlue) {
+                trackingToggle(label: language == "de" ? "Nein" : "No", isSelected: menstruationActive == false, tint: accentBlue) {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         menstruationActive = menstruationActive == false ? nil : false
                     }
@@ -41,7 +39,24 @@ struct MenstruationCard: View {
             }
         }
         .padding(16)
-        .background(cardBackground)
+        .glassCard(20)
+    }
+
+    private func trackingToggle(label: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.poppins(size: 15, weight: .semibold))
+                .foregroundStyle(isSelected ? .white : tint)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? tint : tint.opacity(0.12))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -52,9 +67,6 @@ struct SicknessCard: View {
     @Binding var sickEnergyLevel: TDEECalculationService.JournalInputs.SickEnergyLevel?
     @Binding var feverLevel: TDEECalculationService.JournalInputs.FeverLevel?
     let accentBlue: Color
-    let cardBackground: AnyView
-    let energyButton: (String, TDEECalculationService.JournalInputs.SickEnergyLevel) -> AnyView
-    let feverButton: (String, String?, TDEECalculationService.JournalInputs.FeverLevel, Color) -> AnyView
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -86,8 +98,8 @@ struct SicknessCard: View {
                             .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
                         HStack(spacing: 8) {
-                            energyButton(language == "de" ? "Leicht angeschlagen" : "Slightly off", .mild)
-                            energyButton(language == "de" ? "Platt / Bettruhe" : "Bedridden", .bedridden)
+                            energyButton(label: language == "de" ? "Leicht angeschlagen" : "Slightly off", level: .mild)
+                            energyButton(label: language == "de" ? "Platt / Bettruhe" : "Bedridden", level: .bedridden)
                         }
                     }
 
@@ -96,9 +108,9 @@ struct SicknessCard: View {
                             .font(.poppins(size: 12, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
                         HStack(spacing: 8) {
-                            feverButton(language == "de" ? "Nein" : "None", nil, .none, accentBlue)
-                            feverButton(language == "de" ? "Leicht" : "Low", "< 38.5 °C", .low, .orange)
-                            feverButton(language == "de" ? "Hoch" : "High", "> 38.5 °C", .high, .red)
+                            feverButton(label: language == "de" ? "Nein" : "None", sublabel: nil, level: .none, tint: accentBlue)
+                            feverButton(label: language == "de" ? "Leicht" : "Low", sublabel: "< 38.5 °C", level: .low, tint: .orange)
+                            feverButton(label: language == "de" ? "Hoch" : "High", sublabel: "> 38.5 °C", level: .high, tint: .red)
                         }
                     }
 
@@ -134,7 +146,7 @@ struct SicknessCard: View {
             }
         }
         .padding(16)
-        .background(cardBackground)
+        .glassCard(20)
     }
 
     private func sickPill(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
@@ -153,6 +165,63 @@ struct SicknessCard: View {
         }
         .buttonStyle(.plain)
     }
+
+    private func energyButton(label: String, level: TDEECalculationService.JournalInputs.SickEnergyLevel) -> some View {
+        let isSelected = sickEnergyLevel == level
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                sickEnergyLevel = isSelected ? nil : level
+            }
+        } label: {
+            Text(label)
+                .font(.poppins(size: 12, weight: .medium))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .foregroundStyle(isSelected ? .white : accentBlue)
+                .padding(.horizontal, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func feverButton(label: String, sublabel: String?, level: TDEECalculationService.JournalInputs.FeverLevel, tint: Color) -> some View {
+        let isSelected = feverLevel == level
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                feverLevel = isSelected ? nil : level
+            }
+        } label: {
+            VStack(spacing: 1) {
+                Text(label)
+                    .font(.poppins(size: 13, weight: .semibold))
+                if let sub = sublabel {
+                    Text(sub)
+                        .font(.poppins(size: 10, weight: .regular))
+                        .opacity(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .foregroundStyle(isSelected ? .white : tint)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? tint : tint.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Caffeine Card
@@ -164,7 +233,6 @@ struct CaffeineCard: View {
     @Binding var showAddDrinkSheet: Bool
     @FocusState.Binding var caffeineFocused: Bool
     let store: JournalStore
-    let cardBackground: AnyView
 
     private let presets = [0, 80, 150, 200, 300]
 
@@ -295,7 +363,7 @@ struct CaffeineCard: View {
             }
         }
         .padding(16)
-        .background(cardBackground)
+        .glassCard(20)
     }
 
     private func caffeineQuickAdd(label: String, mg: Int, isCustom: Bool = false, id: UUID? = nil) -> some View {
@@ -357,8 +425,8 @@ struct MacrosCard: View {
     let isRecording: Bool
     let startRecording: () -> Void
     let stopRecording: () -> Void
-    let macroInputField: (String, String, Binding<String>, AnyHashable, Color) -> AnyView
-    let cardBackground: AnyView
+    
+    @FocusState.Binding var macroFocus: MacrosCardMacroField?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -476,52 +544,76 @@ struct MacrosCard: View {
             // Macro input fields for selected meal
             if let meal = selectedMeal {
                 VStack(spacing: 12) {
-                    macroInputField("Protein", "0",
-                        Binding(get: { proteinByMeal[meal] ?? "" }, set: { proteinByMeal[meal] = $0 }),
-                        AnyHashable(MacrosCardMacroField.protein(meal)), Theme.segNEAT)
+                    macroInputField(label: "Protein", placeholder: "0",
+                        text: Binding(get: { proteinByMeal[meal] ?? "" }, set: { proteinByMeal[meal] = $0 }),
+                        focusValue: .protein(meal), tint: Theme.segNEAT)
                     HStack(spacing: 12) {
-                        macroInputField(language == "de" ? "Kohlenhydrate" : "Carbs", "0",
-                            Binding(get: { carbsByMeal[meal] ?? "" }, set: { carbsByMeal[meal] = $0 }),
-                            AnyHashable(MacrosCardMacroField.carbs(meal)), accentBlue)
-                        macroInputField(language == "de" ? "Fett" : "Fat", "0",
-                            Binding(get: { fatByMeal[meal] ?? "" }, set: { fatByMeal[meal] = $0 }),
-                            AnyHashable(MacrosCardMacroField.fat(meal)), .orange)
+                        macroInputField(label: language == "de" ? "Kohlenhydrate" : "Carbs", placeholder: "0",
+                            text: Binding(get: { carbsByMeal[meal] ?? "" }, set: { carbsByMeal[meal] = $0 }),
+                            focusValue: .carbs(meal), tint: accentBlue)
+                        macroInputField(label: language == "de" ? "Fett" : "Fat", placeholder: "0",
+                            text: Binding(get: { fatByMeal[meal] ?? "" }, set: { fatByMeal[meal] = $0 }),
+                            focusValue: .fat(meal), tint: .orange)
                     }
+                    
+                    totalSummaryView(meal: meal)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
         }
         .padding(16)
-        .background(cardBackground)
+        .glassCard(20)
     }
 
-    private func mealSum(_ dict: [String: String]) -> Int {
-        ["breakfast", "lunch", "dinner", "snack"].compactMap { Int(dict[$0] ?? "") }.reduce(0, +)
-    }
-
-    private var totalSummaryView: some View {
-        let totalProtein = mealSum(proteinByMeal)
-        let totalCarbs   = mealSum(carbsByMeal)
-        let totalFat     = mealSum(fatByMeal)
-        let totalKcal    = totalProtein * 4 + totalCarbs * 4 + totalFat * 9
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(language == "de" ? "GESAMT-MAKROS HEUTE" : "TODAY'S TOTAL MACROS")
-                .font(.poppins(size: 10, weight: .semibold))
+    private func macroInputField(label: String, placeholder: String,
+                                  text: Binding<String>, focusValue: MacrosCardMacroField, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.poppins(size: 11, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
-                .tracking(1)
-
-            HStack(spacing: 12) {
-                macroTotalPill(label: "Protein", value: totalProtein, unit: "g", color: Theme.segNEAT)
-                macroTotalPill(label: language == "de" ? "Kohlenhydrat" : "Carbs", value: totalCarbs, unit: "g", color: accentBlue)
-                macroTotalPill(label: language == "de" ? "Fett" : "Fat", value: totalFat, unit: "g", color: .orange)
+            
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                TextField(placeholder, text: text)
+                    #if os(iOS)
+                    .keyboardType(.numberPad)
+                    #endif
+                    .focused($macroFocus, equals: focusValue)
+                    .font(.poppins(size: 20, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text("g")
+                    .font(.poppins(size: 12, weight: .medium))
+                    .foregroundStyle(tint.opacity(0.6))
             }
+            
+            let val = Double(text.wrappedValue.replacingOccurrences(of: ",", with: ".")) ?? 0
+            let ref: Double = label.contains("Protein") ? 150 : (label.contains("Fat") || label.contains("Fett") ? 80 : 300)
+            InstrumentProgressBar(progress: min(1.0, val / ref), color: tint, height: 3, showScale: false)
+                .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(tint.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(tint.opacity(0.15), lineWidth: 1))
+        )
+    }
 
+    private func totalSummaryView(meal: String) -> some View {
+        let p = Int(proteinByMeal[meal] ?? "") ?? 0
+        let c = Int(carbsByMeal[meal] ?? "") ?? 0
+        let f = Int(fatByMeal[meal] ?? "") ?? 0
+        let totalKcal = p * 4 + c * 4 + f * 9
+        
+        return VStack(spacing: 10) {
+            Divider().background(Theme.divider)
             HStack {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.orange.opacity(0.8))
+                    .foregroundStyle(.orange)
                 Text("= \(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
                     .font(.poppins(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
@@ -536,31 +628,6 @@ struct MacrosCard: View {
                         .strokeBorder(Theme.divider, lineWidth: 1))
             )
         }
-    }
-
-    private func macroTotalPill(label: String, value: Int, unit: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.poppins(size: 11, weight: .medium))
-                .foregroundStyle(Theme.textSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text("\(value)")
-                    .font(.poppins(size: 20, weight: .semibold))
-                    .foregroundStyle(color)
-                Text(unit)
-                    .font(.poppins(size: 12, weight: .medium))
-                    .foregroundStyle(color.opacity(0.6))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(color.opacity(0.08))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(color.opacity(0.15), lineWidth: 1))
-        )
     }
 
     private func mealTab(key: String, name: String) -> some View {

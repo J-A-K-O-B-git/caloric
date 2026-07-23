@@ -97,7 +97,8 @@ final class DayCacheEntry {
                 avgHeartRateWaking: avgHeartRateWaking,
                 hrSegments: []
             ),
-            workouts: workouts
+            workouts: workouts,
+            sleep: nil
         )
     }
 }

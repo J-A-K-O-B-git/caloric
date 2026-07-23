@@ -9,6 +9,7 @@
 import Foundation
 
 @Observable
+@MainActor
 final class JournalStore {
 
     typealias SickEnergyLevel = TDEECalculationService.JournalInputs.SickEnergyLevel
