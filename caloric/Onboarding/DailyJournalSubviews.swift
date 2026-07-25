@@ -567,12 +567,9 @@ struct MacrosCard: View {
                             text: Binding(get: { fatByMeal[meal] ?? "" }, set: { fatByMeal[meal] = $0 }),
                             focusValue: .fat(meal), tint: .orange)
                     }
-                    
-                    totalSummaryView(meal: meal)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
-
         }
         .padding(16)
         .glassCard(20)
@@ -612,34 +609,6 @@ struct MacrosCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(tint.opacity(0.15), lineWidth: 1))
         )
-    }
-
-    private func totalSummaryView(meal: String) -> some View {
-        let p = Int(proteinByMeal[meal] ?? "") ?? 0
-        let c = Int(carbsByMeal[meal] ?? "") ?? 0
-        let f = Int(fatByMeal[meal] ?? "") ?? 0
-        let totalKcal = p * 4 + c * 4 + f * 9
-        
-        return VStack(spacing: 10) {
-            Divider().background(Theme.divider)
-            HStack {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.orange)
-                Text("= \(totalKcal) kcal \(language == "de" ? "gesamt" : "total")")
-                    .font(.poppins(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Theme.fieldFill)
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Theme.divider, lineWidth: 1))
-            )
-        }
     }
 
     private func mealTab(key: String, name: String) -> some View {

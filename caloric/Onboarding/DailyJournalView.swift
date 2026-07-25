@@ -76,7 +76,7 @@ struct DailyJournalView: View {
 
     @FocusState private var macroFocus: MacrosCardMacroField?
 
-    @State private var showSavedModal = false
+    @State private var showSavedSummary = false
     @State private var showCalendarPicker = false
     
     @Environment(JournalStore.self) private var store
@@ -154,16 +154,15 @@ struct DailyJournalView: View {
                 .padding(.bottom, 106)
             }
             .ignoresSafeArea(edges: .bottom)
-
-            if showSavedModal {
-                savedModal
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { loadFromStore() }
         .onChange(of: selectedDate) { _, _ in loadFromStore() }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
+        }
+        .sheet(isPresented: $showSavedSummary) {
+            checkinSummarySheet
         }
         .onChange(of: menstruationActive) { _, v in
             store.update(for: selectedDate) { $0.menstruationActive = v }
@@ -201,6 +200,113 @@ struct DailyJournalView: View {
                 }
             }
         }
+    }
+
+    private var checkinSummarySheet: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(accentBlue.opacity(0.12))
+                        .frame(width: 80, height: 80)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(accentBlue)
+                }
+                
+                Text(language == "de" ? "Check-in gespeichert" : "Check-in saved")
+                    .font(.poppins(size: 22, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            .padding(.top, 20)
+
+            VStack(spacing: 12) {
+                zustandSummary
+                macrosSummary
+            }
+            
+            Button {
+                showSavedSummary = false
+            } label: {
+                Text(language == "de" ? "Super" : "Great")
+                    .font(.poppins(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(accentBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 20)
+        }
+        .padding(24)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.canvas)
+    }
+
+    @ViewBuilder
+    private var zustandSummary: some View {
+        if sickToggle {
+            modalRow(icon: "bandage.fill", label: language == "de" ? "Krank" : "Sick today", tint: .orange)
+        }
+        if menstruationActive == true {
+            modalRow(icon: "drop.fill", label: "Menstruation", tint: .pink)
+        }
+        let caffeine = Int(caffeineText) ?? 0
+        if caffeine > 0 {
+            modalRow(icon: "cup.and.saucer.fill", label: "\(caffeine) mg Koffein", tint: accentBlue)
+        }
+    }
+
+    @ViewBuilder
+    private var macrosSummary: some View {
+        let meals = ["breakfast", "lunch", "dinner", "snack"]
+        let totalProtein = meals.compactMap { Int(proteinByMeal[$0] ?? "") }.reduce(0, +)
+        let totalCarbs   = meals.compactMap { Int(carbsByMeal[$0] ?? "")   }.reduce(0, +)
+        let totalFat     = meals.compactMap { Int(fatByMeal[$0] ?? "")     }.reduce(0, +)
+        if totalProtein + totalCarbs + totalFat > 0 {
+            HStack(spacing: 10) {
+                macroModalPill(label: "Protein", value: totalProtein, color: Theme.segNEAT)
+                macroModalPill(label: language == "de" ? "KH" : "Carbs", value: totalCarbs, color: accentBlue)
+                macroModalPill(label: language == "de" ? "Fett" : "Fat", value: totalFat, color: .orange)
+            }
+        }
+    }
+
+    private func modalRow(icon: String, label: String, tint: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(tint)
+                .frame(width: 24)
+            Text(label)
+                .font(.poppins(size: 14, weight: .medium))
+                .foregroundStyle(Theme.textPrimary)
+            Spacer()
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(tint.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func macroModalPill(label: String, value: Int, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text("\(value)g")
+                .font(.poppins(size: 16, weight: .semibold))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.poppins(size: 10, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: - Cards Section
@@ -347,159 +453,116 @@ struct DailyJournalView: View {
                             showAddDrinkSheet = false
                         }
                     } label: {
-                        Text(language == "de" ? "Getränk speichern" : "Save Drink")
-                            .font(.poppins(size: 16, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 54)
-                            .background(accentBlue.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(accentBlue.opacity(0.2), lineWidth: 1))
+                        Text(language == "de" ? "Hinzufügen" : "Add")
                     }
-                    .disabled(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil)
-                    .opacity(newDrinkName.isEmpty || Int(newDrinkCaffeine) == nil ? 0.5 : 1.0)
+                    .buttonStyle(.caloricPrimary(fullWidth: true))
                 }
                 .padding(24)
             }
-            .navigationTitle(language == "de" ? "Neues Getränk" : "New Drink")
+            .navigationTitle(language == "de" ? "Getränk hinzufügen" : "Add Drink")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(language == "de" ? "Abbrechen" : "Cancel") {
-                        showAddDrinkSheet = false
-                    }
-                    .foregroundStyle(accentBlue)
+                    Button(language == "de" ? "Abbrechen" : "Cancel") { showAddDrinkSheet = false }
                 }
+            }
+        }
+        .presentationDetents([.height(440)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var journalScrollView: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                // Header section aligned with DashboardView
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text("Daily Journal")
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                    }
+                    dateNavigationRow
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
+
+                cardsSection
             }
         }
     }
 
-    private var journalScrollView: some View {
-        let maxDate = Calendar.current.date(byAdding: .day, value: 7, to: Calendar.current.startOfDay(for: Date()))!
-        return VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text(language == "de" ? "Dein Check-in" : "Daily Journal")
-                        .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
+    private var dateNavigationRow: some View {
+        let maxDate = Calendar.current.startOfDay(for: Date())
+        return HStack(spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
                 }
-                HStack(spacing: 8) {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                            selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                        }
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                            .frame(width: 34, height: 34)
-                            .background(
-                                Circle()
-                                    .fill(Theme.card)
-                                    .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                            )
-                    }
-                    .buttonStyle(SpringyButtonStyle())
-
-                    Button {
-                        showCalendarPicker = true
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(accentBlue)
-                            Text(selectedDateString)
-                                .font(.poppins(size: 14, weight: .medium))
-                                .foregroundStyle(Theme.textPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Theme.textSecondary.opacity(0.7))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(
-                            Capsule()
-                                .fill(Theme.card)
-                                .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                                .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
-                        )
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(SpringyButtonStyle())
-
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                            let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                            if next <= maxDate {
-                                selectedDate = next
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(selectedDate >= maxDate ? Theme.textPrimary.opacity(0.25) : Theme.textPrimary)
-                            .frame(width: 34, height: 34)
-                            .background(
-                                Circle()
-                                    .fill(Theme.card)
-                                    .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
-                            )
-                    }
-                    .buttonStyle(SpringyButtonStyle())
-                    .disabled(selectedDate >= maxDate)
-                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        Circle()
+                            .fill(Theme.card)
+                            .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    )
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 16)
+            .buttonStyle(SpringyButtonStyle())
             
-        ScrollView {
-            VStack(spacing: LayoutMetrics.sectionSpacing) {
-                if isFutureDate {
-                    HStack(spacing: 10) {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(accentBlue.opacity(0.6))
-                        Text(language == "de"
-                             ? "Einträge für zukünftige Tage gesperrt"
-                             : "Entries locked for future dates")
-                            .font(.poppins(size: 14, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
+            Button {
+                showCalendarPicker = true
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                    Text(selectedDateString)
+                        .font(.poppins(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule()
+                        .fill(Theme.card)
+                        .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                        .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(SpringyButtonStyle())
+            
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                    if next <= maxDate {
+                        selectedDate = next
                     }
-                    .padding(.vertical, 20)
-                    .frame(maxWidth: .infinity)
-                    .glassCard(16)
-                    .padding(.horizontal, 20)
-                    .transition(.opacity)
                 }
-                
-                cardsSection
-
-                Spacer().frame(height: (140 * LayoutMetrics.scale).rounded())
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Calendar.current.isDateInToday(selectedDate) ? Theme.textPrimary.opacity(0.25) : Theme.textPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        Circle()
+                            .fill(Theme.card)
+                            .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    )
             }
+            .buttonStyle(SpringyButtonStyle())
+            .disabled(Calendar.current.isDateInToday(selectedDate))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Text(macroKeyboardLabel)
-                    .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                Spacer()
-                Button(language == "de" ? "Fertig" : "Done") {
-                    macroFocus = nil
-                    caffeineFocused = false
-                }
-                .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(accentBlue)
-            }
-        }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var selectedDateString: String {
@@ -577,24 +640,17 @@ struct DailyJournalView: View {
 
     // MARK: - Save Button (Floating FAB)
 
-    @State private var confirmPulse = false
-
     private var saveButton: some View {
         Button {
             macroFocus = nil
             caffeineFocused = false
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                showSavedModal = true
+            
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                showSavedSummary = true
             }
         } label: {
             ZStack {
-                Circle()
-                    .fill(accentBlue)
-                    .frame(width: 62, height: 62)
-                    .scaleEffect(confirmPulse ? 1.25 : 1.0)
-                    .opacity(confirmPulse ? 0.0 : 0.3)
-
                 Circle()
                     .fill(
                         LinearGradient(colors: [Theme.accentSky, accentBlue],
@@ -609,140 +665,11 @@ struct DailyJournalView: View {
             }
         }
         .buttonStyle(.plain)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                confirmPulse = true
-            }
-        }
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
     }
 
-    // MARK: - Saved Modal
-
-    private var savedModal: some View {
-        ZStack {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                        showSavedModal = false
-                    }
-                }
-
-            VStack(spacing: 20) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [accentBlue.opacity(0.2), accentBlue.opacity(0.06)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(accentBlue)
-                }
-
-                VStack(spacing: 6) {
-                    Text(language == "de" ? "Gespeichert!" : "Saved!")
-                        .font(.poppins(size: 22, weight: .bold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(language == "de" ? "Dein Check-in wurde erfolgreich gespeichert." : "Your check-in has been saved.")
-                        .font(.poppins(size: 14, weight: .regular))
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                VStack(spacing: 8) {
-                    zustandSummary
-                    macrosSummary
-                }
-
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                        showSavedModal = false
-                    }
-                } label: {
-                    Text(language == "de" ? "Schließen" : "Close")
-                        .font(.poppins(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(accentBlue)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(24)
-            .background(GlassCardBackground(cornerRadius: 24))
-            .padding(.horizontal, 28)
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .center)))
-    }
-
-    @ViewBuilder
-    private var zustandSummary: some View {
-        if sickToggle {
-            modalRow(icon: "bandage.fill", label: language == "de" ? "Krank" : "Sick today", tint: .orange)
-        }
-        if menstruationActive == true {
-            modalRow(icon: "drop.fill", label: "Menstruation", tint: .pink)
-        }
-        let caffeine = Int(caffeineText) ?? 0
-        if caffeine > 0 {
-            modalRow(icon: "cup.and.saucer.fill", label: "\(caffeine) mg Koffein", tint: accentBlue)
-        }
-    }
-
-    @ViewBuilder
-    private var macrosSummary: some View {
-        let meals = ["breakfast", "lunch", "dinner", "snack"]
-        let totalProtein = meals.compactMap { Int(proteinByMeal[$0] ?? "") }.reduce(0, +)
-        let totalCarbs   = meals.compactMap { Int(carbsByMeal[$0] ?? "")   }.reduce(0, +)
-        let totalFat     = meals.compactMap { Int(fatByMeal[$0] ?? "")     }.reduce(0, +)
-        if totalProtein + totalCarbs + totalFat > 0 {
-            HStack(spacing: 10) {
-                macroModalPill(label: "Protein", value: totalProtein, color: Theme.segNEAT)
-                macroModalPill(label: language == "de" ? "Carbs" : "Carbs", value: totalCarbs, color: accentBlue)
-                macroModalPill(label: language == "de" ? "Fett" : "Fat", value: totalFat, color: .orange)
-            }
-        }
-    }
-
-    private func modalRow(icon: String, label: String, tint: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(tint)
-                .frame(width: 24)
-            Text(label)
-                .font(.poppins(size: 14, weight: .medium))
-                .foregroundStyle(Theme.textPrimary)
-            Spacer()
-            Image(systemName: "checkmark")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(tint.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func macroModalPill(label: String, value: Int, color: Color) -> some View {
-        VStack(spacing: 2) {
-            Text("\(value)g")
-                .font(.poppins(size: 16, weight: .semibold))
-                .foregroundStyle(color)
-            Text(label)
-                .font(.poppins(size: 10, weight: .regular))
-                .foregroundStyle(Theme.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-        
+    
     // MARK: - KI-Netzwerk-Logik
 
     @MainActor
@@ -895,4 +822,3 @@ struct DailyJournalView: View {
         isRecording = false
     }
 }
-

@@ -104,10 +104,6 @@ struct FoodConfirmSheet: View {
 
                 Spacer(minLength: 8)
 
-                Text("\(Int(item.wrappedValue.kcal.rounded())) kcal")
-                    .font(.poppins(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
-
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         items.removeAll { $0.id == item.wrappedValue.id }
@@ -175,18 +171,8 @@ struct FoodConfirmSheet: View {
         let p = Int(items.totalProtein.rounded())
         let c = Int(items.totalCarbs.rounded())
         let f = Int(items.totalFat.rounded())
-        let kcal = Int(items.totalKcal.rounded())
 
         return VStack(spacing: 10) {
-            HStack {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.orange)
-                Text("= \(kcal) kcal \(language == "de" ? "gesamt" : "total")")
-                    .font(.poppins(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
-            }
             HStack(spacing: 8) {
                 totalPill(label: "Protein", value: p, color: Theme.segNEAT)
                 totalPill(label: language == "de" ? "KH" : "Carbs", value: c, color: accentBlue)
