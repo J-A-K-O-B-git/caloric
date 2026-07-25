@@ -141,7 +141,8 @@ enum AppSchemaV2: VersionedSchema {
     }
 }
 
-// MARK: - V3  (current — non-workout aggregates + sleep-derived wake time)
+// MARK: - V3  (current — non-workout aggregates, sleep-derived wake time,
+//               DailyActivityRecord dropped)
 
 enum AppSchemaV3: VersionedSchema {
     static var versionIdentifier = Schema.Version(3, 0, 0)
@@ -149,7 +150,7 @@ enum AppSchemaV3: VersionedSchema {
     // References the production models directly. Freeze this into a snapshot
     // (as V2 above) before changing any @Model, and add a V4 alongside it.
     static var models: [any PersistentModel.Type] {
-        [UserProfile.self, DailyActivityRecord.self, DayCacheEntry.self]
+        [UserProfile.self, DayCacheEntry.self]
     }
 }
 
@@ -168,9 +169,10 @@ enum AppMigrationPlan: SchemaMigrationPlan {
     )
 
     // Lightweight: adds DayCacheEntry.nonWorkoutSteps / nonWorkoutDistanceMeters /
-    // nonWorkoutStandMinutes / wakeMinuteOfDay. All optional, so existing rows
+    // nonWorkoutStandMinutes / wakeMinuteOfDay (all optional, so existing rows
     // migrate to nil and the calculation falls back to its estimates until the
-    // next HealthKit fetch refills them.
+    // next HealthKit fetch refills them) and drops the DailyActivityRecord
+    // entity, which was only ever written and never read.
     static let migrateV2toV3 = MigrationStage.lightweight(
         fromVersion: AppSchemaV2.self,
         toVersion:   AppSchemaV3.self

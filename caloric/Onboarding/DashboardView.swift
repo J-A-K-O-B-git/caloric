@@ -56,11 +56,8 @@ struct DashboardView: View {
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
-    /// Guards the expensive history backfill against rerunning unchanged.
-    @State private var lastBackfilledHistoryCount: Int? = nil
     @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
-    @Environment(\.modelContext) private var modelContext
     @Environment(JournalStore.self)           private var store
     @Environment(HealthKitImportService.self) private var healthKit
     
@@ -266,103 +263,6 @@ struct DashboardView: View {
             referenceDate:    selectedDate
         )
     }
-    
-    @MainActor
-    private func saveActivityRecord() {
-        guard healthKit.isAuthorized else { return }
-        let result = activityResult
-        let breakdown = result.neatBreakdown
-        let record = DailyActivityRecord(
-            dateKey: ActivityRepository.dateKey(for: selectedDate),
-            date: Calendar.current.startOfDay(for: selectedDate),
-            steps: selectedActivity.steps,
-            standTimeMinutes: selectedActivity.standTimeMinutes,
-            restingHR: selectedActivity.restingHeartRate,
-            vo2Max: healthKit.vo2Max,
-            workoutSeconds: selectedWorkouts.reduce(0.0) { $0 + $1.duration },
-            sleepHours: sleepHours,
-            weightKg: weightInKg > 0 ? weightInKg : nil,
-            bmrDynamisch: tdeeResult.bmrDynamisch,
-            neatSteps: breakdown.neatSteps,
-            neatStand: breakdown.neatStand,
-            neatHR: breakdown.neatHR,
-            neatTotal: result.neatKcal,
-            eatCalories: result.eatKcal
-        )
-        ActivityRepository.save(record: record, context: modelContext)
-        ActivityRepository.deleteOlderThan(days: 90, context: modelContext)
-    }
-    
-    /// Recomputes and persists the whole cached history. This is expensive —
-    /// one full TDEE + activity calculation per day — so it only reruns when the
-    /// history itself changed, not on every HealthKit observer tick.
-    @MainActor
-    private func backfillActivityHistory() {
-        guard healthKit.isAuthorized, !healthKit.history.isEmpty else { return }
-        let token = healthKit.history.count
-        guard token != lastBackfilledHistoryCount else { return }
-        lastBackfilledHistoryCount = token
-
-        let calendar = Calendar.current
-        var records: [DailyActivityRecord] = []
-        for (key, snapshot) in healthKit.history {
-            guard let date = Self.dateKeyFormatter.date(from: key) else { continue }
-            let dayTDEE = TDEECalculationService.calculate(
-                bmrStandard: activeFinalBMR,
-                inputs: store.journalInputs(for: date),
-                isFemale: selectedGender == femaleText
-            )
-            let manual = store.entry(for: date).manualWorkouts.map {
-                ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
-            }
-            let result = ActivityCalculationService.calculate(
-                steps: snapshot.activity.steps,
-                nonWorkoutSteps: snapshot.activity.nonWorkoutSteps,
-                nonWorkoutDistanceMeters: snapshot.activity.nonWorkoutDistanceMeters,
-                standTimeMinutes: snapshot.activity.standTimeMinutes,
-                nonWorkoutStandMinutes: snapshot.activity.nonWorkoutStandMinutes,
-                restingHR: snapshot.activity.restingHeartRate,
-                hrSegments: snapshot.activity.hrSegments,
-                wakeMinuteOfDay: snapshot.activity.wakeMinuteOfDay,
-                vo2Max: healthKit.vo2Max,
-                workouts: snapshot.workouts,
-                manualWorkouts: manual,
-                weightKg: weightInKg,
-                age: userAge,
-                isMale: selectedGender != femaleText,
-                sleepHours: sleepHours,
-                bmrDynamisch: dayTDEE.bmrDynamisch,
-                referenceDate: date
-            )
-            let breakdown = result.neatBreakdown
-            let record = DailyActivityRecord(
-                dateKey: key,
-                date: calendar.startOfDay(for: date),
-                steps: snapshot.activity.steps,
-                standTimeMinutes: snapshot.activity.standTimeMinutes,
-                restingHR: snapshot.activity.restingHeartRate,
-                vo2Max: healthKit.vo2Max,
-                workoutSeconds: snapshot.workouts.reduce(0.0) { $0 + $1.duration },
-                sleepHours: sleepHours,
-                weightKg: weightInKg > 0 ? weightInKg : nil,
-                bmrDynamisch: dayTDEE.bmrDynamisch,
-                neatSteps: breakdown.neatSteps,
-                neatStand: breakdown.neatStand,
-                neatHR: breakdown.neatHR,
-                neatTotal: result.neatKcal,
-                eatCalories: result.eatKcal
-            )
-            records.append(record)
-        }
-        ActivityRepository.save(records: records, context: modelContext)
-    }
-
-    private static let dateKeyFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
     
     private var burnProgress: Double {
         let target = todayProjected
@@ -766,7 +666,6 @@ struct DashboardView: View {
                 }
                 .refreshable {
                     await healthKit.fetchAll()
-                    saveActivityRecord()
                     Task { @MainActor in
                         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                             showRefreshBadge = true
@@ -835,15 +734,11 @@ struct DashboardView: View {
     }
         .onAppear {
             runBurnAnimation()
-            saveActivityRecord()
-            backfillActivityHistory()
         }
         .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.activity.fetchedAt) { _, _ in
             runBurnAnimation()
-            saveActivityRecord()
-            backfillActivityHistory()
         }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
         .sheet(isPresented: $showCalendarPicker) {

@@ -44,7 +44,7 @@ struct caloricApp: App {
         let storeURL = appSupport.appendingPathComponent("caloric.store")
         let config   = ModelConfiguration(url: storeURL)
 
-        let fullSchema = Schema([UserProfile.self, DailyActivityRecord.self, DayCacheEntry.self])
+        let fullSchema = Schema([UserProfile.self, DayCacheEntry.self])
 
         if let container = try? ModelContainer(
             for: fullSchema, migrationPlan: AppMigrationPlan.self, configurations: [config]
