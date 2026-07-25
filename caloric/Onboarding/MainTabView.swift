@@ -15,12 +15,12 @@ struct MainTabView: View {
     let sleepHoursValue: Double
     let leanBodyMass: Double
     let userAge: Int
-    let selectedGender: String?
     let noConditionText: String
     let femaleText: String
 
     @Binding var accountUsername: String
     @Binding var birthDate: Date
+    @Binding var selectedGender: String?
     @Binding var weightText: String
     @Binding var weightUnit: String
     @Binding var heightText: String
@@ -71,10 +71,10 @@ struct MainTabView: View {
             DataInsightView(
                 accentBlue: accentBlue,
                 language: language,
-                selectedGender: selectedGender,
                 femaleText: femaleText,
                 noConditionText: noConditionText,
                 userAge: userAge,
+                selectedGender: $selectedGender,
                 selectedTab: $selectedTab,
                 weightText: $weightText,
                 weightUnit: $weightUnit,

@@ -25,7 +25,7 @@ enum ProfileField: String, Identifiable {
 
     var isEditable: Bool {
         switch self {
-        case .geschlecht, .alter: return false
+        case .alter: return false
         default: return true
         }
     }
@@ -38,12 +38,12 @@ struct DataInsightView: View {
     // MARK: Props
     let accentBlue: Color
     let language: String
-    let selectedGender: String?
     let femaleText: String
     let noConditionText: String
     let userAge: Int
 
     // MARK: Bindings
+    @Binding var selectedGender: String?
     @Binding var selectedTab: Int
     @Binding var weightText: String
     @Binding var weightUnit: String
@@ -136,7 +136,7 @@ struct DataInsightView: View {
                 accentBlue: accentBlue,
                 language: language,
                 noConditionText: noConditionText,
-                selectedGender: selectedGender,
+                selectedGender: $selectedGender,
                 userAge: userAge,
                 weightText: $weightText,
                 weightUnit: $weightUnit,
@@ -149,6 +149,8 @@ struct DataInsightView: View {
                 metabolismFactor: $metabolismFactor,
                 onSave: { setLastMod(for: $0) }
             )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
             .presentationBackground(Theme.canvas)
         }
         .sheet(item: $selectedHistoryType) { type in
@@ -888,7 +890,7 @@ private struct FieldEditSheet: View {
     let accentBlue: Color
     let language: String
     let noConditionText: String
-    let selectedGender: String?
+    @Binding var selectedGender: String?
     let userAge: Int
 
     @Binding var weightText: String
@@ -913,10 +915,13 @@ private struct FieldEditSheet: View {
     private var t: Translations { Translations(language: language) }
 
     private var conditionOptions: [(label: String, factor: Double)] {
-        [(t.hypothyroidism, 0.92),
-         (t.hyperthyroidism, 1.07),
-         (t.pcos, 0.85),
-         (t.menopause, 0.95)]
+        var options = [(t.hypothyroidism, 0.92),
+                       (t.hyperthyroidism, 1.07)]
+        if selectedGender == t.female {
+            options.append((t.pcos, 0.85))
+            options.append((t.menopause, 0.95))
+        }
+        return options
     }
 
     private var activeConditions: Set<String> {
@@ -955,16 +960,17 @@ private struct FieldEditSheet: View {
     private var fieldContent: some View {
         switch field {
         case .geschlecht:
-            VStack(alignment: .leading, spacing: 10) {
-                Text(language == "de" ? "Biologisches Geschlecht" : "Biological Gender")
-                    .font(.poppins(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                Text(selectedGender ?? "–")
-                    .font(.poppins(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-                Text(language == "de" ? "Dieses Feld ist nach der Ersteinrichtung schreibgeschützt." : "This field is read-only after setup.")
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+            VStack(spacing: 20) {
+                HStack(spacing: 12) {
+                    genderButton(title: t.male, icon: "figure.fall", color: .blue)
+                    genderButton(title: t.female, icon: "figure.dress.line.vertical", color: .pink)
+                }
+            }
+            .onChange(of: selectedGender) { _, _ in
+                if selectedGender == t.male {
+                    selectedConditions.remove(t.pcos)
+                    selectedConditions.remove(t.menopause)
+                }
             }
         case .alter:
             VStack(alignment: .leading, spacing: 10) {
@@ -1094,5 +1100,32 @@ private struct FieldEditSheet: View {
                 .glassCard(16)
             }
         }
+    }
+
+    private func genderButton(title: String, icon: String, color: Color) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                selectedGender = title
+            }
+        } label: {
+            VStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 30))
+                Text(title)
+                    .font(.poppins(size: 16, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+            .foregroundStyle(selectedGender == title ? .white : color)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(selectedGender == title ? color : color.opacity(0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(color.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

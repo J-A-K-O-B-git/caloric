@@ -34,6 +34,7 @@ private struct ProfileDashboardView: View {
     // Local @State mirrors for the @Binding interface MainTabView expects.
     @State private var accountUsername:     String
     @State private var birthDate:           Date
+    @State private var selectedGender:      String?
     @State private var weightText:          String
     @State private var weightUnit:          String
     @State private var heightText:          String
@@ -50,6 +51,7 @@ private struct ProfileDashboardView: View {
         self.profile = profile
         _accountUsername    = State(initialValue: profile.name)
         _birthDate          = State(initialValue: profile.birthDate)
+        _selectedGender     = State(initialValue: profile.geschlecht.isEmpty ? nil : profile.geschlecht)
         _weightText         = State(initialValue: profile.weightText)
         _weightUnit         = State(initialValue: profile.weightUnit)
         _heightText         = State(initialValue: profile.heightText)
@@ -70,11 +72,11 @@ private struct ProfileDashboardView: View {
             sleepHoursValue:    profile.schlafStunden,
             leanBodyMass:       profile.leanBodyMass,
             userAge:            profile.userAge,
-            selectedGender:     profile.geschlecht.isEmpty ? nil : profile.geschlecht,
             noConditionText:    t.noCondition,
             femaleText:         t.female,
             accountUsername:    $accountUsername,
             birthDate:          $birthDate,
+            selectedGender:     $selectedGender,
             weightText:         $weightText,
             weightUnit:         $weightUnit,
             heightText:         $heightText,
@@ -88,6 +90,7 @@ private struct ProfileDashboardView: View {
         // Sync editable fields back to SwiftData on every change.
         .onChange(of: accountUsername)    { _, v in profile.name               = v }
         .onChange(of: birthDate)          { _, v in profile.birthDate           = v }
+        .onChange(of: selectedGender)     { _, v in profile.geschlecht         = v ?? "" }
         .onChange(of: weightText)         { _, v in profile.weightText          = v }
         .onChange(of: weightUnit)         { _, v in profile.weightUnit          = v }
         .onChange(of: heightText)         { _, v in profile.heightText          = v }
