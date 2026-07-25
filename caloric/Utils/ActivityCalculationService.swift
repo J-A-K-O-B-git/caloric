@@ -144,7 +144,7 @@ struct ActivityCalculationService {
 
         let vo2   = (vo2Max ?? 0) > 0 ? vo2Max! : (isMale ? 45.0 : 40.0)
         let hrRst = (hrRest ?? 0) > 0 ? hrRest! : 60.0
-        let hrMax = 208.0 - 0.7 * Double(age)          // Tanaka — aligned with NEAT
+        let hrMax = HeartRateFormulas.maxHeartRate(age: age)
         let hrr   = (avgHR - hrRst) / max(1, hrMax - hrRst)
 
         let kJperMin: Double = isMale

@@ -152,13 +152,6 @@ final class HealthKitImportService {
         HKObjectType.quantityType(forIdentifier: .vo2Max)!
     ]
 
-    private static let keyFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
-
     // MARK: - SwiftData Cache (Note: Sleep detailed stages not cached for simplicity here, can be added to model if needed)
 
     func loadCachedHistory() {
@@ -176,7 +169,7 @@ final class HealthKitImportService {
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? .distantPast
         let existing = (try? ctx.fetch(FetchDescriptor<DayCacheEntry>())) ?? []
         for entry in existing {
-            let entryDate = Self.keyFormatter.date(from: entry.dateKey) ?? .distantPast
+            let entryDate = DateKey.date(from: entry.dateKey) ?? .distantPast
             if entryDate < cutoff || history[entry.dateKey] != nil {
                 ctx.delete(entry)
             }
@@ -194,7 +187,7 @@ final class HealthKitImportService {
     }
 
     static func dateKey(_ date: Date) -> String {
-        keyFormatter.string(from: date)
+        DateKey.string(from: date)
     }
 
     // MARK: - Authorization & Entry Point

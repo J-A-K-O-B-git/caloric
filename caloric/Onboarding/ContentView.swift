@@ -81,21 +81,15 @@ struct ContentView: View {
     // MARK: - BMR-Berechnung (Katch-McArdle)
 
     private var weightInKg: Double {
-        let value = Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return weightUnit == "kg" ? value : value * 0.453592
+        MeasurementParsing.weightKg(text: weightText, unit: weightUnit)
     }
 
     private var heightInCm: Double {
-        if heightUnit == "cm" {
-            return Double(heightText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        } else {
-            guard let feet = parseFeetInput(heightText) else { return 0 }
-            return feet * 30.48
-        }
+        MeasurementParsing.heightCm(text: heightText, unit: heightUnit)
     }
 
     private var bodyFatPercent: Double {
-        Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
+        MeasurementParsing.percent(bodyFatText)
     }
 
     private var leanBodyMass: Double {
@@ -218,16 +212,7 @@ struct ContentView: View {
     }
 
     private func parseFeetInput(_ input: String) -> Double? {
-        let cleaned = input.replacingOccurrences(of: "\"", with: "")
-        if cleaned.contains("'") {
-            let parts = cleaned.split(separator: "'")
-            guard let feet = Double(parts[0]) else { return nil }
-            if parts.count > 1, let inches = Double(parts[1]) {
-                return feet + inches / 12.0
-            }
-            return feet
-        }
-        return Double(cleaned.replacingOccurrences(of: ",", with: "."))
+        MeasurementParsing.feet(from: input)
     }
 
     // MARK: - Navigation helper
@@ -1344,9 +1329,6 @@ struct ContentView: View {
         MainTabView(
             accentBlue: accentBlue,
             language: selectedLanguage,
-            finalBMR: finalBMR,
-            sleepHoursValue: sleepHours,
-            leanBodyMass: leanBodyMass,
             userAge: userAge,
             noConditionText: t.noCondition,
             femaleText: t.female,

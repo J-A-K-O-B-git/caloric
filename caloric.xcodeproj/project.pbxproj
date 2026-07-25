@@ -7,12 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5DA0F00A3010000A000000A1 /* MeasurementParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00930100009000000A1 /* MeasurementParsing.swift */; };
+		5DA0F00C3010000C000000A1 /* DateKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00B3010000B000000A1 /* DateKey.swift */; };
 		5DA0F00830100008000000A1 /* BMRCalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00730100007000000A1 /* BMRCalculationService.swift */; };
 		5DA0F00230100002000000A1 /* FoodAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00130100001000000A1 /* FoodAnalysisService.swift */; };
 		5DA0F00430100004000000A1 /* FoodPhotoCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00330100003000000A1 /* FoodPhotoCapture.swift */; };
 		5DA0F00630100006000000A1 /* FoodConfirmSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00530100005000000A1 /* FoodConfirmSheet.swift */; };
 		5D0279922FFC24A200388A2C /* DailyJournalSubviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */; };
-		5D097FB43000332500BABE78 /* InfographicViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D097FB33000332400BABE78 /* InfographicViews.swift */; };
 		5D0BE1122FD47B480029CE62 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0BE1112FD47B480029CE62 /* DashboardView.swift */; };
 		5D1CB62B2FF6F8950052B1A4 /* NEATModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D1CB62A2FF6F8860052B1A4 /* NEATModel.swift */; };
 		5D24FC832FEFCE7F00472E54 /* DayCacheEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D24FC822FEFCE7F00472E54 /* DayCacheEntry.swift */; };
@@ -45,12 +46,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5DA0F00930100009000000A1 /* MeasurementParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementParsing.swift; sourceTree = "<group>"; };
+		5DA0F00B3010000B000000A1 /* DateKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateKey.swift; sourceTree = "<group>"; };
 		5DA0F00730100007000000A1 /* BMRCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMRCalculationService.swift; sourceTree = "<group>"; };
 		5DA0F00130100001000000A1 /* FoodAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAnalysisService.swift; sourceTree = "<group>"; };
 		5DA0F00330100003000000A1 /* FoodPhotoCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodPhotoCapture.swift; sourceTree = "<group>"; };
 		5DA0F00530100005000000A1 /* FoodConfirmSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodConfirmSheet.swift; sourceTree = "<group>"; };
 		5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyJournalSubviews.swift; sourceTree = "<group>"; };
-		5D097FB33000332400BABE78 /* InfographicViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfographicViews.swift; sourceTree = "<group>"; };
 		5D0BE1112FD47B480029CE62 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		5D1CB62A2FF6F8860052B1A4 /* NEATModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NEATModel.swift; sourceTree = "<group>"; };
 		5D24FC822FEFCE7F00472E54 /* DayCacheEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCacheEntry.swift; sourceTree = "<group>"; };
@@ -129,7 +131,6 @@
 				5DCAF4DD2FE82B6D005AE38A /* HealthKitPermissionView.swift */,
 				5DD033B72FF1819F00D1D4EE /* ManualDataView.swift */,
 				5D0279912FFC24A200388A2C /* DailyJournalSubviews.swift */,
-				5D097FB33000332400BABE78 /* InfographicViews.swift */,
 				5DCDD994300258C100E17788 /* CalorieDetailView.swift */,
 				5D8FC349301156F500C61D1A /* DataInsightView.swift */,
 			);
@@ -139,6 +140,8 @@
 		5D2E62B42FCE1AE20057E84D /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				5DA0F00930100009000000A1 /* MeasurementParsing.swift */,
+				5DA0F00B3010000B000000A1 /* DateKey.swift */,
 				5DA0F00730100007000000A1 /* BMRCalculationService.swift */,
 				5DA0F00130100001000000A1 /* FoodAnalysisService.swift */,
 				5DCDD98730023A8A00E17788 /* Secrets.swift */,
@@ -261,6 +264,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5DA0F00A3010000A000000A1 /* MeasurementParsing.swift in Sources */,
+				5DA0F00C3010000C000000A1 /* DateKey.swift in Sources */,
 				5DA0F00830100008000000A1 /* BMRCalculationService.swift in Sources */,
 				5DA0F00230100002000000A1 /* FoodAnalysisService.swift in Sources */,
 				5DA0F00430100004000000A1 /* FoodPhotoCapture.swift in Sources */,
@@ -292,7 +297,6 @@
 				5D8FC34A301156F500C61D1A /* DataInsightView.swift in Sources */,
 				5D2E62BB2FCE1AE20057E84D /* ConfettiView.swift in Sources */,
 				5D0279922FFC24A200388A2C /* DailyJournalSubviews.swift in Sources */,
-				5D097FB43000332500BABE78 /* InfographicViews.swift in Sources */,
 				5DEC7B912FE28406007A1989 /* TDEECalculationService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

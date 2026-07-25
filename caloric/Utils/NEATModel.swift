@@ -23,6 +23,15 @@ import HealthKit
 //      awake − workouts − walking. This finally uses wakeMinuteOfDay /
 //      dayEndMinuteOfDay, which were previously dead inputs.
 
+// MARK: - Shared physiology formulas
+
+enum HeartRateFormulas {
+    /// Tanaka et al. — more accurate across ages than the classic 220 − age.
+    static func maxHeartRate(age: Int) -> Double {
+        208.0 - 0.7 * Double(age)
+    }
+}
+
 // MARK: - HR Segment
 
 /// One heart-rate sample with a duration derived from adjacent timestamps.
@@ -123,7 +132,7 @@ enum NEATCalculator {
         // over-attributes durations, the component is scaled down.
         var neatHR = 0.0
         if let hrRest = i.restingHR, hrRest > 0, !i.hrSegments.isEmpty {
-            let hrMax   = 208.0 - 0.7 * Double(i.age)   // Tanaka formula
+            let hrMax   = HeartRateFormulas.maxHeartRate(age: i.age)
             let reserve = max(1.0, hrMax - hrRest)
 
             var hrMinutesCounted = 0.0

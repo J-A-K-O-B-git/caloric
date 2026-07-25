@@ -11,9 +11,6 @@ import SwiftData
 struct MainTabView: View {
     let accentBlue: Color
     let language: String
-    let finalBMR: Double
-    let sleepHoursValue: Double
-    let leanBodyMass: Double
     let userAge: Int
     let noConditionText: String
     let femaleText: String
@@ -42,9 +39,6 @@ struct MainTabView: View {
             DashboardView(
                 accentBlue: accentBlue,
                 language: language,
-                finalBMR: finalBMR,
-                sleepHoursValue: sleepHoursValue,
-                leanBodyMass: leanBodyMass,
                 userAge: userAge,
                 selectedGender: selectedGender,
                 noConditionText: noConditionText,

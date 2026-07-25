@@ -13,9 +13,6 @@ import SwiftData
 struct DashboardView: View {
     let accentBlue: Color
     let language: String
-    let finalBMR: Double
-    let sleepHoursValue: Double
-    let leanBodyMass: Double
     let userAge: Int
     let selectedGender: String?
     let noConditionText: String
@@ -141,12 +138,11 @@ struct DashboardView: View {
     private var t: Translations { Translations(language: language) }
     
     private var weightInKg: Double {
-        let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return weightUnit == "kg" ? v : v * 0.453592
+        MeasurementParsing.weightKg(text: weightText, unit: weightUnit)
     }
 
     private var bodyFatPercent: Double {
-        Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
+        MeasurementParsing.percent(bodyFatText)
     }
 
     // Reactive BMR — recomputes whenever the user edits weight, bodyFat, conditions, or sleep.
@@ -161,8 +157,6 @@ struct DashboardView: View {
     }
 
     private var hourlyBMR: Double {
-        // Same sleep value the total was built from — sleepHoursValue lags one
-        // update cycle behind the binding.
         BMRCalculationService.hourlyRate(finalBMR: activeFinalBMR, sleepHours: sleepHours)
     }
     
@@ -175,7 +169,7 @@ struct DashboardView: View {
         
         return stride(from: 0.0, to: 24.0, by: 0.5).map { hour in
             let slotEnd = hour + 0.5
-            let sleeping = hour < sleepHoursValue
+            let sleeping = hour < sleepHours
             let isFuture = isSelectedFuture || (isSelectedToday && hour >= now)
             
             var workoutKcal = 0.0
@@ -195,7 +189,7 @@ struct DashboardView: View {
             var mult: Double = sleeping ? 0.88 : 1.0
             if !sleeping {
                 switch hour {
-                case sleepHoursValue..<(sleepHoursValue + 1.5): mult = 0.94
+                case sleepHours..<(sleepHours + 1.5): mult = 0.94
                 case 8.0..<10.0:  mult = 1.12
                 case 12.0..<13.5: mult = 1.06
                 case 14.0..<15.5: mult = 0.96
@@ -493,9 +487,6 @@ struct DashboardView: View {
     init(
         accentBlue: Color,
         language: String,
-        finalBMR: Double,
-        sleepHoursValue: Double,
-        leanBodyMass: Double,
         userAge: Int,
         selectedGender: String?,
         noConditionText: String,
@@ -515,9 +506,6 @@ struct DashboardView: View {
     ) {
         self.accentBlue = accentBlue
         self.language = language
-        self.finalBMR = finalBMR
-        self.sleepHoursValue = sleepHoursValue
-        self.leanBodyMass = leanBodyMass
         self.userAge = userAge
         self.selectedGender = selectedGender
         self.noConditionText = noConditionText
@@ -1677,7 +1665,7 @@ struct DashboardView: View {
                 accentBlue: accentBlue,
                 nowFraction: nowFraction,
                 isSelectedToday: isSelectedToday,
-                sleepEndHour: sleepHoursValue,
+                sleepEndHour: sleepHours,
                 language: language
             )
             .frame(height: LayoutMetrics.chartHeight)

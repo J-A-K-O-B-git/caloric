@@ -14,7 +14,6 @@ struct Translations {
     var welcome: String { language == "de" ? "Schön, dass du da bist!" : "It's great to have you here!" }
     var welcomeSubtitle: String { language == "de" ? "Lass uns dein Profil anlegen." : "Let's set up your profile." }
     var getStarted: String { language == "de" ? "Los geht's" : "Get started" }
-    var hint: String { language == "de" ? "Hinweis" : "Hint" }
     var next: String { language == "de" ? "Weiter" : "Next" }
     var done: String { language == "de" ? "Fertig" : "Done" }
     var yes: String { language == "de" ? "Ja" : "Yes" }
@@ -120,16 +119,8 @@ struct Translations {
     var pcos: String { language == "de" ? "PCOS (Polyzystisches Ovarialsyndrom)" : "PCOS (Polycystic Ovary Syndrome)" }
     var menopause: String { language == "de" ? "Menopause / Post-Menopause" : "Menopause / Post-Menopause" }
     var noCondition: String { language == "de" ? "Nein, alles normal" : "No, everything normal" }
-    var sleepQuestion: String { language == "de" ? "Wie viele Stunden schläfst du im Durchschnitt pro Nacht?" : "How many hours do you sleep on average per night?" }
-    var sleepInfo: String {
-        language == "de"
-            ? "Die Schlafdauer steuert wichtige Hormone, die dein Hungergefühl kontrollieren und entscheiden, ob dein Körper eher Fett verbrennt oder Muskeln abbaut."
-            : "Sleep duration controls important hormones that regulate your appetite and determine whether your body burns fat or breaks down muscle."
-    }
-    var hours: String { language == "de" ? "Stunden" : "hours" }
 
     // --- Seite 7: Ergebnis ---
-    var resultTitle: String { language == "de" ? "Dein Grundumsatz" : "Your Basal Metabolic Rate" }
     var resultUnit: String { language == "de" ? "kcal / Tag" : "kcal / day" }
     var resultInfo: String {
         language == "de"
@@ -139,26 +130,8 @@ struct Translations {
     var resultContinue: String { language == "de" ? "Zum letzten Schritt" : "To the last step" }
 
     // --- Seite 8: Danke ---
-    var thankYouTitle: String {
-        language == "de"
-            ? "Vielen Dank für\ndein bisheriges Vertrauen!"
-            : "Thank you for\nyour trust so far!"
-    }
-    var thankYouSubtitle: String {
-        language == "de"
-            ? "Wir können dir versprechen:\nEs wird sich lohnen."
-            : "We can promise you:\nIt will be worth it."
-    }
 
     // --- Seite 9: Apple Health ---
-    var healthTitle: String { language == "de" ? "Mit Apple Health\nverbinden?" : "Connect to\nApple Health?" }
-    var healthInfo: String {
-        language == "de"
-            ? "Wie du jetzt weißt, sind deine Bewegungskalorien entscheidend für eine genaue Berechnung. \n\n Um deinen persönlichen Kalorienbedarf also so genau wie möglich zu treffen, benötigt Caloric Zugriff auf deine Aktivitätsdaten."
-            : "As you now know, the calories you burn through physical activity are crucial for an accurate calculation. So, in order to estimate your personal calorie needs as accurately as possible, Caloric needs access to your activity data."
-    }
-    var healthConnect: String { language == "de" ? "Verbinden" : "Connect" }
-    var healthSkip: String { language == "de" ? "Später" : "Later" }
 
     // --- Körperfett-Hilfsseite (Sheet) ---
     var bodyFatHelpTitle: String { language == "de" ? "Körperfettanteil ermitteln" : "Determine body fat percentage" }
@@ -170,20 +143,11 @@ struct Translations {
     var inBetween: String { language == "de" ? "Ich liege dazwischen" : "I'm in between" }
     var referenceImages: String { language == "de" ? "Beispielbilder" : "Reference images" }
     var calculation: String { language == "de" ? "Berechnung" : "Calculation" }
-    var men: String { language == "de" ? "Männer" : "Men" }
-    var women: String { language == "de" ? "Frauen" : "Women" }
-    var detailedCalculation: String { language == "de" ? "Detaillierte Berechnung" : "Detailed calculation" }
-    var calculationPlaceholder: String {
-        language == "de"
-            ? "Die Infos für die Berechnung folgen noch."
-            : "The information for the calculation is coming soon."
-    }
 
     // --- KFA-Berechnung (Umfangs-Formel) ---
     var calcWaistNavel: String { language == "de" ? "Bauchumfang (Bauchnabel)" : "Waist Circumference (Navel)" }
     var calcWaistNarrow: String { language == "de" ? "Taillenumfang (schmalste Stelle)" : "Waist Circumference (Narrowest)" }
     var calcNeck: String { language == "de" ? "Nackenumfang" : "Neck Circumference" }
-    var calcUnit: String { "cm" }
     var calcInfo: String {
         language == "de"
             ? "Miss alle Umfänge entspannt stehend in cm. Die Formel kombiniert Bauch-, Taillen- und Nackenumfang mit deiner Körpergröße."
@@ -235,7 +199,6 @@ struct Translations {
     var hyperSymptomHeart: String { language == "de" ? "Herzrasen / innere Unruhe" : "Heart palpitations / inner restlessness" }
     var hyperSymptomPeriod: String { language == "de" ? "Zyklusstörungen" : "Menstrual irregularities" }
     var pcosSectionTitle: String { "PCOS" }
-    var pcosQuestion: String { language == "de" ? "Hast du PCOS?" : "Do you have PCOS?" }
     var pcosInsulinQuestion: String { language == "de" ? "Besteht eine bestätigte Insulinresistenz?" : "Is there a confirmed insulin resistance?" }
     var pcosSymptomQuestion: String { language == "de" ? "Welche dieser Symptome treten bei dir auf?" : "Which of these symptoms do you experience?" }
     var pcosSymptomIrregular: String { language == "de" ? "Unregelmäßige oder ausbleibende Periode" : "Irregular or absent menstrual cycle" }
@@ -249,16 +212,5 @@ struct Translations {
     var calculateBMR: String { language == "de" ? "Grundbedarf kalkulieren" : "Calculate basal rate" }
     
     // --- Aufschlüsselung: Wissenschaftlicher Hintergrund ---
-    var breakdownScienceTitle: String { language == "de" ? "Wissenschaftlicher Hintergrund" : "Scientific Background" }
-    var breakdownScienceText: String {
-        language == "de"
-            ? "Dein täglicher Energiebedarf (TDEE) setzt sich aus diesen Faktoren zusammen:\n\n• BMR: Energie für lebenswichtige Funktionen in Ruhe.\n• NEAT: Kalorien durch Alltagsbewegung (Gehen, Stehen).\n• EAT: Energieverbrauch durch gezielten Sport.\n• TEF: Energie zur Verdauung von Nahrung."
-            : "Your Total Daily Energy Expenditure (TDEE) consists of these factors:\n\n• BMR: Energy for vital functions at rest.\n• NEAT: Calories from daily movement (walking, standing).\n• EAT: Energy burned through intentional exercise.\n• TEF: Energy needed to digest food."
-    }
     
-    var bmrDesc: String { language == "de" ? "Energie für lebenswichtige Funktionen in Ruhe." : "Energy for vital functions at rest." }
-    var neatDesc: String { language == "de" ? "Kalorien durch Alltagsbewegung (Gehen, Stehen)." : "Calories from daily movement (walking, standing)." }
-    var eatDesc: String { language == "de" ? "Energieverbrauch durch gezielten Sport." : "Energy burned through intentional exercise." }
-    var tefDesc: String { language == "de" ? "Energie zur Verdauung von Nahrung." : "Energy needed to digest food." }
-    var otherDesc: String { language == "de" ? "Sonstige Faktoren (Koffein, Zyklus, etc.)" : "Other factors (Caffeine, cycle, etc.)" }
 }

@@ -106,7 +106,7 @@ final class JournalStore {
                 byAdding: .day, value: -Self.retentionDays, to: Calendar.current.startOfDay(for: Date())
             ) ?? .distantPast
             entries = decoded.filter { dateKey, _ in
-                guard let date = Self.keyFormatter.date(from: dateKey) else { return false }
+                guard let date = DateKey.date(from: dateKey) else { return false }
                 return date >= cutoff
             }
         }
@@ -120,14 +120,7 @@ final class JournalStore {
 
     // MARK: - Date Key
 
-    private static let keyFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
-
     private func key(for date: Date) -> String {
-        JournalStore.keyFormatter.string(from: date)
+        DateKey.string(from: date)
     }
 }

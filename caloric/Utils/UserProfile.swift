@@ -64,46 +64,27 @@ final class UserProfile {
         self.isOnboardingCompleted = false
     }
 
-    // MARK: - Computed helpers (not persisted, mirror ContentView logic)
+    // MARK: - Computed helpers (not persisted)
+    //
+    // Typed access to the model's own unit-aware text fields. The derived
+    // energy values that used to live here (leanBodyMass, finalBMR) are gone —
+    // nothing read them, and their duplicate age factor was what made the
+    // dashboard and the onboarding disagree. BMRCalculationService owns that
+    // math now.
 
     var weightInKg: Double {
-        let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        return weightUnit == "kg" ? v : v * 0.453592
+        MeasurementParsing.weightKg(text: weightText, unit: weightUnit)
     }
 
     var heightInCm: Double {
-        if heightUnit == "cm" {
-            return Double(heightText.replacingOccurrences(of: ",", with: ".")) ?? 0
-        }
-        let cleaned = heightText.replacingOccurrences(of: "\"", with: "")
-        if cleaned.contains("'") {
-            let parts = cleaned.split(separator: "'")
-            guard let feet = Double(parts[0]) else { return 0 }
-            if parts.count > 1, let inches = Double(parts[1]) { return (feet + inches / 12) * 30.48 }
-            return feet * 30.48
-        }
-        return (Double(cleaned.replacingOccurrences(of: ",", with: ".")) ?? 0) * 30.48
+        MeasurementParsing.heightCm(text: heightText, unit: heightUnit)
     }
 
     var bodyFatPercent: Double {
-        Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
+        MeasurementParsing.percent(bodyFatText)
     }
 
     var userAge: Int {
         Calendar.current.dateComponents([.year], from: birthDate, to: Date()).year ?? 0
-    }
-
-    var leanBodyMass: Double {
-        BMRCalculationService.leanBodyMass(weightKg: weightInKg, bodyFatPercent: bodyFatPercent)
-    }
-
-    var finalBMR: Double {
-        BMRCalculationService.finalBMR(
-            weightKg:         weightInKg,
-            bodyFatPercent:   bodyFatPercent,
-            age:              userAge,
-            metabolismFactor: stoffwechselFaktor,
-            sleepHours:       schlafStunden
-        )
     }
 }

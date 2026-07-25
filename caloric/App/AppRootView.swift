@@ -68,9 +68,6 @@ private struct ProfileDashboardView: View {
         MainTabView(
             accentBlue:         accentBlue,
             language:           profile.sprache,
-            finalBMR:           profile.finalBMR,
-            sleepHoursValue:    profile.schlafStunden,
-            leanBodyMass:       profile.leanBodyMass,
             userAge:            profile.userAge,
             noConditionText:    t.noCondition,
             femaleText:         t.female,
