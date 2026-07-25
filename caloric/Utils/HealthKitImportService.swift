@@ -128,6 +128,10 @@ final class HealthKitImportService {
         "com.whoop.main", "com.whoop.watch"
     ]
 
+    /// Step samples with cadence at or above this are treated as walking bouts
+    /// and excluded from the HR block (anti double-counting with neatSteps).
+    private static let walkCadenceThreshold = 80.0   // steps/min
+
     private static let readSet: Set<HKObjectType> = [
         .workoutType(),
         HKObjectType.quantityType(forIdentifier: .stepCount)!,
@@ -360,7 +364,12 @@ final class HealthKitImportService {
         let workouts = await fetchWorkoutsData(for: date)
         let workoutWindows = workouts.map { DateInterval(start: $0.startDate, end: $0.endDate) }
 
-        let hrSegments = await fetchHRSegments(from: wakeStart, to: end, excluding: workoutWindows)
+        // Anti double-counting: exclude walking bouts from the HR block, same as
+        // workouts — otherwise a brisk walk raises HR enough to also score neatHR.
+        let walkWindows = await walkingWindows(start: wakeStart, end: end)
+        let hrExclusions = Self.merge(workoutWindows + walkWindows)
+
+        let hrSegments = await fetchHRSegments(from: wakeStart, to: end, excluding: hrExclusions)
 
         return await HKActivitySnapshot(
             steps:              Int(steps ?? 0),
@@ -394,6 +403,44 @@ final class HealthKitImportService {
         return zip(valid, durations).map { (s, d) in
             HRSegment(hr: s.quantity.doubleValue(for: unit), durationSeconds: d)
         }
+    }
+
+    /// Builds walking-bout windows from step samples with cadence ≥ threshold.
+    /// Duplicate windows from multiple sources are harmless — they get merged.
+    private func walkingWindows(start: Date, end: Date) async -> [DateInterval] {
+        guard end > start,
+              let type = HKQuantityType.quantityType(forIdentifier: .stepCount) else {
+            return []
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let samples: [HKQuantitySample] = await hkSamples(
+            type: type, predicate: predicate, sort: sort, requireWatch: false
+        )
+
+        let windows = samples.compactMap { s -> DateInterval? in
+            let minutes = s.endDate.timeIntervalSince(s.startDate) / 60.0
+            guard minutes >= 0.5 else { return nil }
+            let cadence = s.quantity.doubleValue(for: .count()) / minutes
+            return cadence >= Self.walkCadenceThreshold
+                ? DateInterval(start: s.startDate, end: s.endDate)
+                : nil
+        }
+        return Self.merge(windows)
+    }
+
+    private static func merge(_ intervals: [DateInterval]) -> [DateInterval] {
+        let sorted = intervals.sorted { $0.start < $1.start }
+        var result: [DateInterval] = []
+        for iv in sorted {
+            if let last = result.last, iv.start <= last.end {
+                result[result.count - 1] = DateInterval(start: last.start,
+                                                        end: max(last.end, iv.end))
+            } else {
+                result.append(iv)
+            }
+        }
+        return result
     }
 
     private func hrSampleDurations(for samples: [HKQuantitySample]) -> [Double] {
