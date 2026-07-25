@@ -248,9 +248,13 @@ struct DashboardView: View {
         }
         return ActivityCalculationService.calculate(
             steps:            act.steps,
+            nonWorkoutSteps:  act.nonWorkoutSteps,
+            nonWorkoutDistanceMeters: act.nonWorkoutDistanceMeters,
             standTimeMinutes: act.standTimeMinutes,
+            nonWorkoutStandMinutes: act.nonWorkoutStandMinutes,
             restingHR:        act.restingHeartRate,
             hrSegments:       act.hrSegments,
+            wakeMinuteOfDay:  act.wakeMinuteOfDay,
             vo2Max:           healthKit.vo2Max,
             workouts:         selectedWorkouts,
             manualWorkouts:   manual,
@@ -308,9 +312,13 @@ struct DashboardView: View {
             }
             let result = ActivityCalculationService.calculate(
                 steps: snapshot.activity.steps,
+                nonWorkoutSteps: snapshot.activity.nonWorkoutSteps,
+                nonWorkoutDistanceMeters: snapshot.activity.nonWorkoutDistanceMeters,
                 standTimeMinutes: snapshot.activity.standTimeMinutes,
+                nonWorkoutStandMinutes: snapshot.activity.nonWorkoutStandMinutes,
                 restingHR: snapshot.activity.restingHeartRate,
                 hrSegments: snapshot.activity.hrSegments,
+                wakeMinuteOfDay: snapshot.activity.wakeMinuteOfDay,
                 vo2Max: healthKit.vo2Max,
                 workouts: snapshot.workouts,
                 manualWorkouts: manual,
@@ -401,16 +409,21 @@ struct DashboardView: View {
         if let snap = healthKit.daySnapshot(for: yesterday) {
             activeKcal = ActivityCalculationService.calculate(
                 steps:            snap.activity.steps,
+                nonWorkoutSteps:  snap.activity.nonWorkoutSteps,
+                nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
                 standTimeMinutes: snap.activity.standTimeMinutes,
+                nonWorkoutStandMinutes: snap.activity.nonWorkoutStandMinutes,
                 restingHR:        snap.activity.restingHeartRate,
                 hrSegments:       snap.activity.hrSegments,
+                wakeMinuteOfDay:  snap.activity.wakeMinuteOfDay,
                 vo2Max:           healthKit.vo2Max,
                 workouts:         snap.workouts,
                 weightKg:         weightInKg,
                 age:              userAge,
                 isMale:           selectedGender != femaleText,
                 sleepHours:       sleepHours,
-                bmrDynamisch:     result.bmrDynamisch
+                bmrDynamisch:     result.bmrDynamisch,
+                referenceDate:    yesterday
             ).totalActiveKcal
         } else {
             activeKcal = 0
@@ -439,9 +452,13 @@ struct DashboardView: View {
         )
         let prevActive = ActivityCalculationService.calculate(
             steps: snap.activity.steps,
+            nonWorkoutSteps: snap.activity.nonWorkoutSteps,
+            nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
             standTimeMinutes: snap.activity.standTimeMinutes,
+            nonWorkoutStandMinutes: snap.activity.nonWorkoutStandMinutes,
             restingHR: snap.activity.restingHeartRate,
             hrSegments: snap.activity.hrSegments,
+            wakeMinuteOfDay: snap.activity.wakeMinuteOfDay,
             vo2Max: healthKit.vo2Max,
             workouts: snap.workouts,
             weightKg: weightInKg,
@@ -1054,9 +1071,13 @@ struct DashboardView: View {
             }
             return ActivityCalculationService.calculate(
                 steps: snap.activity.steps,
+                nonWorkoutSteps: snap.activity.nonWorkoutSteps,
+                nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
                 standTimeMinutes: snap.activity.standTimeMinutes,
+                nonWorkoutStandMinutes: snap.activity.nonWorkoutStandMinutes,
                 restingHR: snap.activity.restingHeartRate,
                 hrSegments: snap.activity.hrSegments,
+                wakeMinuteOfDay: snap.activity.wakeMinuteOfDay,
                 vo2Max: healthKit.vo2Max,
                 workouts: snap.workouts,
                 manualWorkouts: manual,

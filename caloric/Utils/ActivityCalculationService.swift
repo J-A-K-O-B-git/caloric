@@ -183,9 +183,13 @@ struct ActivityCalculationService {
 
     static func calculate(
         steps: Int,
+        nonWorkoutSteps: Int? = nil,
+        nonWorkoutDistanceMeters: Double? = nil,
         standTimeMinutes: Double,
+        nonWorkoutStandMinutes: Double? = nil,
         restingHR: Double?,
         hrSegments: [HRSegment] = [],
+        wakeMinuteOfDay: Double? = nil,
         vo2Max: Double?,
         workouts: [HKWorkoutSnapshot],
         manualWorkouts: [ManualWorkoutData] = [],
@@ -199,13 +203,18 @@ struct ActivityCalculationService {
     ) -> ActivityResult {
 
         let workoutSeconds = workouts.reduce(0.0) { $0 + $1.duration }
-        let workoutMin     = workoutSeconds / 60.0
 
-        // Build workout windows for the reference day
         let dayStart = calendar.startOfDay(for: referenceDate)
         let isToday  = calendar.isDateInToday(referenceDate)
         let dayEnd   = calendar.date(byAdding: .day, value: 1, to: dayStart)!
 
+        // Waking window: real wake time when the snapshot carries one,
+        // otherwise the bed-at-midnight estimate from sleepHours.
+        let wakeMin   = wakeMinuteOfDay ?? (sleepHours > 0 ? sleepHours : 8.0) * 60.0
+        let dayEndMin = isToday ? referenceDate.timeIntervalSince(dayStart) / 60.0 : 1440.0
+
+        // Fallback estimation for legacy cache entries without precise
+        // non-workout aggregates: proportionally remove the workout share.
         let workoutWindows: [DateInterval] = workouts.map { DateInterval(start: $0.startDate, end: $0.endDate) }
             .compactMap { w in
                 let s = max(w.start, dayStart)
@@ -213,8 +222,7 @@ struct ActivityCalculationService {
                 return e > s ? DateInterval(start: s, end: e) : nil
             }
 
-        // Estimate the fraction of the counted day spent in workouts
-        let countedStart = dayStart.addingTimeInterval((sleepHours > 0 ? sleepHours : 8.0) * 60 * 60)
+        let countedStart = dayStart.addingTimeInterval(wakeMin * 60)
         let countedEnd   = max(countedStart, isToday ? referenceDate : dayEnd)
         let countedWindow = DateInterval(start: countedStart, end: countedEnd)
 
@@ -227,20 +235,15 @@ struct ActivityCalculationService {
         let countedSeconds = max(1.0, countedWindow.duration)
         let workoutFractionOfCountedTime = min(1.0, max(0.0, overlapSeconds / countedSeconds))
 
-        // Proportionally exclude workout-time steps from the total day steps.
-        // This approximates removing steps that occurred during workouts when
-        // per-minute step samples are not available in this layer.
-        let nonWorkoutSteps = max(0, Int(round(Double(steps) * (1.0 - workoutFractionOfCountedTime))))
+        let resolvedNonWorkoutSteps = nonWorkoutSteps
+            ?? max(0, Int(round(Double(steps) * (1.0 - workoutFractionOfCountedTime))))
 
-        // Recompute netStandMin using the same workout duration already derived above
-        // (net stand = total stand − workout minutes)
-        let netStandMin = max(0, standTimeMinutes - (overlapSeconds / 60.0))
-
-        let dayEndMin = isToday ? referenceDate.timeIntervalSince(dayStart) / 60.0 : 1440.0
-        let wakeMin   = (sleepHours > 0 ? sleepHours : 8.0) * 60.0
+        let netStandMin = nonWorkoutStandMinutes
+            ?? max(0, standTimeMinutes - (overlapSeconds / 60.0))
 
         let inputs = NEATInputs(
-            nonWorkoutSteps:   nonWorkoutSteps,
+            nonWorkoutSteps:   resolvedNonWorkoutSteps,
+            nonWorkoutDistanceMeters: (nonWorkoutDistanceMeters ?? 0) > 0 ? nonWorkoutDistanceMeters : nil,
             standTimeMinutes:  netStandMin,
             restingHR:         restingHR,
             workoutSeconds:    workoutSeconds,

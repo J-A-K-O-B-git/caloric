@@ -56,6 +56,12 @@ final class DayCacheEntry {
     var standTimeMinutes: Double
     var restingHeartRate: Double?
     var avgHeartRateWaking: Double?
+    // Precise non-workout aggregates + wake time (v3). Optional so legacy cache
+    // entries migrate lightweight to nil; consumers fall back to estimates.
+    var nonWorkoutSteps: Int?
+    var nonWorkoutDistanceMeters: Double?
+    var nonWorkoutStandMinutes: Double?
+    var wakeMinuteOfDay: Double?
 
     var workoutsData: Data         // JSON-encoded [CachedWorkout]
     var cachedAt: Date
@@ -67,6 +73,10 @@ final class DayCacheEntry {
         self.standTimeMinutes    = snapshot.activity.standTimeMinutes
         self.restingHeartRate    = snapshot.activity.restingHeartRate
         self.avgHeartRateWaking  = snapshot.activity.avgHeartRateWaking
+        self.nonWorkoutSteps          = snapshot.activity.nonWorkoutSteps
+        self.nonWorkoutDistanceMeters = snapshot.activity.nonWorkoutDistanceMeters
+        self.nonWorkoutStandMinutes   = snapshot.activity.nonWorkoutStandMinutes
+        self.wakeMinuteOfDay          = snapshot.activity.wakeMinuteOfDay
 
         self.cachedAt            = Date()
 
@@ -95,7 +105,11 @@ final class DayCacheEntry {
                 standTimeMinutes: standTimeMinutes,
                 restingHeartRate: restingHeartRate,
                 avgHeartRateWaking: avgHeartRateWaking,
-                hrSegments: []
+                hrSegments: [],
+                nonWorkoutSteps: nonWorkoutSteps,
+                nonWorkoutDistanceMeters: nonWorkoutDistanceMeters,
+                nonWorkoutStandMinutes: nonWorkoutStandMinutes,
+                wakeMinuteOfDay: wakeMinuteOfDay
             ),
             workouts: workouts,
             sleep: nil

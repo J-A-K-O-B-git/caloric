@@ -23,6 +23,7 @@ struct HKWorkoutSnapshot: Identifiable, Sendable, Equatable {
 }
 
 struct HKActivitySnapshot: Sendable {
+    /// Full-day totals — used for display; NEAT uses the non-workout fields below.
     let steps: Int
     let distanceMeters: Double
     let fetchedAt: Date
@@ -31,6 +32,13 @@ struct HKActivitySnapshot: Sendable {
     let avgHeartRateWaking: Double?
     /// Non-workout HR segments with time weights; empty for cache-restored snapshots.
     let hrSegments: [HRSegment]
+    /// Precise non-workout aggregates (workout windows subtracted at query level).
+    /// nil for legacy cache entries → callers fall back to proportional estimates.
+    let nonWorkoutSteps: Int?
+    let nonWorkoutDistanceMeters: Double?
+    let nonWorkoutStandMinutes: Double?
+    /// Minute-of-day the user woke, derived from sleep data; nil → estimate from sleepHours.
+    let wakeMinuteOfDay: Double?
 }
 
 struct HKSleepSnapshot: Sendable {
@@ -96,7 +104,8 @@ final class HealthKitImportService {
     var workouts: [HKWorkoutSnapshot] = []
     var activity   = HKActivitySnapshot(steps: 0, distanceMeters: 0, fetchedAt: Date(),
                                         standTimeMinutes: 0, restingHeartRate: nil, avgHeartRateWaking: nil,
-                                        hrSegments: [])
+                                        hrSegments: [], nonWorkoutSteps: nil, nonWorkoutDistanceMeters: nil,
+                                        nonWorkoutStandMinutes: nil, wakeMinuteOfDay: nil)
     var sleep: HKSleepSnapshot? = nil
     var recentHR: [HKHeartRateSample] = []
     var isAuthorized = false
@@ -208,19 +217,20 @@ final class HealthKitImportService {
     }
 
     /// Re-fetches today's data domains concurrently (workouts, activity, sleep, VO2max).
+    /// Sleep is awaited before activity so the activity fetch can anchor its
+    /// waking window (HR segments, wake minute) on the real wake time.
     func fetchAll() async {
         async let w = fetchWorkoutsData()
-        async let a = fetchActivityData()
         async let s = fetchSleepData()
         async let v = fetchVO2Max()
         async let h = fetchRecentHeartRate(limit: 50)
-        
-        let (wData, aData, sData, vData, hData) = await (w, a, s, v, h)
+
+        let (wData, sData, vData, hData) = await (w, s, v, h)
         workouts = wData
-        activity = aData
         sleep    = sData
         vo2Max   = vData
         recentHR = hData
+        activity = await fetchActivityData(sleep: sData)
     }
 
     /// Fetches and caches activity + workouts + sleep for the last `days` days.
@@ -233,10 +243,10 @@ final class HealthKitImportService {
                 guard let date = cal.date(byAdding: .day, value: -offset, to: today) else { continue }
                 let key = Self.dateKey(date)
                 group.addTask {
-                    async let a = self.fetchActivityData(for: date)
+                    let sleep = await self.fetchSleepData(for: date)
+                    async let a = self.fetchActivityData(for: date, sleep: sleep)
                     async let w = self.fetchWorkoutsData(for: date)
-                    async let s = self.fetchSleepData(for: date)
-                    let (activity, workouts, sleep) = await (a, w, s)
+                    let (activity, workouts) = await (a, w)
                     return (key, DaySnapshot(activity: activity, workouts: workouts, sleep: sleep))
                 }
             }
@@ -345,7 +355,7 @@ final class HealthKitImportService {
 
     // MARK: - Activity (steps + distance + stand + HR)
 
-    private func fetchActivityData(for date: Date = Date()) async -> HKActivitySnapshot {
+    private func fetchActivityData(for date: Date = Date(), sleep: HKSleepSnapshot? = nil) async -> HKActivitySnapshot {
         if isSimulator { return mockActivityData(for: date) }
         let cal   = Calendar.current
         let start = cal.startOfDay(for: date)
@@ -353,16 +363,41 @@ final class HealthKitImportService {
         let predicate = HKQuery.predicateForSamples(
             withStart: start, end: end, options: .strictStartDate
         )
-        let wakeStart = cal.date(bySettingHour: 6, minute: 0, second: 0, of: start) ?? start
+
+        // Waking window anchored on the real wake time (end of the night's sleep);
+        // fixed 06:00 fallback when no sleep data is available.
+        let sleepWake: Date? = {
+            guard let e = sleep?.end, e > start, e < end else { return nil }
+            return e
+        }()
+        let wakeStart       = sleepWake ?? (cal.date(bySettingHour: 6, minute: 0, second: 0, of: start) ?? start)
+        let wakeMinuteOfDay = sleepWake.map { $0.timeIntervalSince(start) / 60.0 }
 
         async let steps   = hkSum(.stepCount,              unit: .count(),  predicate: predicate, requireWatch: false)
         async let dist    = hkSum(.distanceWalkingRunning, unit: .meter(),  predicate: predicate, requireWatch: false)
         async let stand   = hkSum(.appleStandTime,         unit: .minute(), predicate: predicate, requireWatch: false)
         async let resting = fetchRestingHeartRate(for: date)
         async let avgHR   = fetchAvgHeartRate(from: wakeStart, to: end)
-        
+
         let workouts = await fetchWorkoutsData(for: date)
-        let workoutWindows = workouts.map { DateInterval(start: $0.startDate, end: $0.endDate) }
+        let workoutWindows = Self.merge(
+            workouts.compactMap {
+                Self.clip(DateInterval(start: $0.startDate, end: $0.endDate),
+                          toStart: start, end: end)
+            }
+        )
+
+        // Precise non-workout aggregates: deduplicated day totals minus the sums
+        // inside (merged, hence non-overlapping) workout windows. Statistics
+        // queries deduplicate iPhone+Watch overlap; summing raw samples would not.
+        let stepsTotal = await steps ?? 0
+        let distTotal  = await dist  ?? 0
+        let nonWorkoutSteps = max(0, stepsTotal - (await sumInWindows(.stepCount, unit: .count(), windows: workoutWindows)))
+        let nonWorkoutDist  = max(0, distTotal - (await sumInWindows(.distanceWalkingRunning, unit: .meter(), windows: workoutWindows)))
+        // Stand time: sample-level filtering instead of "raw − workoutMinutes".
+        // Seated workouts (e.g. cycling) produce no stand time, so a flat
+        // subtraction would over-correct.
+        let nonWorkoutStand = await nonWorkoutStandMinutes(start: start, end: end, excluding: workoutWindows)
 
         // Anti double-counting: exclude walking bouts from the HR block, same as
         // workouts — otherwise a brisk walk raises HR enough to also score neatHR.
@@ -372,14 +407,55 @@ final class HealthKitImportService {
         let hrSegments = await fetchHRSegments(from: wakeStart, to: end, excluding: hrExclusions)
 
         return await HKActivitySnapshot(
-            steps:              Int(steps ?? 0),
-            distanceMeters:     dist ?? 0,
+            steps:              Int(stepsTotal),
+            distanceMeters:     distTotal,
             fetchedAt:          date,
             standTimeMinutes:   stand ?? 0,
             restingHeartRate:   resting,
             avgHeartRateWaking: avgHR,
-            hrSegments:         hrSegments
+            hrSegments:         hrSegments,
+            nonWorkoutSteps:    Int(nonWorkoutSteps.rounded()),
+            nonWorkoutDistanceMeters: nonWorkoutDist > 0 ? nonWorkoutDist : nil,
+            nonWorkoutStandMinutes:   nonWorkoutStand,
+            wakeMinuteOfDay:    wakeMinuteOfDay
         )
+    }
+
+    /// Deduplicated sums inside merged (non-overlapping) windows.
+    private func sumInWindows(
+        _ identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        windows: [DateInterval]
+    ) async -> Double {
+        var total = 0.0
+        for w in windows {
+            let p = HKQuery.predicateForSamples(withStart: w.start, end: w.end, options: [])
+            total += await hkSum(identifier, unit: unit, predicate: p, requireWatch: false) ?? 0
+        }
+        return total
+    }
+
+    private func nonWorkoutStandMinutes(
+        start: Date, end: Date, excluding windows: [DateInterval]
+    ) async -> Double {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .appleStandTime) else { return 0 }
+        // Stand time comes from the Watch only → summing samples is safe here.
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
+        let samples: [HKQuantitySample] = await hkSamples(
+            type: type, predicate: predicate, sort: sort, requireWatch: false
+        )
+        return samples
+            .filter { s in
+                !windows.contains { $0.intersects(DateInterval(start: s.startDate, end: s.endDate)) }
+            }
+            .reduce(0.0) { $0 + $1.quantity.doubleValue(for: .minute()) }
+    }
+
+    private static func clip(_ interval: DateInterval, toStart start: Date, end: Date) -> DateInterval? {
+        let s = max(interval.start, start)
+        let e = min(interval.end, end)
+        return e > s ? DateInterval(start: s, end: e) : nil
     }
 
     private func fetchHRSegments(
@@ -546,11 +622,13 @@ final class HealthKitImportService {
         if type == HKObjectType.workoutType() {
             workouts = await fetchWorkoutsData()
         } else if type.identifier == HKQuantityTypeIdentifier.stepCount.rawValue {
-            activity = await fetchActivityData()
+            activity = await fetchActivityData(sleep: sleep)
         } else if type.identifier == HKQuantityTypeIdentifier.heartRate.rawValue {
             recentHR = await fetchRecentHeartRate(limit: 50)
         } else if type.identifier == HKCategoryTypeIdentifier.sleepAnalysis.rawValue {
             sleep = await fetchSleepData()
+            // Wake time anchors the activity waking window → refresh it too.
+            activity = await fetchActivityData(sleep: sleep)
         }
     }
 
@@ -660,7 +738,11 @@ final class HealthKitImportService {
             standTimeMinutes: stand,
             restingHeartRate: resting,
             avgHeartRateWaking: avgHR,
-            hrSegments: []
+            hrSegments: [],
+            nonWorkoutSteps: steps,
+            nonWorkoutDistanceMeters: dist,
+            nonWorkoutStandMinutes: stand,
+            wakeMinuteOfDay: 7 * 60
         )
     }
     
