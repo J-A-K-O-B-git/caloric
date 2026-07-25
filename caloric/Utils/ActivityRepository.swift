@@ -18,24 +18,36 @@ enum ActivityRepository {
     // MARK: - Upsert
 
     static func save(record: DailyActivityRecord, context: ModelContext) {
-        if let existing = fetch(key: record.dateKey, context: context) {
-            existing.steps = record.steps
-            existing.standTimeMinutes = record.standTimeMinutes
-            existing.restingHR = record.restingHR
-            existing.vo2Max = record.vo2Max
-            existing.workoutSeconds = record.workoutSeconds
-            existing.sleepHours = record.sleepHours
-            existing.weightKg = record.weightKg
-            existing.bmrDynamisch = record.bmrDynamisch
-            existing.neatSteps = record.neatSteps
-            existing.neatStand = record.neatStand
-            existing.neatHR = record.neatHR
-            existing.neatTotal = record.neatTotal
-            existing.eatCalories = record.eatCalories
-        } else {
-            context.insert(record)
-        }
+        upsert(record, context: context)
         try? context.save()
+    }
+
+    /// Batch upsert with a single save at the end. The per-record variant costs
+    /// one store write each, which adds up fast when backfilling a full history.
+    static func save(records: [DailyActivityRecord], context: ModelContext) {
+        guard !records.isEmpty else { return }
+        for record in records { upsert(record, context: context) }
+        try? context.save()
+    }
+
+    private static func upsert(_ record: DailyActivityRecord, context: ModelContext) {
+        guard let existing = fetch(key: record.dateKey, context: context) else {
+            context.insert(record)
+            return
+        }
+        existing.steps = record.steps
+        existing.standTimeMinutes = record.standTimeMinutes
+        existing.restingHR = record.restingHR
+        existing.vo2Max = record.vo2Max
+        existing.workoutSeconds = record.workoutSeconds
+        existing.sleepHours = record.sleepHours
+        existing.weightKg = record.weightKg
+        existing.bmrDynamisch = record.bmrDynamisch
+        existing.neatSteps = record.neatSteps
+        existing.neatStand = record.neatStand
+        existing.neatHR = record.neatHR
+        existing.neatTotal = record.neatTotal
+        existing.eatCalories = record.eatCalories
     }
 
     // MARK: - Fetch

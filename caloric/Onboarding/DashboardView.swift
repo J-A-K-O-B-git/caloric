@@ -56,6 +56,8 @@ struct DashboardView: View {
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
+    /// Guards the expensive history backfill against rerunning unchanged.
+    @State private var lastBackfilledHistoryCount: Int? = nil
     @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
     @Environment(\.modelContext) private var modelContext
@@ -145,28 +147,26 @@ struct DashboardView: View {
         let v = Double(weightText.replacingOccurrences(of: ",", with: ".")) ?? 0
         return weightUnit == "kg" ? v : v * 0.453592
     }
-    
+
     private var bodyFatPercent: Double {
         Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
     }
-    
+
     // Reactive BMR — recomputes whenever the user edits weight, bodyFat, conditions, or sleep.
     private var activeFinalBMR: Double {
-        let lbm    = weightInKg * (1.0 - bodyFatPercent / 100.0)
-        let base   = 370 + 21.6 * lbm
-        let age: Double = {
-            if userAge <= 30 { return 1.0 }
-            if userAge <= 60 { return 1.0 - Double(userAge - 30) * 0.001 }
-            return 0.970 - Double(userAge - 60) * 0.005
-        }()
-        let adj    = base * age * metabolismFactor
-        let hourly = adj / 24.0
-        let wake   = 24.0 - sleepHours
-        return (sleepHours * hourly * 0.9) + (wake * hourly)
+        BMRCalculationService.finalBMR(
+            weightKg:         weightInKg,
+            bodyFatPercent:   bodyFatPercent,
+            age:              userAge,
+            metabolismFactor: metabolismFactor,
+            sleepHours:       sleepHours
+        )
     }
-    
+
     private var hourlyBMR: Double {
-        activeFinalBMR / (24 - sleepHoursValue * 0.1)
+        // Same sleep value the total was built from — sleepHoursValue lags one
+        // update cycle behind the binding.
+        BMRCalculationService.hourlyRate(finalBMR: activeFinalBMR, sleepHours: sleepHours)
     }
     
     private var calorieSlots: [CalorieSlot] {
@@ -293,15 +293,20 @@ struct DashboardView: View {
         ActivityRepository.deleteOlderThan(days: 90, context: modelContext)
     }
     
+    /// Recomputes and persists the whole cached history. This is expensive —
+    /// one full TDEE + activity calculation per day — so it only reruns when the
+    /// history itself changed, not on every HealthKit observer tick.
     @MainActor
     private func backfillActivityHistory() {
         guard healthKit.isAuthorized, !healthKit.history.isEmpty else { return }
+        let token = healthKit.history.count
+        guard token != lastBackfilledHistoryCount else { return }
+        lastBackfilledHistoryCount = token
+
         let calendar = Calendar.current
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.locale = Locale(identifier: "en_US_POSIX")
+        var records: [DailyActivityRecord] = []
         for (key, snapshot) in healthKit.history {
-            guard let date = fmt.date(from: key) else { continue }
+            guard let date = Self.dateKeyFormatter.date(from: key) else { continue }
             let dayTDEE = TDEECalculationService.calculate(
                 bmrStandard: activeFinalBMR,
                 inputs: store.journalInputs(for: date),
@@ -347,9 +352,17 @@ struct DashboardView: View {
                 neatTotal: result.neatKcal,
                 eatCalories: result.eatKcal
             )
-            ActivityRepository.save(record: record, context: modelContext)
+            records.append(record)
         }
+        ActivityRepository.save(records: records, context: modelContext)
     }
+
+    private static let dateKeyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
     
     private var burnProgress: Double {
         let target = todayProjected

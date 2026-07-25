@@ -98,9 +98,11 @@ struct ContentView: View {
         Double(bodyFatText.replacingOccurrences(of: ",", with: ".")) ?? 0
     }
 
-    private var leanBodyMass: Double { weightInKg * (1 - (bodyFatPercent / 100)) }
-    private var baseBMR: Double { 370 + (21.6 * leanBodyMass) }
-    private var ageFactor: Double { userAge > 30 ? 1 - (Double(userAge - 30) * 0.0015) : 1.0 }
+    private var leanBodyMass: Double {
+        BMRCalculationService.leanBodyMass(weightKg: weightInKg, bodyFatPercent: bodyFatPercent)
+    }
+    private var baseBMR: Double { BMRCalculationService.baseBMR(leanBodyMass: leanBodyMass) }
+    private var ageFactor: Double { BMRCalculationService.ageFactor(age: userAge) }
     private var ageAdjustedBMR: Double { baseBMR * ageFactor }
 
     private var hormoneFactor: Double { metabolismFactor }
@@ -154,9 +156,7 @@ struct ContentView: View {
     private var hormoneAdjustedBMR: Double { ageAdjustedBMR * hormoneFactor }
 
     private var finalBMR: Double {
-        let hourlyBMR = hormoneAdjustedBMR / 24
-        let wakeHours = 24 - sleepHours
-        return (sleepHours * hourlyBMR * 0.9) + (wakeHours * hourlyBMR * 1.0)
+        BMRCalculationService.sleepWeighted(dailyBMR: hormoneAdjustedBMR, sleepHours: sleepHours)
     }
 
     // MARK: - Validierung

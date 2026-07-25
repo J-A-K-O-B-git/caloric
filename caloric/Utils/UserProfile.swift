@@ -3,7 +3,8 @@
 //  caloric
 //
 //  SwiftData model — single source of truth for all onboarding data.
-//  Computed properties mirror the same derivation logic as ContentView.
+//  Derived values go through BMRCalculationService so this model, the
+//  onboarding form and the dashboard cannot drift apart again.
 //
 
 import Foundation
@@ -93,15 +94,16 @@ final class UserProfile {
     }
 
     var leanBodyMass: Double {
-        weightInKg * (1.0 - bodyFatPercent / 100.0)
+        BMRCalculationService.leanBodyMass(weightKg: weightInKg, bodyFatPercent: bodyFatPercent)
     }
 
     var finalBMR: Double {
-        let base   = 370 + 21.6 * leanBodyMass
-        let age    = userAge > 30 ? 1.0 - Double(userAge - 30) * 0.0015 : 1.0
-        let adj    = base * age * stoffwechselFaktor
-        let hourly = adj / 24.0
-        let wake   = 24.0 - schlafStunden
-        return (schlafStunden * hourly * 0.9) + (wake * hourly)
+        BMRCalculationService.finalBMR(
+            weightKg:         weightInKg,
+            bodyFatPercent:   bodyFatPercent,
+            age:              userAge,
+            metabolismFactor: stoffwechselFaktor,
+            sleepHours:       schlafStunden
+        )
     }
 }
