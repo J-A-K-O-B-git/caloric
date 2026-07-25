@@ -16,5 +16,9 @@
 	<string>Wir benötigen Zugriff auf dein Mikrofon, um deine Mahlzeiten per Spracheingabe zu erfassen.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Wir verwenden Spracherkennung, um deine diktierten Mahlzeiten in Text umzuwandeln.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Wir benötigen Zugriff auf deine Kamera, um deine Mahlzeiten zu fotografieren und die Nährwerte zu schätzen.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Wir benötigen Zugriff auf deine Fotos, um Bilder deiner Mahlzeiten für die Nährwertschätzung auszuwählen.</string>
 </dict>
 </plist>

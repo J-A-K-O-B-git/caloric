@@ -421,6 +421,7 @@ struct MacrosCard: View {
     @Binding var carbsByMeal: [String: String]
     @Binding var fatByMeal: [String: String]
     let analyzeFoodWithAI: () -> Void
+    let analyzeFoodFromPhoto: () -> Void
     let copyYesterdayBreakfast: () -> Void
     let isRecording: Bool
     let startRecording: () -> Void
@@ -444,8 +445,8 @@ struct MacrosCard: View {
                         .font(.poppins(size: 16, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(language == "de"
-                         ? "Beschreib, was du gegessen hast – die KI schätzt Protein, Kohlenhydrate und Fett"
-                         : "Describe what you ate – AI estimates protein, carbs and fat")
+                         ? "Beschreib oder fotografier, was du gegessen hast – die KI schätzt Protein, Kohlenhydrate und Fett"
+                         : "Describe or photograph what you ate – AI estimates protein, carbs and fat")
                         .font(.poppins(size: 11, weight: .regular))
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -491,6 +492,17 @@ struct MacrosCard: View {
                         .disabled(aiIsLoading)
 
                     HStack(spacing: 8) {
+                        Button { analyzeFoodFromPhoto() } label: {
+                            ZStack {
+                                Circle().fill(accentBlue.opacity(0.1)).frame(width: 32, height: 32)
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(accentBlue)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(aiIsLoading)
+
                         Button {
                             if isRecording { stopRecording() }
                             else { startRecording() }

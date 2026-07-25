@@ -8,6 +8,7 @@
 import SwiftUI
 import Speech
 import AVFoundation
+import PhotosUI
 
 struct DailyJournalView: View {
 
@@ -51,6 +52,20 @@ struct DailyJournalView: View {
     @State private var aiInputText: String = ""
     @State private var aiIsLoading: Bool = false
     @State private var aiErrorMessage: String? = nil
+
+    // Foto-Eingabe
+    @State private var showPhotoSourceDialog = false
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var photoSelection: PhotosPickerItem? = nil
+    /// Analysis waiting for the user's confirmation; nil while nothing is pending.
+    @State private var pendingAnalysis: PendingAnalysis? = nil
+
+    struct PendingAnalysis: Identifiable {
+        let id = UUID()
+        let items: [FoodItem]
+        let meal: String
+    }
 
     // Speech State
     @State private var isRecording = false
@@ -232,12 +247,58 @@ struct DailyJournalView: View {
                 carbsByMeal: $carbsByMeal,
                 fatByMeal: $fatByMeal,
                 analyzeFoodWithAI: { Task { await analyzeFoodWithAI() } },
+                analyzeFoodFromPhoto: { showPhotoSourceDialog = true },
                 copyYesterdayBreakfast: { copyYesterdayBreakfast() },
                 isRecording: isRecording,
                 startRecording: { startRecording() },
                 stopRecording: { stopRecording() },
                 macroFocus: $macroFocus
             )
+            .confirmationDialog(
+                language == "de" ? "Mahlzeit fotografieren" : "Photograph meal",
+                isPresented: $showPhotoSourceDialog,
+                titleVisibility: .visible
+            ) {
+                Button(language == "de" ? "Kamera" : "Camera") { showCamera = true }
+                Button(language == "de" ? "Aus Fotos wählen" : "Choose from library") {
+                    showPhotoLibrary = true
+                }
+                Button(language == "de" ? "Abbrechen" : "Cancel", role: .cancel) {}
+            }
+            #if os(iOS)
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker { image in
+                    Task { await analyzeFoodFromImage(image) }
+                }
+                .ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $showPhotoLibrary, selection: $photoSelection, matching: .images)
+            .onChange(of: photoSelection) { _, item in
+                guard let item else { return }
+                Task {
+                    defer { photoSelection = nil }
+                    guard let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data) else {
+                        aiErrorMessage = language == "de"
+                            ? "Foto konnte nicht geladen werden."
+                            : "Could not load photo."
+                        return
+                    }
+                    await analyzeFoodFromImage(image)
+                }
+            }
+            #endif
+            .sheet(item: $pendingAnalysis) { pending in
+                FoodConfirmSheet(
+                    language: language,
+                    accentBlue: accentBlue,
+                    mealName: mealDisplayName(pending.meal),
+                    items: pending.items,
+                    onConfirm: { confirmed in
+                        addAnalysis(confirmed, to: pending.meal)
+                    }
+                )
+            }
         }
 
         .padding(.horizontal, 20)
@@ -683,103 +744,81 @@ struct DailyJournalView: View {
 
         
     // MARK: - KI-Netzwerk-Logik
-    
+
     @MainActor
     private func analyzeFoodWithAI() async {
         let trimmed = aiInputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let meal = selectedMeal else { return }
-        
+
+        await runAnalysis(.text(trimmed), for: meal) {
+            aiInputText = ""   // Eingabefeld nur bei Erfolg leeren
+        }
+    }
+
+    #if os(iOS)
+    @MainActor
+    private func analyzeFoodFromImage(_ image: UIImage) async {
+        guard let meal = selectedMeal else { return }
+        guard let jpeg = image.jpegForAnalysis() else {
+            aiErrorMessage = language == "de"
+                ? "Foto konnte nicht verarbeitet werden."
+                : "Could not process photo."
+            return
+        }
+        await runAnalysis(.photo(jpeg), for: meal)
+    }
+    #endif
+
+    /// Shared path for text and photo input: analyse, then hand the result to
+    /// the confirmation sheet. Nothing is written to the journal until the user
+    /// confirms — the model estimates portions and can be wrong.
+    @MainActor
+    private func runAnalysis(
+        _ input: FoodAnalysisService.Input,
+        for meal: String,
+        onSuccess: () -> Void = {}
+    ) async {
         aiIsLoading = true
         aiErrorMessage = nil
-        
-        // 1. Dein funktionierender API-Key aus dem Terminal-Test
-        let apiKey = Secrets.gcpApiKey
-        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=\(apiKey)") else { 
-            aiIsLoading = false
-            return 
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload: [String: Any] = [
-            "systemInstruction": [
-                "parts": [
-                    ["text": "Du bist ein präziser Ernährungsanalyst für die App Caloric. Analysiere die Mahlzeit des Nutzers. Schätze das Gesamtgewicht der Zutaten, falls keine genauen Grammangaben vorhanden sind. Berechne Protein, Kohlenhydrate und Fett in Gramm für die gesamte Mahlzeit. Antworte ausschließlich im vorgegebenen JSON-Schema ohne Erklärungen oder Markdown."]
-                ]
-            ],
-            "contents": [
-                ["parts": [["text": trimmed]]]
-            ],
-            "generationConfig": [
-                "responseMimeType": "application/json",
-                "responseSchema": [
-                    "type": "OBJECT",
-                    "properties": [
-                        "protein": ["type": "NUMBER"],
-                        "carbs": ["type": "NUMBER"],
-                        "fat": ["type": "NUMBER"]
-                    ],
-                    "required": ["protein", "carbs", "fat"]
-                ]
-            ]
-        ]
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        defer { aiIsLoading = false }
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-                let body = String(data: data, encoding: .utf8) ?? "–"
-                throw NSError(domain: "GeminiAPI", code: statusCode,
-                              userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(body)"])
+            let items = try await FoodAnalysisService.analyze(input)
+            guard !items.isEmpty else {
+                aiErrorMessage = language == "de"
+                    ? "Es wurde nichts Essbares erkannt."
+                    : "Nothing edible was recognised."
+                return
             }
-            
-            // 3. Google API Wrapper-Strukturen für das Parsing
-            struct GeminiResponse: Codable {
-                let candidates: [Candidate]
-            }
-            struct Candidate: Codable {
-                let content: Content
-            }
-            struct Content: Codable {
-                let parts: [Part]
-            }
-            struct Part: Codable {
-                let text: String
-            }
-            
-            struct MacroValues: Codable {
-                let protein: Double
-                let carbs: Double
-                let fat: Double
-            }
-            
-            // 4. Verschachteltes JSON decodieren
-            let geminiResult = try JSONDecoder().decode(GeminiResponse.self, from: data)
-            
-            if let jsonString = geminiResult.candidates.first?.content.parts.first?.text,
-               let jsonData = jsonString.data(using: .utf8) {
-                
-                let result = try JSONDecoder().decode(MacroValues.self, from: jsonData)
-                
-                // Werte runden und als String in deine TextFields eintragen
-                proteinByMeal[meal] = "\(Int(result.protein))"
-                carbsByMeal[meal]   = "\(Int(result.carbs))"
-                fatByMeal[meal]     = "\(Int(result.fat))"
-                
-                aiInputText = "" // Eingabefeld nach Erfolg leeren
-            } else {
-                throw URLError(.cannotParseResponse)
-            }
+            onSuccess()
+            pendingAnalysis = PendingAnalysis(items: items, meal: meal)
         } catch {
             aiErrorMessage = error.localizedDescription
         }
-        
-        aiIsLoading = false
+    }
+
+    /// Adds the confirmed macros to whatever the meal already holds.
+    /// Adding a second item must not erase the first.
+    @MainActor
+    private func addAnalysis(_ items: [FoodItem], to meal: String) {
+        proteinByMeal[meal] = addGrams(items.totalProtein, to: proteinByMeal[meal])
+        carbsByMeal[meal]   = addGrams(items.totalCarbs,   to: carbsByMeal[meal])
+        fatByMeal[meal]     = addGrams(items.totalFat,     to: fatByMeal[meal])
+    }
+
+    private func addGrams(_ added: Double, to existing: String?) -> String {
+        let current = Double((existing ?? "").replacingOccurrences(of: ",", with: ".")) ?? 0
+        let total = max(0, current + added)
+        return total > 0 ? "\(Int(total.rounded()))" : ""
+    }
+
+    private func mealDisplayName(_ key: String) -> String {
+        switch key {
+        case "breakfast": return language == "de" ? "Frühstück"   : "Breakfast"
+        case "lunch":     return language == "de" ? "Mittagessen" : "Lunch"
+        case "dinner":    return language == "de" ? "Abendessen"  : "Dinner"
+        default:          return language == "de" ? "Snack"       : "Snack"
+        }
     }
    
 
