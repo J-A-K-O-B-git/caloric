@@ -53,6 +53,15 @@ struct DashboardView: View {
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
+
+    // Tageserklärung
+    @State private var narrativeStore = DayNarrativeStore()
+    @State private var narrative: DayNarrativeService.Narrative? = nil
+    @State private var narrativeIsLoading = false
+    @State private var narrativeError: String? = nil
+    /// Fingerprint the shown text was generated for — lets the card say so
+    /// when the day has moved on since.
+    @State private var narrativeFingerprint: String? = nil
     @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
     @Environment(JournalStore.self)           private var store
@@ -258,6 +267,111 @@ struct DashboardView: View {
         )
     }
     
+    // MARK: - Tageserklärung
+
+    /// Assembles everything the narrative may mention. Pure computation — the
+    /// numbers are finished here and the model only puts them into words.
+    private var dayDeltaSummary: DayDeltaSummary {
+        let segs = energySegments
+        let f = elapsedActivityFraction
+
+        let segmentDeltas = segs.map { seg in
+            DayDeltaSummary.SegmentDelta(
+                key: Self.segmentKey(seg.type),
+                todayKcal: seg.kcal,
+                yesterdayKcal: previousValue(for: seg.type)
+            )
+        }
+
+        let today = activityResult.neatBreakdown
+        let prev  = previousActivityResult.neatBreakdown
+        let neatDeltas = [
+            DayDeltaSummary.SegmentDelta(key: "steps",     todayKcal: today.neatSteps, yesterdayKcal: prev.neatSteps * f),
+            DayDeltaSummary.SegmentDelta(key: "standing",  todayKcal: today.neatStand, yesterdayKcal: prev.neatStand * f),
+            DayDeltaSummary.SegmentDelta(key: "heartRate", todayKcal: today.neatHR,    yesterdayKcal: prev.neatHR * f)
+        ]
+
+        let prevKey = HealthKitImportService.dateKey(
+            Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        )
+        let prevSnapshot = healthKit.history[prevKey]
+
+        return DayDeltaSummary(
+            dateKey: HealthKitImportService.dateKey(selectedDate),
+            isPartialDay: isSelectedToday,
+            elapsedFraction: f,
+            totalTodayKcal: segs.reduce(0) { $0 + $1.kcal },
+            totalYesterdayKcal: segs.reduce(0) { $0 + previousValue(for: $1.type) },
+            segments: segmentDeltas,
+            neatBreakdown: neatDeltas,
+            context: DayDeltaSummary.Context(
+                steps: selectedActivity.steps,
+                stepsYesterday: prevSnapshot?.activity.steps ?? 0,
+                standMinutes: selectedActivity.standTimeMinutes,
+                standMinutesYesterday: prevSnapshot?.activity.standTimeMinutes ?? 0,
+                workoutMinutes: selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0,
+                workoutMinutesYesterday: (prevSnapshot?.workouts ?? []).reduce(0.0) { $0 + $1.duration } / 60.0,
+                sleepHours: sleepHours
+            )
+        )
+    }
+
+    private static func segmentKey(_ type: EnergySegmentType) -> String {
+        switch type {
+        case .bmr:      return "bmr"
+        case .neat:     return "neat"
+        case .eat:      return "eat"
+        case .tef:      return "tef"
+        case .caffeine: return "caffeine"
+        }
+    }
+
+    /// The shown text was generated for numbers that have since moved.
+    private var narrativeIsStale: Bool {
+        guard narrative != nil, let shown = narrativeFingerprint else { return false }
+        return shown != dayDeltaSummary.fingerprint
+    }
+
+    @MainActor
+    private func generateNarrative() async {
+        let summary = dayDeltaSummary
+        narrativeError = nil
+
+        // A cached text for the same numbers needs no request.
+        if let cached = narrativeStore.narrative(for: summary) {
+            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
+            narrativeFingerprint = summary.fingerprint
+            return
+        }
+
+        narrativeIsLoading = true
+        defer { narrativeIsLoading = false }
+
+        do {
+            let result = try await DayNarrativeService.explain(summary, language: language)
+            narrative = result
+            narrativeFingerprint = summary.fingerprint
+            narrativeStore.store(result, for: summary)
+        } catch {
+            narrativeError = error.localizedDescription
+        }
+    }
+
+    /// Shows a cached narrative straight away when one matches, without firing
+    /// a request — switching back to a day you already explained keeps its text.
+    @MainActor
+    private func loadCachedNarrative() {
+        let summary = dayDeltaSummary
+        if let cached = narrativeStore.narrative(for: summary) {
+            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
+            narrativeFingerprint = summary.fingerprint
+        } else {
+            narrative = nil
+            narrativeFingerprint = nil
+        }
+        narrativeError = nil
+    }
+
     private var burnProgress: Double {
         let target = todayProjected
         guard target > 0 else { return 0 }
@@ -649,6 +763,17 @@ struct DashboardView: View {
 
                         caloriesChartSection
 
+                        DayNarrativeCard(
+                            language: language,
+                            accentBlue: accentBlue,
+                            narrative: narrative,
+                            isLoading: narrativeIsLoading,
+                            errorMessage: narrativeError,
+                            isStale: narrativeIsStale,
+                            onGenerate: { Task { await generateNarrative() } }
+                        )
+                        .padding(.horizontal, 20)
+
                         Spacer().frame(height: 20)
                     }
                 }
@@ -722,8 +847,12 @@ struct DashboardView: View {
     }
         .onAppear {
             runBurnAnimation()
+            loadCachedNarrative()
         }
-        .onChange(of: selectedDate) { _, _ in runBurnAnimation() }
+        .onChange(of: selectedDate) { _, _ in
+            runBurnAnimation()
+            loadCachedNarrative()
+        }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.activity.fetchedAt) { _, _ in
             runBurnAnimation()
@@ -882,15 +1011,19 @@ struct DashboardView: View {
             VStack(spacing: 8) {
                 switch type {
                 case .neat:
+                    // Scaled like the NEAT total above, so the sub-rows agree
+                    // with the percentage shown for the segment.
+                    let f = elapsedActivityFraction
                     let prev = previousActivityResult.neatBreakdown
-                    breakdownItem(label: language == "de" ? "Schritte" : "Steps", value: activityResult.neatBreakdown.neatSteps, prevValue: prev.neatSteps)
-                    breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand, prevValue: prev.neatStand)
-                    breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR, prevValue: prev.neatHR)
+                    breakdownItem(label: language == "de" ? "Schritte" : "Steps", value: activityResult.neatBreakdown.neatSteps, prevValue: prev.neatSteps * f)
+                    breakdownItem(label: language == "de" ? "Stehen" : "Standing", value: activityResult.neatBreakdown.neatStand, prevValue: prev.neatStand * f)
+                    breakdownItem(label: language == "de" ? "Herzfrequenz" : "Heart Rate", value: activityResult.neatBreakdown.neatHR, prevValue: prev.neatHR * f)
                 case .eat:
+                    let f = elapsedActivityFraction
                     let prevDetails = previousActivityResult.workoutDetails
                     ForEach(activityResult.workoutDetails) { detail in
                         let matchedPrev = prevDetails.first(where: { $0.name == detail.name })?.kcal
-                        breakdownItem(label: detail.name, value: detail.kcal, prevValue: matchedPrev)
+                        breakdownItem(label: detail.name, value: detail.kcal, prevValue: matchedPrev.map { $0 * f })
                     }
                     if activityResult.workoutDetails.isEmpty {
                         breakdownItem(label: language == "de" ? "Keine Workouts" : "No workouts", value: 0)
@@ -988,6 +1121,17 @@ struct DashboardView: View {
         return ActivityCalculationService.ActivityResult(neatKcal: 0, eatKcal: 0)
     }
 
+    /// Share of the day's *waking* time that has elapsed. NEAT and EAT happen
+    /// while awake, so scaling them by wall-clock time would compare this
+    /// morning against a slice of yesterday that includes the night.
+    private var elapsedActivityFraction: Double {
+        guard isSelectedToday else { return 1.0 }
+        let wakeHour = min(max(sleepHours, 0), 23)
+        let awake = 24.0 - wakeHour
+        guard awake > 0 else { return 1.0 }
+        return min(1.0, max(0.0, (nowFraction - wakeHour) / awake))
+    }
+
     private func previousValue(for type: EnergySegmentType) -> Double {
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
         let inputs = store.journalInputs(for: prevDate)
@@ -996,15 +1140,20 @@ struct DashboardView: View {
             inputs: inputs,
             isFemale: selectedGender == femaleText
         )
-        let fraction = isSelectedToday ? nowFraction / 24.0 : 1.0
+        // BMR/TEF/caffeine are modelled evenly across the 24 h day, so they
+        // scale with wall-clock time; NEAT/EAT scale with elapsed waking time.
+        // Both must be scaled — comparing a partial today against a full
+        // yesterday made every mid-day NEAT/EAT delta look negative.
+        let clockFraction = isSelectedToday ? nowFraction / 24.0 : 1.0
+        let activeFraction = elapsedActivityFraction
         let res = previousActivityResult
 
         switch type {
-        case .bmr:      return tdee.bmrDynamisch * fraction
-        case .neat:     return res.neatKcal
-        case .eat:      return res.eatKcal
-        case .tef:      return tdee.tefKcal * fraction
-        case .caffeine: return tdee.koffeinBonus * fraction
+        case .bmr:      return tdee.bmrDynamisch * clockFraction
+        case .neat:     return res.neatKcal * activeFraction
+        case .eat:      return res.eatKcal * activeFraction
+        case .tef:      return tdee.tefKcal * clockFraction
+        case .caffeine: return tdee.koffeinBonus * clockFraction
         }
     }
 

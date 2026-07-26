@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5DA0F00E3010000E000000A1 /* DayDeltaSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00D3010000D000000A1 /* DayDeltaSummary.swift */; };
+		5DA0F01030100010000000A1 /* DayNarrativeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00F3010000F000000A1 /* DayNarrativeService.swift */; };
+		5DA0F01230100012000000A1 /* DayNarrativeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F01130100011000000A1 /* DayNarrativeStore.swift */; };
+		5DA0F01430100014000000A1 /* DayNarrativeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F01330100013000000A1 /* DayNarrativeCard.swift */; };
 		5DA0F00A3010000A000000A1 /* MeasurementParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00930100009000000A1 /* MeasurementParsing.swift */; };
 		5DA0F00C3010000C000000A1 /* DateKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00B3010000B000000A1 /* DateKey.swift */; };
 		5DA0F00830100008000000A1 /* BMRCalculationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00730100007000000A1 /* BMRCalculationService.swift */; };
@@ -46,6 +50,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5DA0F00D3010000D000000A1 /* DayDeltaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDeltaSummary.swift; sourceTree = "<group>"; };
+		5DA0F00F3010000F000000A1 /* DayNarrativeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayNarrativeService.swift; sourceTree = "<group>"; };
+		5DA0F01130100011000000A1 /* DayNarrativeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayNarrativeStore.swift; sourceTree = "<group>"; };
+		5DA0F01330100013000000A1 /* DayNarrativeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayNarrativeCard.swift; sourceTree = "<group>"; };
 		5DA0F00930100009000000A1 /* MeasurementParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementParsing.swift; sourceTree = "<group>"; };
 		5DA0F00B3010000B000000A1 /* DateKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateKey.swift; sourceTree = "<group>"; };
 		5DA0F00730100007000000A1 /* BMRCalculationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMRCalculationService.swift; sourceTree = "<group>"; };
@@ -120,6 +128,7 @@
 		5D2E62B12FCE1AE20057E84D /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
+				5DA0F01330100013000000A1 /* DayNarrativeCard.swift */,
 				5DA0F00530100005000000A1 /* FoodConfirmSheet.swift */,
 				5DA0F00330100003000000A1 /* FoodPhotoCapture.swift */,
 				5D2E62AF2FCE1AE20057E84D /* BodyFatHelpView.swift */,
@@ -140,6 +149,9 @@
 		5D2E62B42FCE1AE20057E84D /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				5DA0F01130100011000000A1 /* DayNarrativeStore.swift */,
+				5DA0F00F3010000F000000A1 /* DayNarrativeService.swift */,
+				5DA0F00D3010000D000000A1 /* DayDeltaSummary.swift */,
 				5DA0F00930100009000000A1 /* MeasurementParsing.swift */,
 				5DA0F00B3010000B000000A1 /* DateKey.swift */,
 				5DA0F00730100007000000A1 /* BMRCalculationService.swift */,
@@ -264,6 +276,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5DA0F00E3010000E000000A1 /* DayDeltaSummary.swift in Sources */,
+				5DA0F01030100010000000A1 /* DayNarrativeService.swift in Sources */,
+				5DA0F01230100012000000A1 /* DayNarrativeStore.swift in Sources */,
+				5DA0F01430100014000000A1 /* DayNarrativeCard.swift in Sources */,
 				5DA0F00A3010000A000000A1 /* MeasurementParsing.swift in Sources */,
 				5DA0F00C3010000C000000A1 /* DateKey.swift in Sources */,
 				5DA0F00830100008000000A1 /* BMRCalculationService.swift in Sources */,
