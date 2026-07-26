@@ -122,10 +122,26 @@ struct DataInsightView: View {
         ZStack {
             CaloricBackground()
             VStack(spacing: 0) {
-                headerSection
-                tabPicker
-                ScrollView {
-                    if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
+                // Header section aligned with DashboardView
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text(language == "de" ? "Deine Daten" : "Your Data")
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                    }
+                    tabPicker
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: LayoutMetrics.cardSpacing) {
+                        if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
+                        
+                        Spacer().frame(height: 20)
+                    }
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -197,22 +213,6 @@ struct DataInsightView: View {
         return f.string(from: d)
     }
 
-    // MARK: Header
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(language == "de" ? "Deine Daten" : "Your Data")
-                .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                .foregroundStyle(Theme.textPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
-    }
-
-    // MARK: Tab Picker
-
     private var tabPicker: some View {
         HStack(spacing: 0) {
             tabButton(title: language == "de" ? "Live-Quellen" : "Live Sources", tag: 0)
@@ -221,8 +221,6 @@ struct DataInsightView: View {
         .padding(4)
         .background(Theme.fieldFill)
         .clipShape(Capsule())
-        .padding(.horizontal, 20)
-        .padding(.bottom, 14)
     }
 
     private func tabButton(title: String, tag: Int) -> some View {
@@ -301,7 +299,6 @@ struct DataInsightView: View {
                 checkinCard
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 120)
         }
     }
 
@@ -474,7 +471,6 @@ struct DataInsightView: View {
                     value: besonderheitenSummary)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 120)
         }
     }
 

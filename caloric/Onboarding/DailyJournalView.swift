@@ -142,7 +142,29 @@ struct DailyJournalView: View {
         ZStack {
             CaloricBackground()
 
-            journalScrollView
+            VStack(spacing: 0) {
+                // STATIC HEADER (Aligned with DashboardView)
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text(language == "de" ? "Dein Check-in" : "Daily Journal")
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer()
+                    }
+                    dateNavigationRow
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: LayoutMetrics.cardSpacing) {
+                        cardsSection
+                        
+                        Spacer().frame(height: 20)
+                    }
+                }
+            }
 
             VStack {
                 Spacer()
@@ -489,6 +511,8 @@ struct DailyJournalView: View {
                 .padding(.bottom, 16)
 
                 cardsSection
+
+                Spacer().frame(height: 140)
             }
         }
     }

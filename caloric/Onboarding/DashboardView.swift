@@ -649,7 +649,7 @@ struct DashboardView: View {
 
                         caloriesChartSection
 
-                        Spacer().frame(height: 100)
+                        Spacer().frame(height: 20)
                     }
                 }
                 .refreshable {
