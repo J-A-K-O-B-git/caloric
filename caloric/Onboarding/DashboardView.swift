@@ -62,6 +62,7 @@ struct DashboardView: View {
     /// Fingerprint the shown text was generated for — lets the card say so
     /// when the day has moved on since.
     @State private var narrativeFingerprint: String? = nil
+    @State private var lastNarrativeRequestAt: Date? = nil
     @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
     @Environment(JournalStore.self)           private var store
@@ -332,24 +333,52 @@ struct DashboardView: View {
         return shown != dayDeltaSummary.fingerprint
     }
 
-    @MainActor
-    private func generateNarrative() async {
-        let summary = dayDeltaSummary
-        narrativeError = nil
+    /// Shortest gap between two automatic requests. A running day keeps nudging
+    /// the numbers, and without this every HealthKit update would buy a new
+    /// generation; the manual refresh bypasses it.
+    private static let narrativeAutoInterval: TimeInterval = 120
 
-        // A cached text for the same numbers needs no request.
-        if let cached = narrativeStore.narrative(for: summary) {
-            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
-            narrativeFingerprint = summary.fingerprint
+    /// Single entry point: serves the cache when it still matches, otherwise
+    /// generates. Called on appear, on date change and when HealthKit reports
+    /// new data — so a text is simply there.
+    @MainActor
+    private func refreshNarrative(force: Bool = false) async {
+        guard !isSelectedFuture else {
+            narrative = nil
+            narrativeFingerprint = nil
             return
         }
 
+        let summary = dayDeltaSummary
+
+        // Cached text for exactly these numbers — nothing to do.
+        if !force, let cached = narrativeStore.narrative(for: summary) {
+            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
+            narrativeFingerprint = summary.fingerprint
+            narrativeError = nil
+            return
+        }
+
+        // Text already matches what is on screen.
+        if !force, narrative != nil, narrativeFingerprint == summary.fingerprint { return }
+
+        if !force, narrativeIsLoading { return }
+
+        if !force, let last = lastNarrativeRequestAt,
+           Date().timeIntervalSince(last) < Self.narrativeAutoInterval {
+            return   // keep the current text until the cooldown has passed
+        }
+
         narrativeIsLoading = true
+        narrativeError = nil
+        lastNarrativeRequestAt = Date()
         defer { narrativeIsLoading = false }
 
         do {
             let result = try await DayNarrativeService.explain(summary, language: language)
-            narrative = result
+            withAnimation(.easeInOut(duration: 0.25)) {
+                narrative = result
+            }
             narrativeFingerprint = summary.fingerprint
             narrativeStore.store(result, for: summary)
         } catch {
@@ -357,19 +386,14 @@ struct DashboardView: View {
         }
     }
 
-    /// Shows a cached narrative straight away when one matches, without firing
-    /// a request — switching back to a day you already explained keeps its text.
+    /// Switching days must not show the previous day's text while the new one
+    /// loads, so the visible state is reset before the refresh runs.
     @MainActor
-    private func loadCachedNarrative() {
-        let summary = dayDeltaSummary
-        if let cached = narrativeStore.narrative(for: summary) {
-            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
-            narrativeFingerprint = summary.fingerprint
-        } else {
-            narrative = nil
-            narrativeFingerprint = nil
-        }
+    private func resetAndRefreshNarrative() async {
+        narrative = nil
+        narrativeFingerprint = nil
         narrativeError = nil
+        await refreshNarrative()
     }
 
     private var burnProgress: Double {
@@ -758,21 +782,23 @@ struct DashboardView: View {
                         calorieRingWidget
                             .padding(.horizontal, 20)
 
+                        if !isSelectedFuture {
+                            DayNarrativeCard(
+                                language: language,
+                                accentBlue: accentBlue,
+                                narrative: narrative,
+                                isLoading: narrativeIsLoading,
+                                errorMessage: narrativeError,
+                                isStale: narrativeIsStale,
+                                onRegenerate: { Task { await refreshNarrative(force: true) } }
+                            )
+                            .padding(.horizontal, 20)
+                        }
+
                         kpiRow
                             .padding(.horizontal, 20)
 
                         caloriesChartSection
-
-                        DayNarrativeCard(
-                            language: language,
-                            accentBlue: accentBlue,
-                            narrative: narrative,
-                            isLoading: narrativeIsLoading,
-                            errorMessage: narrativeError,
-                            isStale: narrativeIsStale,
-                            onGenerate: { Task { await generateNarrative() } }
-                        )
-                        .padding(.horizontal, 20)
 
                         Spacer().frame(height: 20)
                     }
@@ -847,15 +873,16 @@ struct DashboardView: View {
     }
         .onAppear {
             runBurnAnimation()
-            loadCachedNarrative()
+            Task { await refreshNarrative() }
         }
         .onChange(of: selectedDate) { _, _ in
             runBurnAnimation()
-            loadCachedNarrative()
+            Task { await resetAndRefreshNarrative() }
         }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.activity.fetchedAt) { _, _ in
             runBurnAnimation()
+            Task { await refreshNarrative() }
         }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
         .sheet(isPresented: $showCalendarPicker) {
