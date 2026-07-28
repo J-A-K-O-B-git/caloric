@@ -273,34 +273,32 @@ struct DashboardView: View {
     /// Assembles everything the narrative may mention. Pure computation — the
     /// numbers are finished here and the model only puts them into words.
     private var dayDeltaSummary: DayDeltaSummary {
-        let f = elapsedActivityFraction
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
 
-        // Every segment, not just the ones currently drawn: energySegments drops
-        // caffeine when today's value is zero, which hid exactly the case worth
-        // mentioning — yesterday had coffee, today none.
-        let allTypes: [EnergySegmentType] = [.bmr, .neat, .eat, .tef, .caffeine]
-        let segmentDeltas = allTypes.map { type in
-            DayDeltaSummary.SegmentDelta(
-                key: Self.segmentKey(type),
-                todayKcal: todaySegmentValue(for: type),
-                yesterdayKcal: previousValue(for: type)
-            )
-        }
+        // Same decomposition the KPI tile compares, so the component deltas add
+        // up exactly to the difference behind the percentage on screen.
+        let today = dayComponents(for: selectedDate)
+        let prev  = dayComponents(for: prevDate)
 
-        let today = activityResult.neatBreakdown
-        let prev  = previousActivityResult.neatBreakdown
-        let neatDeltas = [
-            DayDeltaSummary.SegmentDelta(key: "steps",     todayKcal: today.neatSteps, yesterdayKcal: prev.neatSteps * f),
-            DayDeltaSummary.SegmentDelta(key: "standing",  todayKcal: today.neatStand, yesterdayKcal: prev.neatStand * f),
-            DayDeltaSummary.SegmentDelta(key: "heartRate", todayKcal: today.neatHR,    yesterdayKcal: prev.neatHR * f)
+        let components: [DayDeltaSummary.ComponentDelta] = [
+            .init(key: "bmr",      todayKcal: today.bmr,      previousKcal: prev.bmr),
+            .init(key: "neat",     todayKcal: today.neat,     previousKcal: prev.neat),
+            .init(key: "eat",      todayKcal: today.eat,      previousKcal: prev.eat),
+            .init(key: "tef",      todayKcal: today.tef,      previousKcal: prev.tef),
+            .init(key: "caffeine", todayKcal: today.caffeine, previousKcal: prev.caffeine)
         ]
 
-        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
-        let prevKey = HealthKitImportService.dateKey(prevDate)
-        let prevSnapshot = healthKit.history[prevKey]
+        // NEAT sub-parts, both sides at full day value like the components above.
+        let todayNeat = activityResult.neatBreakdown
+        let prevNeat  = previousActivityResult.neatBreakdown
+        let neatBreakdown: [DayDeltaSummary.ComponentDelta] = [
+            .init(key: "steps",     todayKcal: todayNeat.neatSteps, previousKcal: prevNeat.neatSteps),
+            .init(key: "standing",  todayKcal: todayNeat.neatStand, previousKcal: prevNeat.neatStand),
+            .init(key: "heartRate", todayKcal: todayNeat.neatHR,    previousKcal: prevNeat.neatHR)
+        ]
 
-        // BMR only moves for a reason — illness or cycle. Without one, any
-        // delta it shows is modelling noise and must not become the headline.
+        // BMR only moves for a reason — illness or cycle. Without one, any delta
+        // it shows is modelling noise and must not become the headline.
         let prevTDEE = TDEECalculationService.calculate(
             bmrStandard: activeFinalBMR,
             inputs: store.journalInputs(for: prevDate),
@@ -310,25 +308,28 @@ struct DashboardView: View {
             abs(tdeeResult.krankheitsFaktor - prevTDEE.krankheitsFaktor) > 0.001 ||
             abs(tdeeResult.zyklusFaktor - prevTDEE.zyklusFaktor) > 0.001
 
+        let prevSnapshot = healthKit.history[HealthKitImportService.dateKey(prevDate)]
+
         return DayDeltaSummary(
             dateKey: HealthKitImportService.dateKey(selectedDate),
+            percentVsPreviousDay: vsSelectedDayPercent,
+            todayTotalKcal: today.total,
+            previousTotalKcal: prev.total,
             isPartialDay: isSelectedToday,
-            elapsedFraction: f,
-            totalTodayKcal: segmentDeltas.reduce(0) { $0 + $1.todayKcal },
-            totalYesterdayKcal: segmentDeltas.reduce(0) { $0 + $1.yesterdayKcal },
-            segments: segmentDeltas,
-            neatBreakdown: neatDeltas,
+            elapsedFractionOfWakingDay: elapsedActivityFraction,
+            components: components,
+            neatBreakdown: neatBreakdown,
             bmrFactorsChanged: bmrFactorsChanged,
             context: DayDeltaSummary.Context(
                 steps: selectedActivity.steps,
-                stepsYesterday: prevSnapshot?.activity.steps ?? 0,
+                stepsPrevious: prevSnapshot?.activity.steps ?? 0,
                 standMinutes: selectedActivity.standTimeMinutes,
-                standMinutesYesterday: prevSnapshot?.activity.standTimeMinutes ?? 0,
+                standMinutesPrevious: prevSnapshot?.activity.standTimeMinutes ?? 0,
                 workoutMinutes: selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0,
-                workoutMinutesYesterday: (prevSnapshot?.workouts ?? []).reduce(0.0) { $0 + $1.duration } / 60.0,
+                workoutMinutesPrevious: (prevSnapshot?.workouts ?? []).reduce(0.0) { $0 + $1.duration } / 60.0,
                 sleepHours: sleepHours,
                 foodLoggedToday: hasLoggedFood(on: selectedDate),
-                foodLoggedYesterday: hasLoggedFood(on: prevDate)
+                foodLoggedPrevious: hasLoggedFood(on: prevDate)
             )
         )
     }
@@ -339,16 +340,6 @@ struct DashboardView: View {
         let entry = store.entry(for: date)
         let byMeal = [entry.proteinByMeal, entry.carbsByMeal, entry.fatByMeal]
         return byMeal.contains { $0.values.contains { $0 > 0 } }
-    }
-
-    private static func segmentKey(_ type: EnergySegmentType) -> String {
-        switch type {
-        case .bmr:      return "bmr"
-        case .neat:     return "neat"
-        case .eat:      return "eat"
-        case .tef:      return "tef"
-        case .caffeine: return "caffeine"
-        }
     }
 
     /// The shown text was generated for numbers that have since moved.
@@ -447,8 +438,7 @@ struct DashboardView: View {
         } else if isSelectedFuture {
             return 0
         } else {
-            return tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal +
-            (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
+            return dayComponents(for: selectedDate).total
         }
     }
     
@@ -462,64 +452,46 @@ struct DashboardView: View {
         }
     }
     
-    private var todayProjected: Double {
-        tdeeResult.bmrDynamisch + tdeeResult.koffeinBonus + tdeeResult.tefKcal + (healthKit.isAuthorized ? activityResult.totalActiveKcal : 0)
+    /// The five parts of one day's total, in the exact composition the KPI tile
+    /// compares. Having a single implementation is what lets the narrative
+    /// decompose the percentage the user actually sees instead of a number of
+    /// its own.
+    struct DayComponents {
+        var bmr = 0.0
+        var neat = 0.0
+        var eat = 0.0
+        var tef = 0.0
+        var caffeine = 0.0
+
+        var total: Double { bmr + neat + eat + tef + caffeine }
     }
-    
-    private var yesterdayProjected: Double {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
-        let inputs = store.journalInputs(for: yesterday)
-        let result = TDEECalculationService.calculate(
-            bmrStandard: activeFinalBMR,
-            inputs: inputs,
-            isFemale: selectedGender == femaleText
-        )
-        let activeKcal: Double
-        if let snap = healthKit.daySnapshot(for: yesterday) {
-            activeKcal = ActivityCalculationService.calculate(
-                steps:            snap.activity.steps,
-                nonWorkoutSteps:  snap.activity.nonWorkoutSteps,
-                nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
-                standTimeMinutes: snap.activity.standTimeMinutes,
-                nonWorkoutStandMinutes: snap.activity.nonWorkoutStandMinutes,
-                restingHR:        snap.activity.restingHeartRate,
-                hrSegments:       snap.activity.hrSegments,
-                wakeMinuteOfDay:  snap.activity.wakeMinuteOfDay,
-                vo2Max:           healthKit.vo2Max,
-                workouts:         snap.workouts,
-                weightKg:         weightInKg,
-                age:              userAge,
-                isMale:           selectedGender != femaleText,
-                sleepHours:       sleepHours,
-                bmrDynamisch:     result.bmrDynamisch,
-                referenceDate:    yesterday
-            ).totalActiveKcal
-        } else {
-            activeKcal = 0
+
+    private func dayComponents(for date: Date) -> DayComponents {
+        let calendar = Calendar.current
+
+        // The selected day is already computed for the rest of the dashboard.
+        if calendar.isDate(date, inSameDayAs: selectedDate) {
+            let active = healthKit.isAuthorized ? activityResult : nil
+            return DayComponents(
+                bmr:      tdeeResult.bmrDynamisch,
+                neat:     active?.neatKcal ?? 0,
+                eat:      active?.eatKcal ?? 0,
+                tef:      tdeeResult.tefKcal,
+                caffeine: tdeeResult.koffeinBonus
+            )
         }
-        return result.bmrDynamisch + result.koffeinBonus + result.tefKcal + activeKcal
-    }
-    
-    private var vsYesterdayPercent: Double {
-        guard yesterdayProjected > 0 else { return 0 }
-        return (todayProjected - yesterdayProjected) / yesterdayProjected * 100
-    }
-    
-    private var vsYesterdayColor: Color {
-        vsYesterdayPercent >= 0 ? .green : .red
-    }
-    
-    private var previousDayTotal: Double {
-        if isSelectedToday { return yesterdayProjected }
-        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
-        let key = HealthKitImportService.dateKey(prevDate)
-        guard let snap = healthKit.history[key] else { return 0 }
-        let prevTDEE = TDEECalculationService.calculate(
+
+        let tdee = TDEECalculationService.calculate(
             bmrStandard: activeFinalBMR,
-            inputs: store.journalInputs(for: prevDate),
+            inputs: store.journalInputs(for: date),
             isFemale: selectedGender == femaleText
         )
-        let prevActive = ActivityCalculationService.calculate(
+
+        guard let snap = healthKit.history[HealthKitImportService.dateKey(date)] else {
+            return DayComponents(bmr: tdee.bmrDynamisch, tef: tdee.tefKcal, caffeine: tdee.koffeinBonus)
+        }
+
+        let active = ActivityCalculationService.calculate(
             steps: snap.activity.steps,
             nonWorkoutSteps: snap.activity.nonWorkoutSteps,
             nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
@@ -534,12 +506,43 @@ struct DashboardView: View {
             age: userAge,
             isMale: selectedGender != femaleText,
             sleepHours: sleepHours,
-            bmrDynamisch: prevTDEE.bmrDynamisch,
-            referenceDate: prevDate
+            bmrDynamisch: tdee.bmrDynamisch,
+            referenceDate: date
         )
-        return prevTDEE.bmrDynamisch + prevTDEE.koffeinBonus + prevTDEE.tefKcal + prevActive.totalActiveKcal
+
+        return DayComponents(
+            bmr:      tdee.bmrDynamisch,
+            neat:     active.neatKcal,
+            eat:      active.eatKcal,
+            tef:      tdee.tefKcal,
+            caffeine: tdee.koffeinBonus
+        )
+    }
+
+    private var todayProjected: Double {
+        dayComponents(for: selectedDate).total
     }
     
+    private var yesterdayProjected: Double {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date()))!
+        return dayComponents(for: yesterday).total
+    }
+
+    private var vsYesterdayPercent: Double {
+        guard yesterdayProjected > 0 else { return 0 }
+        return (todayProjected - yesterdayProjected) / yesterdayProjected * 100
+    }
+    
+    private var vsYesterdayColor: Color {
+        vsYesterdayPercent >= 0 ? .green : .red
+    }
+    
+    private var previousDayTotal: Double {
+        if isSelectedToday { return yesterdayProjected }
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        return dayComponents(for: prevDate).total
+    }
+
     private var vsSelectedDayPercent: Double {
         if isSelectedToday { return vsYesterdayPercent }
         let prev = previousDayTotal
@@ -811,6 +814,7 @@ struct DashboardView: View {
                                 language: language,
                                 accentBlue: accentBlue,
                                 narrative: narrative,
+                                percentVsPreviousDay: vsSelectedDayPercent,
                                 isLoading: narrativeIsLoading,
                                 errorMessage: narrativeError,
                                 isStale: narrativeIsStale,

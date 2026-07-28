@@ -2,122 +2,132 @@
 //  DayDeltaSummary.swift
 //  caloric
 //
-//  Deterministic input for the day narrative. Everything the language model is
-//  allowed to talk about is computed here, in plain Swift, and handed over as
-//  finished numbers — the model formulates, it never calculates.
+//  Deterministic input for the day narrative.
 //
-//  Keeping this type free of any AI concern also makes it testable on its own.
+//  The whole point of this type is that it decomposes *the number on screen*:
+//  the "% vs. Gestern" figure in the KPI tile. Its component deltas add up
+//  exactly to the difference behind that percentage, so the text explains what
+//  the user is looking at rather than a second, similar-looking figure of its
+//  own. Everything here is plain arithmetic — the model formulates, it never
+//  calculates.
 //
 
 import Foundation
 
 struct DayDeltaSummary: Codable, Equatable {
 
-    struct SegmentDelta: Codable, Equatable {
+    struct ComponentDelta: Codable, Equatable {
         /// Stable identifier the prompt refers to: "bmr", "neat", "eat", …
         let key: String
         let todayKcal: Double
-        let yesterdayKcal: Double
+        let previousKcal: Double
 
-        var deltaKcal: Double { todayKcal - yesterdayKcal }
-        var deltaPercent: Double? {
-            guard yesterdayKcal > 0 else { return nil }
-            return (todayKcal - yesterdayKcal) / yesterdayKcal * 100.0
+        var deltaKcal: Double { todayKcal - previousKcal }
+
+        /// Share of the whole day-over-day difference this component accounts
+        /// for. Negative when it pushes against the overall direction.
+        func shareOfTotalDelta(_ totalDelta: Double) -> Double? {
+            guard abs(totalDelta) > 0.5 else { return nil }
+            return deltaKcal / totalDelta * 100.0
         }
 
         private enum CodingKeys: String, CodingKey {
-            case key, todayKcal, yesterdayKcal
+            case key, todayKcal, previousKcal
         }
     }
 
     /// Raw context so the model can name a *reason*, not just restate kcal.
     struct Context: Codable, Equatable {
         let steps: Int
-        let stepsYesterday: Int
+        let stepsPrevious: Int
         let standMinutes: Double
-        let standMinutesYesterday: Double
+        let standMinutesPrevious: Double
         let workoutMinutes: Double
-        let workoutMinutesYesterday: Double
+        let workoutMinutesPrevious: Double
         let sleepHours: Double
         /// TEF comes from logged macros. Without this flag a day nobody logged
         /// looks identical to a day of eating nothing.
         let foodLoggedToday: Bool
-        let foodLoggedYesterday: Bool
+        let foodLoggedPrevious: Bool
     }
 
     let dateKey: String
-    /// True while the day is still running — the narrative must not present a
-    /// partial day as a finished one.
+    /// Exactly the figure rendered in the KPI tile.
+    let percentVsPreviousDay: Double
+    let todayTotalKcal: Double
+    let previousTotalKcal: Double
+    /// True while the day is still running: today's NEAT and EAT only cover the
+    /// hours so far, while the previous day is complete. Mid-day that alone
+    /// explains most of a negative percentage, and saying so is the honest
+    /// reading of the number.
     let isPartialDay: Bool
-    /// Share of the waking day elapsed; yesterday's activity values are scaled
-    /// by this so both sides describe the same slice of the day.
-    let elapsedFraction: Double
-    let totalTodayKcal: Double
-    let totalYesterdayKcal: Double
-    let segments: [SegmentDelta]
-    let neatBreakdown: [SegmentDelta]
+    let elapsedFractionOfWakingDay: Double
+    let components: [ComponentDelta]
+    let neatBreakdown: [ComponentDelta]
     /// Whether the day's BMR actually changed for a reason (illness, cycle).
     let bmrFactorsChanged: Bool
     let context: Context
 
-    var totalDeltaKcal: Double { totalTodayKcal - totalYesterdayKcal }
+    var totalDeltaKcal: Double { todayTotalKcal - previousTotalKcal }
 
-    /// Largest absolute mover — the sentence the narrative should lead with.
+    /// Component that accounts for most of the difference.
     ///
-    /// BMR is excluded unless one of its factors actually changed. It is by far
-    /// the biggest segment (~1700 kcal against ~300 for NEAT), so on absolute
-    /// kcal it wins almost every comparison, and a headline about a metabolism
-    /// that did not move crowds out the part of the day the user influenced.
-    var dominantSegment: SegmentDelta? {
+    /// BMR is excluded unless one of its factors actually changed: it is by far
+    /// the largest component, so on absolute kcal it would win nearly every
+    /// comparison and crowd out the part of the day the user influenced.
+    var dominantComponent: ComponentDelta? {
         let candidates = bmrFactorsChanged
-            ? segments
-            : segments.filter { $0.key != "bmr" }
+            ? components
+            : components.filter { $0.key != "bmr" }
         return candidates.max { abs($0.deltaKcal) < abs($1.deltaKcal) }
     }
 
     // MARK: - Prompt payload
 
-    /// Compact, rounded JSON. Rounding keeps the model from echoing a
-    /// precision the underlying estimates do not have.
+    /// Compact, rounded JSON. Rounding keeps the model from echoing a precision
+    /// the underlying estimates do not have.
     func promptJSON() -> String {
         func round0(_ v: Double) -> Int { Int(v.rounded()) }
 
-        func segmentDict(_ s: SegmentDelta) -> [String: Any] {
+        func componentDict(_ c: ComponentDelta) -> [String: Any] {
             var d: [String: Any] = [
-                "key": s.key,
-                "today": round0(s.todayKcal),
-                "yesterday": round0(s.yesterdayKcal),
-                "delta": round0(s.deltaKcal)
+                "key": c.key,
+                "today": round0(c.todayKcal),
+                "previousDay": round0(c.previousKcal),
+                "delta": round0(c.deltaKcal)
             ]
-            if let pct = s.deltaPercent { d["deltaPercent"] = round0(pct) }
+            if let share = c.shareOfTotalDelta(totalDeltaKcal) {
+                d["shareOfTotalDeltaPercent"] = round0(share)
+            }
             return d
         }
 
         var payload: [String: Any] = [
-            "isPartialDay": isPartialDay,
-            "elapsedPercentOfWakingDay": round0(elapsedFraction * 100),
-            "totalToday": round0(totalTodayKcal),
-            "totalYesterday": round0(totalYesterdayKcal),
+            "percentToExplain": round0(percentVsPreviousDay),
+            "todayTotal": round0(todayTotalKcal),
+            "previousDayTotal": round0(previousTotalKcal),
             "totalDelta": round0(totalDeltaKcal),
-            "segments": segments.map(segmentDict),
-            "neatBreakdown": neatBreakdown.map(segmentDict),
+            "isPartialDay": isPartialDay,
+            "elapsedPercentOfWakingDay": round0(elapsedFractionOfWakingDay * 100),
+            "components": components.map(componentDict),
+            "neatBreakdown": neatBreakdown.map(componentDict),
             "bmrFactorsChanged": bmrFactorsChanged,
             "context": [
                 "steps": context.steps,
-                "stepsYesterday": context.stepsYesterday,
+                "stepsPreviousDay": context.stepsPrevious,
                 "standMinutes": round0(context.standMinutes),
-                "standMinutesYesterday": round0(context.standMinutesYesterday),
+                "standMinutesPreviousDay": round0(context.standMinutesPrevious),
                 "workoutMinutes": round0(context.workoutMinutes),
-                "workoutMinutesYesterday": round0(context.workoutMinutesYesterday),
+                "workoutMinutesPreviousDay": round0(context.workoutMinutesPrevious),
                 "sleepHours": context.sleepHours,
                 "foodLoggedToday": context.foodLoggedToday,
-                "foodLoggedYesterday": context.foodLoggedYesterday
+                "foodLoggedPreviousDay": context.foodLoggedPrevious
             ]
         ]
 
-        // Named here rather than left to the model: picking the driver is a
+        // Named here rather than left to the model: picking the main driver is a
         // ranking decision, and ranking is arithmetic.
-        if let dominant = dominantSegment {
+        if let dominant = dominantComponent {
             payload["leadWith"] = dominant.key
         }
 
@@ -129,19 +139,20 @@ struct DayDeltaSummary: Codable, Equatable {
         return json
     }
 
-    /// Identity of the *numbers*, not of the day. A cached narrative stays
-    /// valid until the values move by more than a 10 kcal bucket, which is what
-    /// makes caching on a still-running day safe.
+    /// Identity of the *numbers*, not of the day. A cached narrative stays valid
+    /// until the values move by more than a 10 kcal bucket, which is what makes
+    /// caching on a still-running day safe.
     ///
     /// Built by hand rather than with `Hasher`: that one is seeded per process,
-    /// so its values differ between launches and no cache entry would ever
-    /// match again after a restart.
+    /// so its values differ between launches and no cache entry would ever match
+    /// again after a restart.
     var fingerprint: String {
         func bucket(_ v: Double) -> Int { Int((v / 10.0).rounded()) }
 
-        var parts: [String] = [dateKey, String(bucket(totalTodayKcal))]
-        for s in segments + neatBreakdown {
-            parts.append("\(s.key):\(bucket(s.todayKcal)):\(bucket(s.yesterdayKcal))")
+        var parts: [String] = [dateKey, String(bucket(todayTotalKcal)),
+                               String(bucket(previousTotalKcal))]
+        for c in components + neatBreakdown {
+            parts.append("\(c.key):\(bucket(c.todayKcal)):\(bucket(c.previousKcal))")
         }
         return parts.joined(separator: "|")
     }

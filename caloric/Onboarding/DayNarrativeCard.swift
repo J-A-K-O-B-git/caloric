@@ -19,6 +19,9 @@ struct DayNarrativeCard: View {
     let language: String
     let accentBlue: Color
     let narrative: DayNarrativeService.Narrative?
+    /// The figure the text explains — the same one the KPI tile shows, echoed
+    /// here so the connection between card and number is visible.
+    let percentVsPreviousDay: Double
     let isLoading: Bool
     let errorMessage: String?
     let isStale: Bool
@@ -77,6 +80,11 @@ struct DayNarrativeCard: View {
                 .foregroundStyle(Theme.textPrimary)
 
             Spacer()
+
+            // Same figure as the KPI tile below — the card explains this number.
+            Text(String(format: "%+.0f %%", percentVsPreviousDay))
+                .font(.poppins(size: 13, weight: .semibold))
+                .foregroundStyle(percentVsPreviousDay >= 0 ? .green : .red)
 
             if isLoading && narrative != nil {
                 ProgressView()
