@@ -64,8 +64,7 @@ struct DayNarrativeService {
         - Wenn foodLoggedToday oder foodLoggedYesterday false ist, deute die \
         tef-Differenz für diesen Tag nicht — dann fehlen schlicht die \
         Einträge. Sag das lieber, statt es zu interpretieren.
-        - Wenn isPartialDay true ist, sprich ausdrücklich vom bisherigen \
-        Tagesverlauf, nicht vom ganzen Tag.
+        - Wenn isPartialDay true ist, bleibe bei der Beschreibung der aktuellen Werte im Vergleich zum Vortag.
         - Bleib beschreibend. Gib keine Gesundheits-, Ernährungs- oder \
         Trainingsempfehlungen und bewerte den Tag nicht moralisch.
         - Segmentnamen: bmr = Grundumsatz, neat = Alltagsbewegung, \
