@@ -72,23 +72,9 @@ struct DayNarrativeCard: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            ZStack {
-                Circle().fill(aiGradient.opacity(0.18)).frame(width: 28, height: 28)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(aiGradient)
-            }
-
-            Text(language == "de" ? "Dein Tag" : "Your day")
+            Text(language == "de" ? "Dein Tagesüberblick" : "Your Day Overview")
                 .font(.poppins(size: 14, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
-
-            Text("KI")
-                .font(.poppins(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(aiGradient))
 
             Spacer()
 
@@ -176,11 +162,11 @@ struct DayNarrativeCard: View {
     private var disclosure: String {
         if isStale {
             return language == "de"
-                ? "KI-generiert · Zahlen haben sich seitdem geändert"
-                : "AI-generated · numbers have changed since"
+                ? "KI-generiert"
+                : "AI-generated"
         }
         return language == "de"
-            ? "KI-generiert · aus deinen Tageswerten formuliert"
-            : "AI-generated · phrased from your daily figures"
+            ? "KI-generiert"
+            : "AI-generated"
     }
 }

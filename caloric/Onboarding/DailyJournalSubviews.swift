@@ -429,6 +429,12 @@ struct MacrosCard: View {
     
     @FocusState.Binding var macroFocus: MacrosCardMacroField?
 
+    @State private var entryMode: MacrosEntryMode? = nil
+
+    private enum MacrosEntryMode {
+        case text, photo, voice
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
@@ -482,40 +488,45 @@ struct MacrosCard: View {
             .background(Theme.fieldFill)
             .clipShape(Capsule())
 
-            // AI input
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    TextField(language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...", text: $aiInputText, axis: .vertical)
+            // Entry Mode Selector
+            HStack(spacing: 12) {
+                entryModeButton(mode: .text,  icon: "keyboard", label: language == "de" ? "Tippen" : "Type")
+                entryModeButton(mode: .photo, icon: "camera.fill", label: language == "de" ? "Foto" : "Photo")
+                entryModeButton(mode: .voice, icon: "mic.fill", label: language == "de" ? "Sprechen" : "Voice")
+            }
+            .padding(.vertical, 4)
+
+            // AI Input Area (Conditional)
+            if let mode = entryMode, mode != .photo {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        TextField(
+                            mode == .text 
+                                ? (language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...")
+                                : (language == "de" ? "Spreche jetzt..." : "Listening..."),
+                            text: $aiInputText, 
+                            axis: .vertical
+                        )
                         .lineLimit(1...3)
                         .font(.poppins(size: 13, weight: .regular))
                         .foregroundColor(Theme.textPrimary)
                         .disabled(aiIsLoading)
 
-                    HStack(spacing: 8) {
-                        Button { analyzeFoodFromPhoto() } label: {
-                            ZStack {
-                                Circle().fill(accentBlue.opacity(0.1)).frame(width: 32, height: 32)
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(accentBlue)
+                        if mode == .voice {
+                            Button {
+                                if isRecording { stopRecording() }
+                                else { startRecording() }
+                            } label: {
+                                ZStack {
+                                    Circle().fill(isRecording ? .red.opacity(0.15) : accentBlue.opacity(0.1)).frame(width: 32, height: 32)
+                                    Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(isRecording ? .red : accentBlue)
+                                        .scaleEffect(isRecording ? 1.2 : 1.0)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(aiIsLoading)
-
-                        Button {
-                            if isRecording { stopRecording() }
-                            else { startRecording() }
-                        } label: {
-                            ZStack {
-                                Circle().fill(isRecording ? .red.opacity(0.15) : accentBlue.opacity(0.1)).frame(width: 32, height: 32)
-                                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(isRecording ? .red : accentBlue)
-                                    .scaleEffect(isRecording ? 1.2 : 1.0)
-                            }
-                        }
-                        .buttonStyle(.plain)
 
                         Button { analyzeFoodWithAI() } label: {
                             if aiIsLoading {
@@ -536,22 +547,22 @@ struct MacrosCard: View {
                         .buttonStyle(.plain)
                         .disabled(aiInputText.isEmpty || aiIsLoading)
                     }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Theme.fieldFill)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Theme.fieldFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(accentBlue.opacity(aiInputText.isEmpty ? 0.05 : 0.25), lineWidth: 1))
 
-                if let error = aiErrorMessage {
-                    Text(error)
-                        .font(.poppins(size: 11, weight: .regular))
-                        .foregroundColor(.red)
-                        .padding(.leading, 4)
+                    if let error = aiErrorMessage {
+                        Text(error)
+                            .font(.poppins(size: 11, weight: .regular))
+                            .foregroundColor(.red)
+                            .padding(.leading, 4)
+                    }
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .padding(.vertical, 4)
 
             // Macro input fields for selected meal
             if let meal = selectedMeal {
@@ -633,6 +644,45 @@ struct MacrosCard: View {
                         }
                     }
                 )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func entryModeButton(mode: MacrosEntryMode, icon: String, label: String) -> some View {
+        let isSelected = entryMode == mode
+        return Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                if mode == .photo {
+                    analyzeFoodFromPhoto()
+                } else {
+                    if entryMode == mode {
+                        entryMode = nil
+                        aiInputText = ""
+                        if isRecording { stopRecording() }
+                    } else {
+                        entryMode = mode
+                        aiInputText = ""
+                        if mode == .voice { startRecording() }
+                    }
+                }
+            }
+        } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.08))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(isSelected ? .white : accentBlue)
+                }
+                
+                Text(label)
+                    .font(.poppins(size: 10, weight: .medium))
+                    .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
     }
