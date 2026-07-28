@@ -273,14 +273,17 @@ struct DashboardView: View {
     /// Assembles everything the narrative may mention. Pure computation — the
     /// numbers are finished here and the model only puts them into words.
     private var dayDeltaSummary: DayDeltaSummary {
-        let segs = energySegments
         let f = elapsedActivityFraction
 
-        let segmentDeltas = segs.map { seg in
+        // Every segment, not just the ones currently drawn: energySegments drops
+        // caffeine when today's value is zero, which hid exactly the case worth
+        // mentioning — yesterday had coffee, today none.
+        let allTypes: [EnergySegmentType] = [.bmr, .neat, .eat, .tef, .caffeine]
+        let segmentDeltas = allTypes.map { type in
             DayDeltaSummary.SegmentDelta(
-                key: Self.segmentKey(seg.type),
-                todayKcal: seg.kcal,
-                yesterdayKcal: previousValue(for: seg.type)
+                key: Self.segmentKey(type),
+                todayKcal: todaySegmentValue(for: type),
+                yesterdayKcal: previousValue(for: type)
             )
         }
 
@@ -292,19 +295,30 @@ struct DashboardView: View {
             DayDeltaSummary.SegmentDelta(key: "heartRate", todayKcal: today.neatHR,    yesterdayKcal: prev.neatHR * f)
         ]
 
-        let prevKey = HealthKitImportService.dateKey(
-            Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
-        )
+        let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
+        let prevKey = HealthKitImportService.dateKey(prevDate)
         let prevSnapshot = healthKit.history[prevKey]
+
+        // BMR only moves for a reason — illness or cycle. Without one, any
+        // delta it shows is modelling noise and must not become the headline.
+        let prevTDEE = TDEECalculationService.calculate(
+            bmrStandard: activeFinalBMR,
+            inputs: store.journalInputs(for: prevDate),
+            isFemale: selectedGender == femaleText
+        )
+        let bmrFactorsChanged =
+            abs(tdeeResult.krankheitsFaktor - prevTDEE.krankheitsFaktor) > 0.001 ||
+            abs(tdeeResult.zyklusFaktor - prevTDEE.zyklusFaktor) > 0.001
 
         return DayDeltaSummary(
             dateKey: HealthKitImportService.dateKey(selectedDate),
             isPartialDay: isSelectedToday,
             elapsedFraction: f,
-            totalTodayKcal: segs.reduce(0) { $0 + $1.kcal },
-            totalYesterdayKcal: segs.reduce(0) { $0 + previousValue(for: $1.type) },
+            totalTodayKcal: segmentDeltas.reduce(0) { $0 + $1.todayKcal },
+            totalYesterdayKcal: segmentDeltas.reduce(0) { $0 + $1.yesterdayKcal },
             segments: segmentDeltas,
             neatBreakdown: neatDeltas,
+            bmrFactorsChanged: bmrFactorsChanged,
             context: DayDeltaSummary.Context(
                 steps: selectedActivity.steps,
                 stepsYesterday: prevSnapshot?.activity.steps ?? 0,
@@ -312,9 +326,19 @@ struct DashboardView: View {
                 standMinutesYesterday: prevSnapshot?.activity.standTimeMinutes ?? 0,
                 workoutMinutes: selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0,
                 workoutMinutesYesterday: (prevSnapshot?.workouts ?? []).reduce(0.0) { $0 + $1.duration } / 60.0,
-                sleepHours: sleepHours
+                sleepHours: sleepHours,
+                foodLoggedToday: hasLoggedFood(on: selectedDate),
+                foodLoggedYesterday: hasLoggedFood(on: prevDate)
             )
         )
+    }
+
+    /// TEF is derived from logged macros, so a day without entries yields 0 —
+    /// indistinguishable from "ate nothing" unless the fact is passed along.
+    private func hasLoggedFood(on date: Date) -> Bool {
+        let entry = store.entry(for: date)
+        let byMeal = [entry.proteinByMeal, entry.carbsByMeal, entry.fatByMeal]
+        return byMeal.contains { $0.values.contains { $0 > 0 } }
     }
 
     private static func segmentKey(_ type: EnergySegmentType) -> String {
@@ -1167,20 +1191,46 @@ struct DashboardView: View {
             inputs: inputs,
             isFemale: selectedGender == femaleText
         )
-        // BMR/TEF/caffeine are modelled evenly across the 24 h day, so they
-        // scale with wall-clock time; NEAT/EAT scale with elapsed waking time.
-        // Both must be scaled — comparing a partial today against a full
-        // yesterday made every mid-day NEAT/EAT delta look negative.
+        // TEF/caffeine are modelled evenly across the 24 h day, so they scale
+        // with wall-clock time; NEAT/EAT scale with elapsed waking time. Both
+        // must be scaled — comparing a partial today against a full yesterday
+        // made every mid-day NEAT/EAT delta look negative.
         let clockFraction = isSelectedToday ? nowFraction / 24.0 : 1.0
         let activeFraction = elapsedActivityFraction
         let res = previousActivityResult
 
         switch type {
-        case .bmr:      return tdee.bmrDynamisch * clockFraction
+        case .bmr:
+            // BMR accrues along the intraday profile in calorieSlots (0.88 while
+            // asleep, 0.90–1.14 across the day), not evenly. Scaling yesterday
+            // flat by wall-clock time compared two differently shaped curves and
+            // manufactured a delta of tens of kcal — largest in the morning,
+            // where the elapsed hours are mostly the 0.88 sleep block.
+            //
+            // Taking today's own accrual and rescaling it by the ratio of the
+            // two days' BMR keeps the shape identical on both sides, so only a
+            // real change in the day's BMR (illness, cycle) shows up.
+            let todayBMR = todaySegmentValue(for: .bmr)
+            guard tdeeResult.bmrDynamisch > 0 else { return todayBMR }
+            return todayBMR * (tdee.bmrDynamisch / tdeeResult.bmrDynamisch)
         case .neat:     return res.neatKcal * activeFraction
         case .eat:      return res.eatKcal * activeFraction
         case .tef:      return tdee.tefKcal * clockFraction
         case .caffeine: return tdee.koffeinBonus * clockFraction
+        }
+    }
+
+    /// Today's value for a segment, independent of whether it is currently
+    /// shown in the ring — `energySegments` omits caffeine at zero, but the
+    /// comparison still needs the number.
+    private func todaySegmentValue(for type: EnergySegmentType) -> Double {
+        let clockFraction = isSelectedToday ? nowFraction / 24.0 : 1.0
+        switch type {
+        case .bmr:      return isSelectedToday ? bmrBurnedSoFar : tdeeResult.bmrDynamisch
+        case .neat:     return healthKit.isAuthorized ? activityResult.neatKcal : 0
+        case .eat:      return healthKit.isAuthorized ? activityResult.eatKcal : 0
+        case .tef:      return tdeeResult.tefKcal * clockFraction
+        case .caffeine: return tdeeResult.koffeinBonus * clockFraction
         }
     }
 
