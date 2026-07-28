@@ -69,6 +69,7 @@ struct MainTabView: View {
                 noConditionText: noConditionText,
                 userAge: userAge,
                 selectedGender: $selectedGender,
+                birthDate: $birthDate,
                 selectedTab: $selectedTab,
                 weightText: $weightText,
                 weightUnit: $weightUnit,

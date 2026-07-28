@@ -23,12 +23,7 @@ enum ProfileField: String, Identifiable {
         }
     }
 
-    var isEditable: Bool {
-        switch self {
-        case .alter: return false
-        default: return true
-        }
-    }
+    var isEditable: Bool { true }
 }
 
 // MARK: - DataInsightView
@@ -44,6 +39,7 @@ struct DataInsightView: View {
 
     // MARK: Bindings
     @Binding var selectedGender: String?
+    @Binding var birthDate: Date
     @Binding var selectedTab: Int
     @Binding var weightText: String
     @Binding var weightUnit: String
@@ -153,7 +149,7 @@ struct DataInsightView: View {
                 language: language,
                 noConditionText: noConditionText,
                 selectedGender: $selectedGender,
-                userAge: userAge,
+                birthDate: $birthDate,
                 weightText: $weightText,
                 weightUnit: $weightUnit,
                 heightText: $heightText,
@@ -887,7 +883,7 @@ private struct FieldEditSheet: View {
     let language: String
     let noConditionText: String
     @Binding var selectedGender: String?
-    let userAge: Int
+    @Binding var birthDate: Date
 
     @Binding var weightText: String
     @Binding var weightUnit: String
@@ -901,27 +897,36 @@ private struct FieldEditSheet: View {
 
     var onSave: (ProfileField) -> Void
 
-    @State private var editWeightKg: Int = 70
-    @State private var editWeightLb: Int = 154
-    @State private var editHeightCm: Int = 170
-    @FocusState private var bodyFatFocused: Bool
+    /// Seeded from storage so reopening the questionnaire shows the previous
+    /// answers instead of starting blank.
+    @State private var answers = MetabolismAnswers.load()
 
     @Environment(\.dismiss) private var dismiss
 
     private var t: Translations { Translations(language: language) }
+    private var isFemale: Bool { selectedGender == t.female }
 
-    private var conditionOptions: [(label: String, factor: Double)] {
-        var options = [(t.hypothyroidism, 0.92),
-                       (t.hyperthyroidism, 1.07)]
-        if selectedGender == t.female {
-            options.append((t.pcos, 0.85))
-            options.append((t.menopause, 0.95))
-        }
-        return options
+    private var heightInCm: Double {
+        MeasurementParsing.heightCm(text: heightText, unit: heightUnit)
     }
 
-    private var activeConditions: Set<String> {
-        selectedConditions.filter { $0 != noConditionText }
+    private var bodyFatError: String? {
+        guard knowsBodyFat == true, !bodyFatText.isEmpty,
+              let value = MeasurementParsing.decimal(bodyFatText) else { return nil }
+        if value <= 0 || value >= 70 {
+            return language == "de"
+                ? "Bitte einen Wert zwischen 1 und 69 % eingeben."
+                : "Please enter a value between 1 and 69 %."
+        }
+        return nil
+    }
+
+    private var canSave: Bool {
+        switch field {
+        case .besonderheiten: return answers.isComplete(isFemale: isFemale)
+        case .koerperfett:    return bodyFatError == nil
+        default:              return true
+        }
     }
 
     // MARK: Body
@@ -936,192 +941,118 @@ private struct FieldEditSheet: View {
             }
             .background(CaloricBackground())
             .navigationTitle(field.title(language: language))
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(field.isEditable
-                           ? (language == "de" ? "Fertig" : "Done")
-                           : (language == "de" ? "Schließen" : "Close")) {
-                        if field.isEditable { onSave(field) }
+                    Button(language == "de" ? "Fertig" : "Done") {
+                        commit()
                         dismiss()
                     }
                     .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(accentBlue)
+                    .foregroundStyle(canSave ? accentBlue : accentBlue.opacity(0.4))
+                    .disabled(!canSave)
                 }
             }
         }
     }
 
+    /// Same controls as the matching onboarding page — see ProfileInputs.
     @ViewBuilder
     private var fieldContent: some View {
         switch field {
         case .geschlecht:
-            VStack(spacing: 20) {
-                HStack(spacing: 12) {
-                    genderButton(title: t.male, icon: "figure.fall", color: .blue)
-                    genderButton(title: t.female, icon: "figure.dress.line.vertical", color: .pink)
-                }
+            VStack(spacing: 25) {
+                ProfileHintBox(text: t.genderInfo, accentBlue: accentBlue)
+                GenderInput(
+                    accentBlue: accentBlue,
+                    maleTitle: t.male,
+                    femaleTitle: t.female,
+                    selectedGender: $selectedGender
+                )
             }
             .onChange(of: selectedGender) { _, _ in
                 if selectedGender == t.male {
                     selectedConditions.remove(t.pcos)
                     selectedConditions.remove(t.menopause)
+                    answers.hasPCOS = nil
+                    answers.insulinResistance = nil
+                    answers.pcosSymptoms = []
                 }
             }
+
         case .alter:
-            VStack(alignment: .leading, spacing: 10) {
-                Text(language == "de" ? "Alter" : "Age")
-                    .font(.poppins(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                Text("\(userAge) \(language == "de" ? "Jahre" : "yrs")")
-                    .font(.poppins(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-                Text(language == "de" ? "Das Alter basiert auf deinem Geburtsdatum." : "Age is based on your birth date.")
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.6))
+            VStack(spacing: 25) {
+                ProfileHintBox(text: t.ageInfo, accentBlue: accentBlue)
+                BirthDateInput(birthDate: $birthDate)
             }
+
         case .groesse:
-            VStack(spacing: 20) {
-                Picker("", selection: $heightUnit) {
-                    Text("cm").tag("cm")
-                    Text("ft/in").tag("ft")
-                }
-                .pickerStyle(.segmented)
-                
-                if heightUnit == "cm" {
-                    HStack {
-                        TextField("170", text: $heightText)
-                            .keyboardType(.numberPad)
-                            .font(.poppins(size: 32, weight: .bold))
-                            .multilineTextAlignment(.center)
-                        Text("cm")
-                            .font(.poppins(size: 18, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                    .padding()
-                    .glassCard(16)
-                } else {
-                    // Logic for ft/in input if needed
-                    Text(heightText)
-                }
+            VStack(spacing: 25) {
+                ProfileHintBox(text: t.heightInfo, accentBlue: accentBlue)
+                HeightInput(accentBlue: accentBlue,
+                            heightText: $heightText,
+                            heightUnit: $heightUnit)
             }
+
         case .gewicht:
-            VStack(spacing: 20) {
-                Picker("", selection: $weightUnit) {
-                    Text("kg").tag("kg")
-                    Text("lb").tag("lb")
-                }
-                .pickerStyle(.segmented)
-                
-                HStack {
-                    TextField("70", text: $weightText)
-                        .keyboardType(.decimalPad)
-                        .font(.poppins(size: 32, weight: .bold))
-                        .multilineTextAlignment(.center)
-                    Text(weightUnit)
-                        .font(.poppins(size: 18, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                .padding()
-                .glassCard(16)
+            VStack(spacing: 25) {
+                ProfileHintBox(text: t.weightInfo, accentBlue: accentBlue)
+                WeightInput(accentBlue: accentBlue,
+                            weightText: $weightText,
+                            weightUnit: $weightUnit)
             }
+
         case .koerperfett:
             VStack(spacing: 20) {
-                HStack {
-                    TextField("15", text: $bodyFatText)
-                        .keyboardType(.decimalPad)
-                        .focused($bodyFatFocused)
-                        .font(.poppins(size: 32, weight: .bold))
-                        .multilineTextAlignment(.center)
-                    Text("%")
-                        .font(.poppins(size: 18, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                .padding()
-                .glassCard(16)
-                
-                Toggle(language == "de" ? "Körperfettanteil bekannt" : "Know body fat", isOn: Binding(
-                    get: { knowsBodyFat ?? false },
-                    set: { knowsBodyFat = $0 }
-                ))
-                .font(.poppins(size: 15, weight: .medium))
+                ProfileHintBox(text: t.bodyFatInfo, accentBlue: accentBlue)
+                BodyFatInput(
+                    accentBlue: accentBlue,
+                    t: t,
+                    heightInCm: heightInCm,
+                    selectedGender: selectedGender,
+                    bodyFatText: $bodyFatText,
+                    knowsBodyFat: $knowsBodyFat,
+                    errorText: bodyFatError
+                )
             }
+
         case .besonderheiten:
-            VStack(alignment: .leading, spacing: 16) {
-                Text(language == "de" ? "Wähle zutreffende Bedingungen aus:" : "Select applicable conditions:")
-                    .font(.poppins(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary)
-                
-                ForEach(conditionOptions, id: \.label) { opt in
-                    Button {
-                        if selectedConditions.contains(opt.label) {
-                            selectedConditions.remove(opt.label)
-                        } else {
-                            selectedConditions.insert(opt.label)
-                        }
-                    } label: {
-                        HStack {
-                            Text(opt.label)
-                                .font(.poppins(size: 15, weight: .medium))
-                            Spacer()
-                            if selectedConditions.contains(opt.label) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(accentBlue)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(Theme.textSecondary.opacity(0.3))
-                            }
-                        }
-                        .padding()
-                        .background(Theme.fieldFill)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                }
-                
-                Divider().padding(.vertical, 10)
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(language == "de" ? "Stoffwechsel-Anpassung" : "Metabolism Factor")
-                        .font(.poppins(size: 14, weight: .medium))
-                    HStack {
-                        Text("\(Int(metabolismFactor * 100))%")
-                            .font(.poppins(size: 18, weight: .bold))
-                            .foregroundStyle(accentBlue)
-                        Slider(value: $metabolismFactor, in: 0.7...1.3, step: 0.01)
-                            .tint(accentBlue)
-                    }
-                }
-                .padding()
-                .glassCard(16)
+            VStack(spacing: 20) {
+                ProfileHintBox(text: t.metabolismInfo, accentBlue: accentBlue)
+                MetabolismQuestionnaire(
+                    accentBlue: accentBlue,
+                    t: t,
+                    isFemale: isFemale,
+                    answers: $answers
+                )
             }
         }
     }
 
-    private func genderButton(title: String, icon: String, color: Color) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                selectedGender = title
-            }
-        } label: {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 30))
-                Text(title)
-                    .font(.poppins(size: 16, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 120)
-            .foregroundStyle(selectedGender == title ? .white : color)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(selectedGender == title ? color : color.opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(color.opacity(0.2), lineWidth: 1)
-            )
+    // MARK: Save
+
+    private func commit() {
+        if field == .besonderheiten {
+            answers.save()
+            metabolismFactor = answers.factor(t: t, isFemale: isFemale)
+            selectedConditions = derivedConditions()
         }
-        .buttonStyle(.plain)
+        onSave(field)
+    }
+
+    /// The questionnaire never wrote to selectedConditions, so the row under
+    /// "Meine Daten" showed something unrelated to the answers behind the
+    /// factor. It now follows from them.
+    private func derivedConditions() -> Set<String> {
+        var result: Set<String> = []
+        switch answers.thyroidCondition {
+        case "hypo":  result.insert(t.hypothyroidism)
+        case "hyper": result.insert(t.hyperthyroidism)
+        default:      break
+        }
+        if isFemale, answers.hasPCOS == true { result.insert(t.pcos) }
+        return result.isEmpty ? [noConditionText] : result
     }
 }

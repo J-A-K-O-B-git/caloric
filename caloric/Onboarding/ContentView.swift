@@ -19,14 +19,8 @@ struct ContentView: View {
     @State private var weightUnit = "kg"
     @State private var heightText = "170"
     @State private var heightUnit = "cm"
-    @State private var weightKg: Int = 70
-    @State private var weightLb: Int = 154
-    @State private var heightCm: Int = 170
-    @State private var heightFeet: Int = 5
-    @State private var heightInches: Int = 9
     @State private var knowsBodyFat: Bool? = nil
     @State private var bodyFatText = ""
-    @State private var showBodyFatHelp = false
     @State private var selectedConditions: Set<String> = []
     @State private var sleepHours: Double = 7
     @State private var activeField: String? = nil
@@ -50,13 +44,7 @@ struct ContentView: View {
     @State private var isNavigatingForward = true
 
     // Metabolism questionnaire
-    @State private var thyroidCondition: String? = nil
-    @State private var thyroidWellControlled: Bool? = nil
-    @State private var selectedHypoSymptoms: Set<String> = []
-    @State private var selectedHyperSymptoms: Set<String> = []
-    @State private var hasPCOS: Bool? = nil
-    @State private var pcosInsulinResistance: Bool? = nil
-    @State private var selectedPCOSSymptoms: Set<String> = []
+    @State private var metabolismAnswers = MetabolismAnswers()
     private let accentBlue = Theme.accentBlue
     @State private var healthKit = HealthKitImportService()
     @Environment(\.modelContext) private var modelContext
@@ -101,50 +89,14 @@ struct ContentView: View {
 
     private var hormoneFactor: Double { metabolismFactor }
 
-    private var computedThyroidFactor: Double {
-        guard let cond = thyroidCondition, cond != "none" else { return 1.0 }
-        guard thyroidWellControlled == false else { return 1.0 }
-        if cond == "hypo" {
-            let count = selectedHypoSymptoms.count
-            let hasFatigue = selectedHypoSymptoms.contains(t.hypoSymptomFatigue)
-            let hasWeightGain = selectedHypoSymptoms.contains(t.hypoSymptomWeightGain)
-            if count >= 4 || (hasFatigue && hasWeightGain) { return 0.85 }
-            if count >= 2 { return 0.92 }
-            if count >= 1 { return 0.97 }
-        } else {
-            let count = selectedHyperSymptoms.count
-            let hasWeightLoss = selectedHyperSymptoms.contains(t.hyperSymptomWeightLoss)
-            if count >= 3 || hasWeightLoss { return 1.15 }
-            if count >= 1 { return 1.07 }
-        }
-        return 1.0
-    }
+    private var isFemale: Bool { selectedGender == t.female }
 
-    private var computedPCOSFactor: Double {
-        guard selectedGender == t.female, hasPCOS == true else { return 1.0 }
-        if pcosInsulinResistance == true { return 0.85 }
-        let count = selectedPCOSSymptoms.count
-        let hasBlocked = selectedPCOSSymptoms.contains(t.pcosSymptomBlocked)
-        let hasCarbFatigue = selectedPCOSSymptoms.contains(t.pcosSymptomCarbFatigue)
-        if count >= 3 || (hasBlocked && hasCarbFatigue) { return 0.85 }
-        return 1.0
-    }
-
-    // Most extreme single factor — never multiply
     private var computedMetabolismFactor: Double {
-        let tf = computedThyroidFactor
-        let pf = computedPCOSFactor
-        return abs(tf - 1.0) >= abs(pf - 1.0) ? tf : pf
+        metabolismAnswers.factor(t: t, isFemale: isFemale)
     }
 
     private var isReadyToCalculate: Bool {
-        guard thyroidCondition != nil else { return false }
-        if thyroidCondition != "none" { guard thyroidWellControlled != nil else { return false } }
-        if selectedGender == t.female {
-            guard hasPCOS != nil else { return false }
-            if hasPCOS == true { guard pcosInsulinResistance != nil else { return false } }
-        }
-        return true
+        metabolismAnswers.isComplete(isFemale: isFemale)
     }
 
     private var hormoneAdjustedBMR: Double { ageAdjustedBMR * hormoneFactor }
@@ -489,10 +441,14 @@ struct ContentView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.center)
             hintBox(t.genderInfo)
-            VStack(spacing: 16) {
-                genderButton(title: t.male, icon: "figure.stand")
-                genderButton(title: t.female, icon: "figure.stand.dress")
-            }
+            GenderInput(
+                accentBlue: accentBlue,
+                maleTitle: t.male,
+                femaleTitle: t.female,
+                selectedGender: $selectedGender,
+                onSelect: { navigate(to: 2) }
+            )
+            .padding(.horizontal, 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -509,11 +465,7 @@ struct ContentView: View {
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 hintBox(t.ageInfo)
-                DatePicker("Geburtsdatum", selection: $birthDate, in: ...Date.now, displayedComponents: .date)
-                    #if os(iOS)
-                    .datePickerStyle(.wheel)
-                    #endif
-                    .labelsHidden()
+                BirthDateInput(birthDate: $birthDate)
                 Button(t.next) {
                     navigate(to: 3)
                 }
@@ -537,46 +489,9 @@ struct ContentView: View {
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.weightInfo)
                     .frame(minHeight: 115, alignment: .top)
-                Picker("Einheit", selection: $weightUnit) {
-                    Text("kg").tag("kg")
-                    Text("lb").tag("lb")
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
-                .onChange(of: weightUnit) {
-                    if weightUnit == "lb" {
-                        weightLb = max(44, min(661, Int((Double(weightKg) * 2.20462).rounded())))
-                        weightText = "\(weightLb)"
-                    } else {
-                        weightKg = max(20, min(300, Int((Double(weightLb) / 2.20462).rounded())))
-                        weightText = "\(weightKg)"
-                    }
-                }
-                HStack(spacing: 4) {
-                    Spacer()
-                    if weightUnit == "kg" {
-                        Picker("", selection: $weightKg) {
-                            ForEach(20...300, id: \.self) { v in Text("\(v)").tag(v) }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(width: 110, height: 150)
-                        .clipped()
-                        .onChange(of: weightKg) { weightText = "\(weightKg)" }
-                    } else {
-                        Picker("", selection: $weightLb) {
-                            ForEach(44...661, id: \.self) { v in Text("\(v)").tag(v) }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(width: 110, height: 150)
-                        .clipped()
-                        .onChange(of: weightLb) { weightText = "\(weightLb)" }
-                    }
-                    Text(weightUnit)
-                        .font(.poppins(size: 24, weight: .semibold))
-                        .foregroundStyle(accentBlue)
-                        .frame(width: 36, alignment: .leading)
-                    Spacer()
-                }
+                WeightInput(accentBlue: accentBlue,
+                            weightText: $weightText,
+                            weightUnit: $weightUnit)
                 Button(t.next) {
                     navigate(to: 4)
                 }
@@ -600,65 +515,9 @@ struct ContentView: View {
                     .foregroundStyle(Theme.textPrimary)
                 hintBox(t.heightInfo)
                     .frame(minHeight: 115, alignment: .top)
-                Picker("Einheit", selection: $heightUnit) {
-                    Text("cm").tag("cm")
-                    Text("ft").tag("ft")
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
-                .onChange(of: heightUnit) {
-                    if heightUnit == "ft" {
-                        let totalInches = Int((Double(heightCm) / 2.54).rounded())
-                        heightFeet = max(3, min(8, totalInches / 12))
-                        heightInches = max(0, min(11, totalInches % 12))
-                        heightText = "\(heightFeet)'\(heightInches)\""
-                    } else {
-                        heightCm = max(100, min(230, Int((Double(heightFeet * 12 + heightInches) * 2.54).rounded())))
-                        heightText = "\(heightCm)"
-                    }
-                }
-                if heightUnit == "cm" {
-                    HStack(spacing: 4) {
-                        Spacer()
-                        Picker("", selection: $heightCm) {
-                            ForEach(100...230, id: \.self) { v in Text("\(v)").tag(v) }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(width: 110, height: 150)
-                        .clipped()
-                        .onChange(of: heightCm) { heightText = "\(heightCm)" }
-                        Text("cm")
-                            .font(.poppins(size: 24, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .frame(width: 44, alignment: .leading)
-                        Spacer()
-                    }
-                } else {
-                    HStack(spacing: 8) {
-                        Spacer()
-                        Picker("", selection: $heightFeet) {
-                            ForEach(3...8, id: \.self) { v in Text("\(v)").tag(v) }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(width: 80, height: 150)
-                        .clipped()
-                        .onChange(of: heightFeet) { heightText = "\(heightFeet)'\(heightInches)\"" }
-                        Text("ft")
-                            .font(.poppins(size: 22, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                        Picker("", selection: $heightInches) {
-                            ForEach(0...11, id: \.self) { v in Text("\(v)").tag(v) }
-                        }
-                        .pickerStyle(.wheel)
-                        .frame(width: 80, height: 150)
-                        .clipped()
-                        .onChange(of: heightInches) { heightText = "\(heightFeet)'\(heightInches)\"" }
-                        Text("in")
-                            .font(.poppins(size: 22, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                        Spacer()
-                    }
-                }
+                HeightInput(accentBlue: accentBlue,
+                            heightText: $heightText,
+                            heightUnit: $heightUnit)
                 Button(t.next) {
                     navigate(to: 5)
                 }
@@ -685,83 +544,23 @@ struct ContentView: View {
 
                 hintBox(t.bodyFatInfo)
 
-                VStack(spacing: 12) {
-                    // Ja-Button — hebt sich ab wenn aktiv, Toggle bei erneutem Tap
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            if knowsBodyFat == true {
-                                knowsBodyFat = nil
-                                bodyFatText = ""
-                            } else {
-                                knowsBodyFat = true
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill").font(.system(size: 24))
-                            Text(t.yes).font(.poppins(size: 20, weight: .medium))
-                            Spacer()
-                        }
-                        .padding(.horizontal, 24)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 60)
-                        .foregroundStyle(knowsBodyFat == true ? .white : accentBlue)
-                        .background(RoundedRectangle(cornerRadius: 16)
-                            .fill(knowsBodyFat == true ? accentBlue : accentBlue.opacity(controlAlpha)))
-                    }
-                    .padding(.horizontal, 30)
+                BodyFatInput(
+                    accentBlue: accentBlue,
+                    t: t,
+                    heightInCm: heightInCm,
+                    selectedGender: selectedGender,
+                    bodyFatText: $bodyFatText,
+                    knowsBodyFat: $knowsBodyFat,
+                    errorText: bodyFatError,
+                    onCommit: { navigate(to: 6) }
+                )
+                .padding(.horizontal, 30)
 
-                    // Inline-Eingabe klappt unter "Ja" auf
-                    if knowsBodyFat == true {
-                        VStack(spacing: 14) {
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                TextField("15", text: $bodyFatText, onEditingChanged: { editing in
-                                    activeField = editing ? "bodyFat" : nil
-                                })
-                                #if os(iOS)
-                                .keyboardType(.decimalPad)
-                                #endif
-                                .font(.poppins(size: 48, weight: .semibold))
-                                .foregroundStyle(accentBlue)
-                                .multilineTextAlignment(.center)
-                                .frame(width: 140)
-                                Text("%")
-                                    .font(.poppins(size: 22, weight: .regular))
-                                    .foregroundStyle(accentBlue.opacity(0.6))
-                            }
-                            if let error = bodyFatError {
-                                Text(error)
-                                    .font(.poppins(size: 13, weight: .regular))
-                                    .foregroundStyle(.red)
-                                    .multilineTextAlignment(.center)
-                            }
-                            Button(t.next) {
-                                navigate(to: 6)
-                            }
-                            .font(.poppins(size: 18, weight: .medium))
-                            .buttonStyle(.caloricPrimary)
-                            .disabled(!isBodyFatValid)
-                        }
-                        .padding(.vertical, 8)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    // Nein-Button öffnet das Schätz-Sheet
-                    Button {
-                        withAnimation { showBodyFatHelp = true }
-                    } label: {
-                        HStack {
-                            Image(systemName: "xmark.circle.fill").font(.system(size: 24))
-                            Text(t.no).font(.poppins(size: 20, weight: .medium))
-                            Spacer()
-                        }
-                        .padding(.horizontal, 24)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 60)
-                        .foregroundStyle(accentBlue)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(accentBlue.opacity(controlAlpha)))
-                    }
-                    .padding(.horizontal, 30)
+                if knowsBodyFat == true {
+                    Button(t.next) { navigate(to: 6) }
+                        .font(.poppins(size: 18, weight: .medium))
+                        .buttonStyle(.caloricPrimary)
+                        .disabled(!isBodyFatValid)
                 }
             }
             .padding(.horizontal)
@@ -769,15 +568,6 @@ struct ContentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showBodyFatHelp) {
-            BodyFatHelpView(accentBlue: accentBlue, t: t, heightInCm: heightInCm,
-                            selectedGender: selectedGender, femaleText: t.female) { estimatedFat in
-                bodyFatText = estimatedFat
-                knowsBodyFat = true
-                showBodyFatHelp = false
-                navigate(to: 6)
-            }
-        }
     }
 
     // MARK: - Seite 6: Stoffwechsel
@@ -794,154 +584,16 @@ struct ContentView: View {
 
                 hintBox(t.metabolismInfo)
 
-                // Schilddrüse
-                questionnaireSectionCard(title: t.thyroidSectionTitle) {
-                    VStack(spacing: 8) {
-                        metabolismChoiceButton(label: t.thyroidHypo, isSelected: thyroidCondition == "hypo") {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                if thyroidCondition == "hypo" { thyroidCondition = nil }
-                                else { thyroidCondition = "hypo"; thyroidWellControlled = nil; selectedHypoSymptoms = []; selectedHyperSymptoms = [] }
-                            }
-                        }
-                        metabolismChoiceButton(label: t.thyroidHyper, isSelected: thyroidCondition == "hyper") {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                if thyroidCondition == "hyper" { thyroidCondition = nil }
-                                else { thyroidCondition = "hyper"; thyroidWellControlled = nil; selectedHypoSymptoms = []; selectedHyperSymptoms = [] }
-                            }
-                        }
-                        metabolismChoiceButton(label: t.thyroidNone, isSelected: thyroidCondition == "none") {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                if thyroidCondition == "none" { thyroidCondition = nil }
-                                else { thyroidCondition = "none"; thyroidWellControlled = nil; selectedHypoSymptoms = []; selectedHyperSymptoms = [] }
-                            }
-                        }
-                    }
-                }
+                MetabolismQuestionnaire(
+                    accentBlue: accentBlue,
+                    t: t,
+                    isFemale: isFemale,
+                    answers: $metabolismAnswers
+                )
                 .padding(.horizontal, 30)
 
-                // Therapiestatus
-                if thyroidCondition == "hypo" || thyroidCondition == "hyper" {
-                    questionnaireSectionCard(title: t.thyroidTherapyQuestion) {
-                        VStack(spacing: 8) {
-                            metabolismChoiceButton(label: t.thyroidOptimal, isSelected: thyroidWellControlled == true) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    if thyroidWellControlled == true { thyroidWellControlled = nil }
-                                    else { thyroidWellControlled = true; selectedHypoSymptoms = []; selectedHyperSymptoms = [] }
-                                }
-                            }
-                            metabolismChoiceButton(label: t.thyroidNotOptimal, isSelected: thyroidWellControlled == false) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    thyroidWellControlled = thyroidWellControlled == false ? nil : false
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                // Symptome Schilddrüsenunterfunktion
-                if thyroidCondition == "hypo" && thyroidWellControlled == false {
-                    questionnaireSectionCard(title: t.thyroidSymptomQuestion) {
-                        VStack(spacing: 8) {
-                            ForEach([t.hypoSymptomFatigue, t.hypoSymptomWeightGain, t.hypoSymptomCold, t.hypoSymptomSlow, t.hypoSymptomHair], id: \.self) { symptom in
-                                metabolismCheckbox(label: symptom, isSelected: selectedHypoSymptoms.contains(symptom)) {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        if selectedHypoSymptoms.contains(symptom) { selectedHypoSymptoms.remove(symptom) }
-                                        else { selectedHypoSymptoms.insert(symptom) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                // Symptome Schilddrüsenüberfunktion
-                if thyroidCondition == "hyper" && thyroidWellControlled == false {
-                    questionnaireSectionCard(title: t.thyroidSymptomQuestion) {
-                        VStack(spacing: 8) {
-                            ForEach(
-                                selectedGender == t.female
-                                    ? [t.hyperSymptomHeat, t.hyperSymptomWeightLoss, t.hyperSymptomHeart, t.hyperSymptomPeriod]
-                                    : [t.hyperSymptomHeat, t.hyperSymptomWeightLoss, t.hyperSymptomHeart],
-                                id: \.self
-                            ) { symptom in
-                                metabolismCheckbox(label: symptom, isSelected: selectedHyperSymptoms.contains(symptom)) {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        if selectedHyperSymptoms.contains(symptom) { selectedHyperSymptoms.remove(symptom) }
-                                        else { selectedHyperSymptoms.insert(symptom) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                // PCOS (nur für Frauen)
-                if selectedGender == t.female {
-                    questionnaireSectionCard(title: t.pcosSectionTitle) {
-                        VStack(spacing: 8) {
-                            metabolismChoiceButton(label: t.pcosYes, isSelected: hasPCOS == true) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    if hasPCOS == true { hasPCOS = nil }
-                                    else { hasPCOS = true; pcosInsulinResistance = nil; selectedPCOSSymptoms = [] }
-                                }
-                            }
-                            metabolismChoiceButton(label: t.pcosNo, isSelected: hasPCOS == false) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    if hasPCOS == false { hasPCOS = nil }
-                                    else { hasPCOS = false; pcosInsulinResistance = nil; selectedPCOSSymptoms = [] }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                }
-
-                // Insulinresistenz
-                if selectedGender == t.female && hasPCOS == true {
-                    questionnaireSectionCard(title: t.pcosInsulinQuestion) {
-                        VStack(spacing: 8) {
-                            metabolismChoiceButton(label: t.pcosInsulinYes, isSelected: pcosInsulinResistance == true) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    if pcosInsulinResistance == true { pcosInsulinResistance = nil }
-                                    else { pcosInsulinResistance = true; selectedPCOSSymptoms = [] }
-                                }
-                            }
-                            metabolismChoiceButton(label: t.pcosInsulinNo, isSelected: pcosInsulinResistance == false) {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                    pcosInsulinResistance = pcosInsulinResistance == false ? nil : false
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                // PCOS Symptome
-                if selectedGender == t.female && hasPCOS == true && pcosInsulinResistance == false {
-                    questionnaireSectionCard(title: t.pcosSymptomQuestion) {
-                        VStack(spacing: 8) {
-                            ForEach([t.pcosSymptomIrregular, t.pcosSymptomBlocked, t.pcosSymptomCarbFatigue, t.pcosSymptomHair], id: \.self) { symptom in
-                                metabolismCheckbox(label: symptom, isSelected: selectedPCOSSymptoms.contains(symptom)) {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        if selectedPCOSSymptoms.contains(symptom) { selectedPCOSSymptoms.remove(symptom) }
-                                        else { selectedPCOSSymptoms.insert(symptom) }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 30)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
                 Button(t.calculateBMR) {
+                    metabolismAnswers.save()
                     metabolismFactor = computedMetabolismFactor
                     navigate(to: 7)
                 }
@@ -952,10 +604,6 @@ struct ContentView: View {
                 .padding(.bottom, 20)
             }
             .padding(.top, 10)
-            .animation(.spring(response: 0.42, dampingFraction: 0.9), value: thyroidCondition)
-            .animation(.spring(response: 0.42, dampingFraction: 0.9), value: thyroidWellControlled)
-            .animation(.spring(response: 0.42, dampingFraction: 0.9), value: hasPCOS)
-            .animation(.spring(response: 0.42, dampingFraction: 0.9), value: pcosInsulinResistance)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1349,28 +997,6 @@ struct ContentView: View {
 
     // MARK: - Hilfsfunktionen (Views)
 
-    private func genderButton(title: String, icon: String) -> some View {
-        Button {
-            selectedGender = title
-            navigate(to: 2)
-        } label: {
-            HStack(spacing: 16) {
-                Image(systemName: icon).font(.system(size: 32))
-                Text(title).font(.poppins(size: 20, weight: .medium))
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity)
-            .frame(height: 70)
-            .foregroundStyle(selectedGender == title ? .white : accentBlue)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(selectedGender == title ? accentBlue : accentBlue.opacity(controlAlpha))
-            )
-        }
-        .padding(.horizontal, 30)
-    }
-
     private func hintBox(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 11) {
             VStack(alignment: .leading, spacing: 3) {
@@ -1390,64 +1016,6 @@ struct ContentView: View {
         .padding(.horizontal, 30)
     }
 
-    private func questionnaireSectionCard<Content: View>(
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(.primary)
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(GlassCardBackground(cornerRadius: 14))
-    }
-
-    private func metabolismChoiceButton(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Text(label)
-                    .font(.poppins(size: 14, weight: .regular))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(isSelected ? .white : accentBlue)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? accentBlue : accentBlue.opacity(controlAlpha))
-            )
-        }
-    }
-
-    private func metabolismCheckbox(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Text(label)
-                    .font(.poppins(size: 14, weight: .regular))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 18))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(isSelected ? .white : accentBlue)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? accentBlue : accentBlue.opacity(controlAlpha))
-            )
-        }
-    }
 }
 
 #Preview {
