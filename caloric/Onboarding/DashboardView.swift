@@ -244,9 +244,6 @@ struct DashboardView: View {
     
     private var activityResult: ActivityCalculationService.ActivityResult {
         let act = selectedActivity
-        let manual = store.entry(for: selectedDate).manualWorkouts.map {
-            ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
-        }
         return ActivityCalculationService.calculate(
             steps:            act.steps,
             nonWorkoutSteps:  act.nonWorkoutSteps,
@@ -258,7 +255,6 @@ struct DashboardView: View {
             wakeMinuteOfDay:  act.wakeMinuteOfDay,
             vo2Max:           healthKit.vo2Max,
             workouts:         selectedWorkouts,
-            manualWorkouts:   manual,
             weightKg:         weightInKg,
             age:              userAge,
             isMale:           selectedGender != femaleText,
@@ -1150,9 +1146,6 @@ struct DashboardView: View {
             isFemale: selectedGender == femaleText
         )
         if let snap = healthKit.history[key] {
-            let manual = store.entry(for: prevDate).manualWorkouts.map {
-                ActivityCalculationService.ManualWorkoutData(id: $0.id, name: $0.name, kcal: $0.kcal)
-            }
             return ActivityCalculationService.calculate(
                 steps: snap.activity.steps,
                 nonWorkoutSteps: snap.activity.nonWorkoutSteps,
@@ -1164,7 +1157,6 @@ struct DashboardView: View {
                 wakeMinuteOfDay: snap.activity.wakeMinuteOfDay,
                 vo2Max: healthKit.vo2Max,
                 workouts: snap.workouts,
-                manualWorkouts: manual,
                 weightKg: weightInKg,
                 age: userAge,
                 isMale: selectedGender != femaleText,

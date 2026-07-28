@@ -175,12 +175,6 @@ struct ActivityCalculationService {
     /// days use the full 24 h window instead of clamping to the current clock time.
     /// Pass `hrSegments` from `HKActivitySnapshot.hrSegments` for an HR-informed result;
     /// omit (default `[]`) when only aggregated data is available.
-    struct ManualWorkoutData: Sendable {
-        let id: UUID
-        let name: String
-        let kcal: Double
-    }
-
     static func calculate(
         steps: Int,
         nonWorkoutSteps: Int? = nil,
@@ -192,7 +186,6 @@ struct ActivityCalculationService {
         wakeMinuteOfDay: Double? = nil,
         vo2Max: Double?,
         workouts: [HKWorkoutSnapshot],
-        manualWorkouts: [ManualWorkoutData] = [],
         weightKg: Double,
         age: Int,
         isMale: Bool,
@@ -265,11 +258,6 @@ struct ActivityCalculationService {
             let kcal = eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
                            hrRest: restingHR, age: age, isMale: isMale)
             details.append(WorkoutDetail(id: w.id, name: w.activityType.name, kcal: kcal))
-        }
-        
-        // Manual Workouts
-        for mw in manualWorkouts {
-            details.append(WorkoutDetail(id: mw.id, name: mw.name, kcal: mw.kcal))
         }
         
         let totalEatKcal = details.reduce(0) { $0 + $1.kcal }
