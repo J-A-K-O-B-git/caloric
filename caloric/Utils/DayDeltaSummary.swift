@@ -39,6 +39,10 @@ struct DayDeltaSummary: Codable, Equatable {
         let workoutMinutes: Double
         let workoutMinutesYesterday: Double
         let sleepHours: Double
+        /// TEF comes from logged macros. Without this flag a day nobody logged
+        /// looks identical to a day of eating nothing.
+        let foodLoggedToday: Bool
+        let foodLoggedYesterday: Bool
     }
 
     let dateKey: String
@@ -52,13 +56,23 @@ struct DayDeltaSummary: Codable, Equatable {
     let totalYesterdayKcal: Double
     let segments: [SegmentDelta]
     let neatBreakdown: [SegmentDelta]
+    /// Whether the day's BMR actually changed for a reason (illness, cycle).
+    let bmrFactorsChanged: Bool
     let context: Context
 
     var totalDeltaKcal: Double { totalTodayKcal - totalYesterdayKcal }
 
     /// Largest absolute mover — the sentence the narrative should lead with.
+    ///
+    /// BMR is excluded unless one of its factors actually changed. It is by far
+    /// the biggest segment (~1700 kcal against ~300 for NEAT), so on absolute
+    /// kcal it wins almost every comparison, and a headline about a metabolism
+    /// that did not move crowds out the part of the day the user influenced.
     var dominantSegment: SegmentDelta? {
-        segments.max { abs($0.deltaKcal) < abs($1.deltaKcal) }
+        let candidates = bmrFactorsChanged
+            ? segments
+            : segments.filter { $0.key != "bmr" }
+        return candidates.max { abs($0.deltaKcal) < abs($1.deltaKcal) }
     }
 
     // MARK: - Prompt payload
@@ -79,7 +93,7 @@ struct DayDeltaSummary: Codable, Equatable {
             return d
         }
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "isPartialDay": isPartialDay,
             "elapsedPercentOfWakingDay": round0(elapsedFraction * 100),
             "totalToday": round0(totalTodayKcal),
@@ -87,6 +101,7 @@ struct DayDeltaSummary: Codable, Equatable {
             "totalDelta": round0(totalDeltaKcal),
             "segments": segments.map(segmentDict),
             "neatBreakdown": neatBreakdown.map(segmentDict),
+            "bmrFactorsChanged": bmrFactorsChanged,
             "context": [
                 "steps": context.steps,
                 "stepsYesterday": context.stepsYesterday,
@@ -94,9 +109,17 @@ struct DayDeltaSummary: Codable, Equatable {
                 "standMinutesYesterday": round0(context.standMinutesYesterday),
                 "workoutMinutes": round0(context.workoutMinutes),
                 "workoutMinutesYesterday": round0(context.workoutMinutesYesterday),
-                "sleepHours": context.sleepHours
+                "sleepHours": context.sleepHours,
+                "foodLoggedToday": context.foodLoggedToday,
+                "foodLoggedYesterday": context.foodLoggedYesterday
             ]
         ]
+
+        // Named here rather than left to the model: picking the driver is a
+        // ranking decision, and ranking is arithmetic.
+        if let dominant = dominantSegment {
+            payload["leadWith"] = dominant.key
+        }
 
         guard let data = try? JSONSerialization.data(withJSONObject: payload,
                                                      options: [.sortedKeys]),

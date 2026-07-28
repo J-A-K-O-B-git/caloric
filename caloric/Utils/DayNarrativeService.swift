@@ -55,8 +55,15 @@ struct DayNarrativeService {
         Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
         leite nichts ab und schätze nichts dazu.
-        - Beziehe dich auf den größten Treiber der Veränderung statt alle \
-        Segmente aufzuzählen.
+        - Beginne mit dem Segment, das unter leadWith steht. Es ist bereits als \
+        größter Treiber bestimmt — wähle keinen anderen und zähle nicht alle \
+        Segmente auf.
+        - Erwähne den Grundumsatz (bmr) nur, wenn bmrFactorsChanged true ist. \
+        Andernfalls ist seine Differenz reines Modellrauschen und keine \
+        Aussage über den Tag.
+        - Wenn foodLoggedToday oder foodLoggedYesterday false ist, deute die \
+        tef-Differenz für diesen Tag nicht — dann fehlen schlicht die \
+        Einträge. Sag das lieber, statt es zu interpretieren.
         - Wenn isPartialDay true ist, sprich ausdrücklich vom bisherigen \
         Tagesverlauf, nicht vom ganzen Tag.
         - Bleib beschreibend. Gib keine Gesundheits-, Ernährungs- oder \
