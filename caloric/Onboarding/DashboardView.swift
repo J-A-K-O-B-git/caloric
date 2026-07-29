@@ -1040,12 +1040,10 @@ struct DashboardView: View {
             let diffPct = (prev > 0) ? ((currentKcal - prev) / prev) * 100.0 : 0.0
 
             HStack {
-                HStack(spacing: 4) {
-                    Image(systemName: diffPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    Text(String(format: "%+.1f%% %@", diffPct, language == "de" ? "vs. gestern" : "vs. yesterday"))
-                }
-                .font(.poppins(size: 12, weight: .medium))
-                .foregroundStyle(diffPct >= 0 ? .green : .red)
+                PercentDeltaBadge(
+                    percent: diffPct,
+                    suffix: language == "de" ? "vs. gestern" : "vs. yesterday"
+                )
 
                 Spacer()
 
@@ -1112,27 +1110,50 @@ struct DashboardView: View {
 
     private func breakdownItem(label: String, value: Double, prevValue: Double? = nil) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(.poppins(size: 13, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary)
-                
-                if let prev = prevValue, prev > 0 {
-                    let diffPct = ((value - prev) / prev) * 100.0
-                    HStack(spacing: 3) {
-                        Image(systemName: diffPct >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 8, weight: .bold))
-                        Text(String(format: "%+.1f%%", diffPct))
-                    }
-                    .font(.poppins(size: 10, weight: .semibold))
-                    .foregroundStyle(diffPct >= 0 ? .green : .red)
-                    .opacity(0.8)
-                }
-            }
+            Text(label)
+                .font(.poppins(size: 13, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+
             Spacer()
+
+            if let prev = prevValue, prev > 0 {
+                PercentDeltaBadge(percent: (value - prev) / prev * 100.0, compact: true)
+            }
+
             Text(String(format: "%.0f kcal", value))
                 .font(.poppins(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
+                .frame(minWidth: 56, alignment: .trailing)
+        }
+    }
+
+    /// Direction-tinted capsule for a day-over-day percentage. One shape for
+    /// both the segment header (with a "vs. gestern" suffix) and the compact
+    /// sub-rows, so a delta reads the same everywhere it appears.
+    private struct PercentDeltaBadge: View {
+        let percent: Double
+        var suffix: String? = nil
+        var compact: Bool = false
+
+        private var isUp: Bool { percent >= 0 }
+        private var tint: Color { isUp ? .green : .red }
+
+        var body: some View {
+            HStack(spacing: compact ? 3 : 5) {
+                Image(systemName: isUp ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: compact ? 8 : 11, weight: .bold))
+                Text(String(format: "%+.1f%%", percent))
+                    .font(.poppins(size: compact ? 11 : 13, weight: .semibold))
+                if let suffix {
+                    Text(suffix)
+                        .font(.poppins(size: 13, weight: .medium))
+                        .foregroundStyle(tint.opacity(0.8))
+                }
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, compact ? 7 : 10)
+            .padding(.vertical, compact ? 3 : 6)
+            .background(Capsule().fill(tint.opacity(0.13)))
         }
     }
 
