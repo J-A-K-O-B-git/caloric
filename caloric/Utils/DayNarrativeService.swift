@@ -9,6 +9,18 @@
 //  is told it may not derive new ones — inventing a figure the app never
 //  computed is the main failure mode of a feature like this.
 //
+//  Routed through OpenRouter rather than a direct provider call. This task is
+//  small (a few hundred tokens, text only, no vision) and runs often enough
+//  across all users that model cost is the dominant lever — OpenRouter's
+//  OpenAI-compatible endpoint gives access to open-weight models at a
+//  fraction of a hosted flagship model's price without locking the app to one
+//  provider. FoodAnalysisService stays on Gemini: it needs vision for photo
+//  input, where open-weight options are weaker and rarely cheaper.
+//
+//  Model choice is deliberately not the cheapest available. The "invent
+//  nothing not in the JSON" rule is exactly the kind of instruction small
+//  models drift on, so a mid-size model buys reliability back for a small
+//  part of the savings.
 
 import Foundation
 
@@ -35,12 +47,9 @@ struct DayNarrativeService {
 
     // MARK: - Configuration
 
-    private static let model = "gemini-3.5-flash"
+    private static let model = "meta-llama/llama-3.3-70b-instruct"
 
-    private static var endpoint: URL? {
-        URL(string: "https://generativelanguage.googleapis.com/v1beta/models/"
-            + "\(model):generateContent?key=\(Secrets.gcpApiKey)")
-    }
+    private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
     private static func systemPrompt(language: String) -> String {
         let localeRule = language == "de"
@@ -94,34 +103,47 @@ struct DayNarrativeService {
         """
     }
 
-    private static let responseSchema: [String: Any] = [
-        "type": "OBJECT",
-        "properties": [
-            "headline": ["type": "STRING"],
-            "body":     ["type": "STRING"]
-        ],
-        "required": ["headline", "body"]
+    /// OpenAI-style strict json_schema: every property required, no extras —
+    /// that combination is what "strict" mode demands.
+    private static let responseFormat: [String: Any] = [
+        "type": "json_schema",
+        "json_schema": [
+            "name": "day_narrative",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "headline": ["type": "string"],
+                    "body":     ["type": "string"]
+                ],
+                "required": ["headline", "body"],
+                "additionalProperties": false
+            ]
+        ]
     ]
 
     // MARK: - Public API
 
     static func explain(_ summary: DayDeltaSummary, language: String) async throws -> Narrative {
-        guard let url = endpoint else { throw NarrativeError.unreadableResult }
-
         let payload: [String: Any] = [
-            "systemInstruction": ["parts": [["text": systemPrompt(language: language)]]],
-            "contents": [["parts": [["text": summary.promptJSON()]]]],
-            "generationConfig": [
-                "responseMimeType": "application/json",
-                "responseSchema": responseSchema,
-                // Low temperature: this is a reporting task, not a creative one.
-                "temperature": 0.3
-            ]
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt(language: language)],
+                ["role": "user", "content": summary.promptJSON()]
+            ],
+            "response_format": responseFormat,
+            // Low temperature: this is a reporting task, not a creative one.
+            "temperature": 0.3
         ]
 
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(Secrets.openRouterApiKey)", forHTTPHeaderField: "Authorization")
+        // Attribution headers OpenRouter uses for its public rankings — optional,
+        // but free to set and cost nothing.
+        request.setValue("https://caloric.app", forHTTPHeaderField: "HTTP-Referer")
+        request.setValue("Caloric", forHTTPHeaderField: "X-Title")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         request.timeoutInterval = 30
 
@@ -135,8 +157,8 @@ struct DayNarrativeService {
             throw NarrativeError.requestFailed(status: http.statusCode, body: body)
         }
 
-        let envelope = try JSONDecoder().decode(GeminiEnvelope.self, from: data)
-        guard let json = envelope.candidates.first?.content.parts.first?.text,
+        let envelope = try JSONDecoder().decode(OpenRouterEnvelope.self, from: data)
+        guard let json = envelope.choices.first?.message.content,
               let jsonData = json.data(using: .utf8) else {
             throw NarrativeError.unreadableResult
         }
@@ -145,14 +167,11 @@ struct DayNarrativeService {
 
     // MARK: - API envelope
 
-    private struct GeminiEnvelope: Codable {
-        struct Candidate: Codable {
-            struct Content: Codable {
-                struct Part: Codable { let text: String }
-                let parts: [Part]
-            }
-            let content: Content
+    private struct OpenRouterEnvelope: Codable {
+        struct Choice: Codable {
+            struct Message: Codable { let content: String }
+            let message: Message
         }
-        let candidates: [Candidate]
+        let choices: [Choice]
     }
 }
