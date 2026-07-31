@@ -500,6 +500,22 @@ struct MacrosCard: View {
             if let mode = entryMode, mode != .photo {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
+                        Button {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                                entryMode = nil
+                                aiInputText = ""
+                                if isRecording { stopRecording() }
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Theme.textSecondary)
+                                .frame(width: 32, height: 32)
+                                .background(Theme.fieldFill)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+
                         TextField(
                             mode == .text 
                                 ? (language == "de" ? "Z.B. 3 Eier mit 50g Speck..." : "e.g. 3 eggs with 50g bacon...")

@@ -132,7 +132,7 @@ struct DailyJournalView: View {
         ]
     }
 
-        private var isFutureDate: Bool {
+    private var isFutureDate: Bool {
         selectedDate > Calendar.current.startOfDay(for: Date())
     }
 
@@ -164,6 +164,18 @@ struct DailyJournalView: View {
                         Spacer().frame(height: 20)
                     }
                 }
+                .dataSyncObservers(
+                    menstruationActive: $menstruationActive,
+                    sickToggle: $sickToggle,
+                    sickEnergyLevel: $sickEnergyLevel,
+                    feverLevel: $feverLevel,
+                    caffeineText: $caffeineText,
+                    proteinByMeal: $proteinByMeal,
+                    carbsByMeal: $carbsByMeal,
+                    fatByMeal: $fatByMeal,
+                    selectedDate: selectedDate,
+                    store: store
+                )
             }
 
             VStack {
@@ -186,41 +198,25 @@ struct DailyJournalView: View {
         .sheet(isPresented: $showSavedSummary) {
             checkinSummarySheet
         }
-        .onChange(of: menstruationActive) { _, v in
-            store.update(for: selectedDate) { $0.menstruationActive = v }
-        }
-        .onChange(of: sickToggle) { _, v in
-            store.update(for: selectedDate) { $0.sickActive = v }
-        }
-        .onChange(of: sickEnergyLevel) { _, v in
-            store.update(for: selectedDate) { $0.sickEnergyLevel = v }
-        }
-        .onChange(of: feverLevel) { _, v in
-            store.update(for: selectedDate) { $0.feverLevel = v ?? .none }
-        }
-        .onChange(of: caffeineText) { _, v in
-            store.update(for: selectedDate) { $0.caffeineMg = Double(v) ?? 0 }
-        }
-        .onChange(of: proteinByMeal) { _, v in
-            store.update(for: selectedDate) { e in
-                e.proteinByMeal = v.compactMapValues {
-                    Double($0.replacingOccurrences(of: ",", with: "."))
-                }
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar { keyboardToolbar }
+    }
+
+    @ToolbarContentBuilder
+    private var keyboardToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .keyboard) {
+            if macroFocus != nil || caffeineFocused {
+                Text(macroKeyboardLabel)
+                    .font(.poppins(size: 14, weight: .semibold))
+                    .foregroundStyle(accentBlue)
             }
-        }
-        .onChange(of: carbsByMeal) { _, v in
-            store.update(for: selectedDate) { e in
-                e.carbsByMeal = v.compactMapValues {
-                    Double($0.replacingOccurrences(of: ",", with: "."))
-                }
+            Spacer()
+            Button(language == "de" ? "Fertig" : "Done") {
+                macroFocus = nil
+                caffeineFocused = false
             }
-        }
-        .onChange(of: fatByMeal) { _, v in
-            store.update(for: selectedDate) { e in
-                e.fatByMeal = v.compactMapValues {
-                    Double($0.replacingOccurrences(of: ",", with: "."))
-                }
-            }
+            .font(.poppins(size: 15, weight: .bold))
+            .foregroundStyle(accentBlue)
         }
     }
 
@@ -493,30 +489,6 @@ struct DailyJournalView: View {
         .presentationDragIndicator(.visible)
     }
 
-    private var journalScrollView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                // Header section aligned with DashboardView
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Daily Journal")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
-                    }
-                    dateNavigationRow
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 16)
-
-                cardsSection
-
-                Spacer().frame(height: 140)
-            }
-        }
-    }
-
     private var dateNavigationRow: some View {
         let maxDate = Calendar.current.startOfDay(for: Date())
         return HStack(spacing: 8) {
@@ -586,6 +558,16 @@ struct DailyJournalView: View {
             }
             .buttonStyle(SpringyButtonStyle())
             .disabled(Calendar.current.isDateInToday(selectedDate))
+        }
+    }
+
+    private func changeDate(by days: Int) {
+        if let newDate = Calendar.current.date(byAdding: .day, value: days, to: selectedDate) {
+            if newDate <= Calendar.current.startOfDay(for: Date()) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                    selectedDate = newDate
+                }
+            }
         }
     }
 
@@ -844,5 +826,44 @@ struct DailyJournalView: View {
         audioEngine.inputNode.removeTap(onBus: 0)
         request.endAudio()
         isRecording = false
+    }
+}
+
+// MARK: - Helper Modifiers
+
+private extension View {
+    func dataSyncObservers(
+        menstruationActive: Binding<Bool?>,
+        sickToggle: Binding<Bool>,
+        sickEnergyLevel: Binding<TDEECalculationService.JournalInputs.SickEnergyLevel?>,
+        feverLevel: Binding<TDEECalculationService.JournalInputs.FeverLevel?>,
+        caffeineText: Binding<String>,
+        proteinByMeal: Binding<[String: String]>,
+        carbsByMeal: Binding<[String: String]>,
+        fatByMeal: Binding<[String: String]>,
+        selectedDate: Date,
+        store: JournalStore
+    ) -> some View {
+        self
+            .onChange(of: menstruationActive.wrappedValue) { _, v in store.update(for: selectedDate) { $0.menstruationActive = v } }
+            .onChange(of: sickToggle.wrappedValue) { _, v in store.update(for: selectedDate) { $0.sickActive = v } }
+            .onChange(of: sickEnergyLevel.wrappedValue) { _, v in store.update(for: selectedDate) { $0.sickEnergyLevel = v } }
+            .onChange(of: feverLevel.wrappedValue) { _, v in store.update(for: selectedDate) { $0.feverLevel = v ?? .none } }
+            .onChange(of: caffeineText.wrappedValue) { _, v in store.update(for: selectedDate) { $0.caffeineMg = Double(v) ?? 0 } }
+            .onChange(of: proteinByMeal.wrappedValue) { _, v in
+                store.update(for: selectedDate) { e in
+                    e.proteinByMeal = v.compactMapValues { Double($0.replacingOccurrences(of: ",", with: ".")) }
+                }
+            }
+            .onChange(of: carbsByMeal.wrappedValue) { _, v in
+                store.update(for: selectedDate) { e in
+                    e.carbsByMeal = v.compactMapValues { Double($0.replacingOccurrences(of: ",", with: ".")) }
+                }
+            }
+            .onChange(of: fatByMeal.wrappedValue) { _, v in
+                store.update(for: selectedDate) { e in
+                    e.fatByMeal = v.compactMapValues { Double($0.replacingOccurrences(of: ",", with: ".")) }
+                }
+            }
     }
 }

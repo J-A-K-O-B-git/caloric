@@ -19,9 +19,6 @@ struct DayNarrativeCard: View {
     let language: String
     let accentBlue: Color
     let narrative: DayNarrativeService.Narrative?
-    /// The figure the text explains — the same one the KPI tile shows, echoed
-    /// here so the connection between card and number is visible.
-    let percentVsPreviousDay: Double
     let isLoading: Bool
     let errorMessage: String?
     let isStale: Bool
@@ -38,12 +35,10 @@ struct DayNarrativeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-
-            if isLoading && narrative == nil {
-                shimmerPlaceholder
-            } else if let narrative {
+            if let narrative {
                 content(narrative)
+            } else if isLoading {
+                shimmerPlaceholder
             } else if errorMessage != nil {
                 Text(language == "de"
                      ? "Die Erklärung konnte gerade nicht erstellt werden."
@@ -69,29 +64,6 @@ struct DayNarrativeCard: View {
                 )
                 .shadow(color: accentBlue.opacity(0.10), radius: 12, x: 0, y: 4)
         )
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Text(language == "de" ? "Dein Tagesüberblick" : "Your Day Overview")
-                .font(.poppins(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            Spacer()
-
-            // Same figure as the KPI tile below — the card explains this number.
-            Text(String(format: "%+.0f %%", percentVsPreviousDay))
-                .font(.poppins(size: 13, weight: .semibold))
-                .foregroundStyle(percentVsPreviousDay >= 0 ? .green : .red)
-
-            if isLoading && narrative != nil {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: accentBlue))
-                    .scaleEffect(0.6)
-            }
-        }
     }
 
     // MARK: - Content
@@ -149,13 +121,27 @@ struct DayNarrativeCard: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack(spacing: 6) {
-            Text(disclosure)
-                .font(.poppins(size: 9, weight: .regular))
-                .foregroundStyle(Theme.textSecondary.opacity(0.65))
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 8) {
+            Text("KI")
+                .font(.poppins(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(aiGradient))
+
+            if isStale {
+                Text(language == "de" ? "Zahlen veraltet" : "Numbers stale")
+                    .font(.poppins(size: 9, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.65))
+            }
 
             Spacer()
+
+            if isLoading && narrative != nil {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: accentBlue))
+                    .scaleEffect(0.6)
+            }
 
             Button(action: onRegenerate) {
                 Image(systemName: "arrow.clockwise")
@@ -165,16 +151,5 @@ struct DayNarrativeCard: View {
             .buttonStyle(.plain)
             .disabled(isLoading)
         }
-    }
-
-    private var disclosure: String {
-        if isStale {
-            return language == "de"
-                ? "KI-generiert"
-                : "AI-generated"
-        }
-        return language == "de"
-            ? "KI-generiert"
-            : "AI-generated"
     }
 }

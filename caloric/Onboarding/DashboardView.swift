@@ -810,7 +810,6 @@ struct DashboardView: View {
                                 language: language,
                                 accentBlue: accentBlue,
                                 narrative: narrative,
-                                percentVsPreviousDay: vsSelectedDayPercent,
                                 isLoading: narrativeIsLoading,
                                 errorMessage: narrativeError,
                                 isStale: narrativeIsStale,
