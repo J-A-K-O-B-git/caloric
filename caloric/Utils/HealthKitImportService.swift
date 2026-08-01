@@ -279,8 +279,13 @@ final class HealthKitImportService {
         )
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
 
+        // All sources, not just Apple Watch. Third-party trackers (Whoop and
+        // the like) write workouts the watch never saw — a bike ride or a
+        // strap-only session — and filtering by source dropped them entirely.
+        // Overlapping duplicates are handled below instead, which is the
+        // problem the source filter was really there to solve.
         let raw: [HKWorkout] = await hkSamples(
-            type: .workoutType(), predicate: predicate, sort: sort
+            type: .workoutType(), predicate: predicate, sort: sort, requireWatch: false
         )
 
         var snapshots: [HKWorkoutSnapshot] = []
@@ -320,6 +325,18 @@ final class HealthKitImportService {
 
     // MARK: - Deduplication
 
+    /// Collapses the same session recorded by several devices into one entry.
+    ///
+    /// Matching is by overlap in time, not by how close the start times are.
+    /// The previous rule — start within 60 s, and `break` on the first
+    /// candidate outside that window — missed most real pairs: a watch and a
+    /// strap are rarely started within a minute of each other, and the early
+    /// exit meant a later duplicate was never even considered.
+    ///
+    /// Two workouts count as the same session when they overlap by at least
+    /// half of the shorter one. That tolerates different start and stop times
+    /// while still keeping genuinely separate sessions apart — a morning run
+    /// and an evening ride never overlap at all.
     private func deduplicate(_ sorted: [HKWorkoutSnapshot]) -> [HKWorkoutSnapshot] {
         var result:    [HKWorkoutSnapshot] = []
         var processed = Set<UUID>()
@@ -328,22 +345,49 @@ final class HealthKitImportService {
             guard !processed.contains(sorted[i].id) else { continue }
             processed.insert(sorted[i].id)
             var best = sorted[i]
+            // Tracked separately from `best`, which swaps as better records
+            // turn up and whose end date would make the cutoff jump around.
+            var clusterEnd = sorted[i].endDate
 
             for j in sorted.indices.dropFirst(i + 1) {
-                let diff = abs(sorted[j].startDate.timeIntervalSince(sorted[i].startDate))
-                guard diff <= 60 else { break }
+                guard !processed.contains(sorted[j].id) else { continue }
+                // Sorted by start date: once a candidate starts after every
+                // session in this cluster ended, nothing later can overlap.
+                guard sorted[j].startDate < clusterEnd else { break }
+                guard Self.isSameSession(sorted[i], sorted[j]) else { continue }
+
                 processed.insert(sorted[j].id)
-                
-                let jIsWhoop    = Self.whoopBundles.contains(sorted[j].sourceBundleID)
-                let bestIsWhoop = Self.whoopBundles.contains(best.sourceBundleID)
-                
-                if !jIsWhoop && bestIsWhoop {
+                clusterEnd = max(clusterEnd, sorted[j].endDate)
+
+                // Prefer the richer record: a workout carrying heart rate can
+                // be turned into calories, one without cannot. Apple wins ties,
+                // as before.
+                if Self.preferred(sorted[j], over: best) {
                     best = sorted[j]
                 }
             }
             result.append(best)
         }
         return result
+    }
+
+    private static func isSameSession(_ a: HKWorkoutSnapshot, _ b: HKWorkoutSnapshot) -> Bool {
+        let overlap = min(a.endDate, b.endDate).timeIntervalSince(max(a.startDate, b.startDate))
+        guard overlap > 0 else { return false }
+        let shorter = min(a.duration, b.duration)
+        guard shorter > 0 else { return false }
+        return overlap >= shorter * 0.5
+    }
+
+    private static func preferred(_ candidate: HKWorkoutSnapshot,
+                                  over current: HKWorkoutSnapshot) -> Bool {
+        let candidateHasHR = (candidate.averageHeartRate ?? 0) > 0
+        let currentHasHR   = (current.averageHeartRate ?? 0) > 0
+        if candidateHasHR != currentHasHR { return candidateHasHR }
+
+        let candidateIsWhoop = whoopBundles.contains(candidate.sourceBundleID)
+        let currentIsWhoop   = whoopBundles.contains(current.sourceBundleID)
+        return !candidateIsWhoop && currentIsWhoop
     }
 
     // MARK: - Activity (steps + distance + stand + HR)
