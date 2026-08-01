@@ -78,11 +78,7 @@ struct DailyJournalView: View {
 
     @State private var showSavedSummary = false
     @State private var showCalendarPicker = false
-
-    // Collapsing header
-    @State private var headerCollapse: CGFloat = 0
-    @State private var expandedHeaderHeight: CGFloat = 130
-
+    
     @Environment(JournalStore.self) private var store
     @Environment(HealthKitImportService.self) private var healthKit
     @Environment(\.colorScheme) private var colorScheme
@@ -147,22 +143,7 @@ struct DailyJournalView: View {
             CaloricBackground()
 
             VStack(spacing: 0) {
-                // Compact bar — always visible; the collapsed date label
-                // fades in as the expanded title + date row below shrinks
-                // away. Matches DashboardView's collapse, minus the profile
-                // icon this screen doesn't have.
-                HStack {
-                    Text(compactDateString)
-                        .font(.poppins(size: 14, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
-                        .opacity(headerCollapse)
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .frame(height: 40)
-
+                // STATIC HEADER (Aligned with DashboardView)
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(language == "de" ? "Dein Check-in" : "Daily Journal")
@@ -173,21 +154,16 @@ struct DailyJournalView: View {
                     dateNavigationRow
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.top, 14)
                 .padding(.bottom, 16)
-                .measuringHeight(into: $expandedHeaderHeight)
-                .frame(height: expandedHeaderHeight * (1 - headerCollapse), alignment: .top)
-                .opacity(1 - headerCollapse)
-                .clipped()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         cardsSection
-
+                        
                         Spacer().frame(height: 20)
                     }
                 }
-                .trackingHeaderCollapse(progress: $headerCollapse)
                 .dataSyncObservers(
                     menstruationActive: $menstruationActive,
                     sickToggle: $sickToggle,
@@ -598,14 +574,6 @@ struct DailyJournalView: View {
     private var selectedDateString: String {
         let f = DateFormatter()
         f.dateStyle = .full
-        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
-        return f.string(from: selectedDate)
-    }
-
-    /// Shown in the collapsed header bar once the title has scrolled away.
-    private var compactDateString: String {
-        let f = DateFormatter()
-        f.dateStyle = .medium
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: selectedDate)
     }
