@@ -54,6 +54,10 @@ struct DashboardView: View {
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
 
+    // Collapsing header
+    @State private var headerCollapse: CGFloat = 0
+    @State private var expandedHeaderHeight: CGFloat = 120
+
     // Tageserklärung
     @State private var narrativeStore = DayNarrativeStore()
     @State private var narrative: DayNarrativeService.Narrative? = nil
@@ -565,7 +569,40 @@ struct DashboardView: View {
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: selectedDate)
     }
-    
+
+    /// Shown in the pinned row once the header has collapsed — the full
+    /// weekday+day+month+year string does not fit beside the profile icon.
+    private var compactDateString: String {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        return f.string(from: selectedDate)
+    }
+
+    /// Compact date chip that stays pinned. Opens the same calendar sheet as
+    /// the full navigation row, so the affordance survives the collapse.
+    private var pinnedDateChip: some View {
+        Button {
+            showCalendarPicker = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                Text(compactDateString)
+                    .font(.poppins(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(headerCollapse)
+        // Only tappable once actually visible, so it cannot steal taps from
+        // the full date row while that is still on screen.
+        .allowsHitTesting(headerCollapse > 0.5)
+    }
+
     private var currentTimeString: String {
         let f = DateFormatter()
         f.timeStyle = .short
@@ -782,26 +819,13 @@ struct DashboardView: View {
         ZStack {
             CaloricBackground()
 
-            VStack(spacing: 0) {
-                // STATIC HEADER
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
-                    }
-                    .overlay(alignment: .trailing) {
-                        profileIconButton
-                    }
-                    dateNavigationRow
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 16)
-
-                ScrollView(showsIndicators: false) {
+            // Content sits under the floating header and scrolls beneath it.
+            ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
+                        Spacer()
+                            .frame(height: CollapsingHeader<EmptyView, EmptyView>.pinnedRowHeight
+                                   + expandedHeaderHeight + 14)
+
                         calorieRingWidget
                             .padding(.horizontal, 20)
 
@@ -826,18 +850,43 @@ struct DashboardView: View {
                         Spacer().frame(height: 20)
                     }
                 }
-                .refreshable {
-                    await healthKit.fetchAll()
-                    Task { @MainActor in
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-                            showRefreshBadge = true
-                        }
-                        try? await Task.sleep(nanoseconds: 2_200_000_000)
-                        withAnimation(.easeOut(duration: 0.45)) {
-                            showRefreshBadge = false
-                        }
+            .trackingHeaderCollapse(progress: $headerCollapse,
+                                    distance: max(expandedHeaderHeight, 1))
+            .refreshable {
+                await healthKit.fetchAll()
+                Task { @MainActor in
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                        showRefreshBadge = true
+                    }
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    withAnimation(.easeOut(duration: 0.45)) {
+                        showRefreshBadge = false
                     }
                 }
+            }
+
+            // Floating header: compact date + profile stay pinned, title and
+            // full date navigation collapse away underneath them.
+            VStack(spacing: 0) {
+                CollapsingHeader(progress: headerCollapse,
+                                 expandedHeight: $expandedHeaderHeight) {
+                    HStack {
+                        pinnedDateChip
+                        Spacer()
+                        profileIconButton
+                    }
+                } expanding: {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(language == "de" ? "Dein Überblick" : "Your Overview")
+                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        dateNavigationRow
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
+                }
+                Spacer()
             }
 
             // Abdunkelung beim Öffnen der Leiste

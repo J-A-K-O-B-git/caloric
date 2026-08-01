@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5DA0F01A3010001A000000A1 /* ScrollCollapseHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F01930100019000000A1 /* ScrollCollapseHeader.swift */; };
 		5DA0F01630100016000000A1 /* ProfileInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F01530100015000000A1 /* ProfileInputs.swift */; };
 		5DA0F00E3010000E000000A1 /* DayDeltaSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00D3010000D000000A1 /* DayDeltaSummary.swift */; };
 		5DA0F01030100010000000A1 /* DayNarrativeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA0F00F3010000F000000A1 /* DayNarrativeService.swift */; };
@@ -51,6 +52,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5DA0F01930100019000000A1 /* ScrollCollapseHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollCollapseHeader.swift; sourceTree = "<group>"; };
 		5DA0F01530100015000000A1 /* ProfileInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileInputs.swift; sourceTree = "<group>"; };
 		5DA0F00D3010000D000000A1 /* DayDeltaSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDeltaSummary.swift; sourceTree = "<group>"; };
 		5DA0F00F3010000F000000A1 /* DayNarrativeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayNarrativeService.swift; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 		5D2E62B12FCE1AE20057E84D /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
+				5DA0F01930100019000000A1 /* ScrollCollapseHeader.swift */,
 				5DA0F01530100015000000A1 /* ProfileInputs.swift */,
 				5DA0F01330100013000000A1 /* DayNarrativeCard.swift */,
 				5DA0F00530100005000000A1 /* FoodConfirmSheet.swift */,
@@ -279,6 +282,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5DA0F01A3010001A000000A1 /* ScrollCollapseHeader.swift in Sources */,
 				5DA0F01630100016000000A1 /* ProfileInputs.swift in Sources */,
 				5DA0F00E3010000E000000A1 /* DayDeltaSummary.swift in Sources */,
 				5DA0F01030100010000000A1 /* DayNarrativeService.swift in Sources */,
