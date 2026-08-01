@@ -78,10 +78,6 @@ struct DailyJournalView: View {
 
     @State private var showSavedSummary = false
     @State private var showCalendarPicker = false
-
-    // Collapsing header
-    @State private var headerCollapse: CGFloat = 0
-    @State private var expandedHeaderHeight: CGFloat = 120
     
     @Environment(JournalStore.self) private var store
     @Environment(HealthKitImportService.self) private var healthKit
@@ -146,54 +142,40 @@ struct DailyJournalView: View {
         ZStack {
             CaloricBackground()
 
-            // Content sits under the floating header and scrolls beneath it.
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: LayoutMetrics.cardSpacing) {
-                    Spacer()
-                        .frame(height: CollapsingHeader<EmptyView, EmptyView>
-                            .contentInset(expandedHeight: expandedHeaderHeight))
-
-                    cardsSection
-
-                    Spacer().frame(height: 20)
-                }
-            }
-            .trackingHeaderCollapse(progress: $headerCollapse,
-                                    distance: max(expandedHeaderHeight, 1))
-            .dataSyncObservers(
-                menstruationActive: $menstruationActive,
-                sickToggle: $sickToggle,
-                sickEnergyLevel: $sickEnergyLevel,
-                feverLevel: $feverLevel,
-                caffeineText: $caffeineText,
-                proteinByMeal: $proteinByMeal,
-                carbsByMeal: $carbsByMeal,
-                fatByMeal: $fatByMeal,
-                selectedDate: selectedDate,
-                store: store
-            )
-
-            // Floating header: compact date stays pinned, title and full date
-            // navigation collapse away underneath it.
             VStack(spacing: 0) {
-                CollapsingHeader(progress: headerCollapse,
-                                 expandedHeight: $expandedHeaderHeight) {
+                // STATIC HEADER (Aligned with DashboardView)
+                VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        pinnedDateChip
-                        Spacer()
-                    }
-                } expanding: {
-                    VStack(alignment: .leading, spacing: 16) {
                         Text(language == "de" ? "Dein Check-in" : "Daily Journal")
                             .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                             .foregroundStyle(Theme.textPrimary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        dateNavigationRow
+                        Spacer()
                     }
-                    .padding(.top, 8)
-                    .padding(.bottom, 16)
+                    dateNavigationRow
                 }
-                Spacer()
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: LayoutMetrics.cardSpacing) {
+                        cardsSection
+                        
+                        Spacer().frame(height: 20)
+                    }
+                }
+                .dataSyncObservers(
+                    menstruationActive: $menstruationActive,
+                    sickToggle: $sickToggle,
+                    sickEnergyLevel: $sickEnergyLevel,
+                    feverLevel: $feverLevel,
+                    caffeineText: $caffeineText,
+                    proteinByMeal: $proteinByMeal,
+                    carbsByMeal: $carbsByMeal,
+                    fatByMeal: $fatByMeal,
+                    selectedDate: selectedDate,
+                    store: store
+                )
             }
 
             VStack {
@@ -594,36 +576,6 @@ struct DailyJournalView: View {
         f.dateStyle = .full
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: selectedDate)
-    }
-
-    /// Shown in the pinned row once the header has collapsed.
-    private var compactDateString: String {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
-        return f.string(from: selectedDate)
-    }
-
-    /// Compact date chip that stays pinned, opening the same calendar sheet
-    /// as the full navigation row it replaces.
-    private var pinnedDateChip: some View {
-        Button {
-            showCalendarPicker = true
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                Text(compactDateString)
-                    .font(.poppins(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .opacity(headerCollapse)
-        .allowsHitTesting(headerCollapse > 0.5)
     }
 
     private var calendarPickerSheet: some View {

@@ -66,10 +66,6 @@ struct DataInsightView: View {
     @State private var selectedTabSource = 0
     @State private var editingField: ProfileField? = nil
     @State private var checkinExpanded = false
-
-    // Collapsing header — the title collapses, the tab picker stays pinned.
-    @State private var headerCollapse: CGFloat = 0
-    @State private var expandedHeaderHeight: CGFloat = 50
     @State private var selectedHistoryType: HistoryType? = nil
 
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
@@ -121,38 +117,29 @@ struct DataInsightView: View {
     var body: some View {
         ZStack {
             CaloricBackground()
-            // Content sits under the floating header and scrolls beneath it.
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: LayoutMetrics.cardSpacing) {
-                    Spacer()
-                        .frame(height: CollapsingHeader<EmptyView, EmptyView>
-                            .contentInset(expandedHeight: expandedHeaderHeight))
-
-                    if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
-
-                    Spacer().frame(height: 20)
-                }
-            }
-            .trackingHeaderCollapse(progress: $headerCollapse,
-                                    distance: max(expandedHeaderHeight, 1))
-            .scrollDismissesKeyboard(.interactively)
-
-            // Floating header: the tab picker is what stays pinned here —
-            // "Deine Daten" is the only part that collapses away.
             VStack(spacing: 0) {
-                CollapsingHeader(progress: headerCollapse,
-                                 expandedHeight: $expandedHeaderHeight) {
-                    tabPicker
-                } expanding: {
+                // Header section aligned with DashboardView
+                VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(language == "de" ? "Deine Daten" : "Your Data")
                             .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
                     }
-                    .padding(.bottom, 16)
+                    tabPicker
                 }
-                Spacer()
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 16)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: LayoutMetrics.cardSpacing) {
+                        if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
+                        
+                        Spacer().frame(height: 20)
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
         }
         .sheet(item: $editingField) { field in
