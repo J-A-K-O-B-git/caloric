@@ -125,8 +125,8 @@ struct DataInsightView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: LayoutMetrics.cardSpacing) {
                     Spacer()
-                        .frame(height: CollapsingHeader<EmptyView, EmptyView>.pinnedRowHeight
-                               + expandedHeaderHeight + 14)
+                        .frame(height: CollapsingHeader<EmptyView, EmptyView>
+                            .contentInset(expandedHeight: expandedHeaderHeight))
 
                     if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
 

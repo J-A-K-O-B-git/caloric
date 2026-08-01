@@ -76,6 +76,14 @@ struct CollapsingHeader<Pinned: View, Expanding: View>: View {
     /// Height of the pinned row — also the resting height of the whole header
     /// once the expanding part has collapsed.
     static var pinnedRowHeight: CGFloat { 44 }
+    static var topPadding: CGFloat { 14 }
+    static var bottomPadding: CGFloat { 10 }
+
+    /// Space the scroll content has to leave free at the top. Kept here so the
+    /// three screens using this header do not each restate the paddings.
+    static func contentInset(expandedHeight: CGFloat) -> CGFloat {
+        topPadding + pinnedRowHeight + expandedHeight + bottomPadding
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -89,26 +97,34 @@ struct CollapsingHeader<Pinned: View, Expanding: View>: View {
                 .clipped()
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .background(alignment: .top) {
-            // Masks the content sliding underneath. Transparent at rest so the
-            // gradient background shows through unchanged, opaque once the
-            // header is doing its job as a pinned bar.
-            ZStack(alignment: .bottom) {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .opacity(progress)
+        .padding(.top, Self.topPadding)
+        .padding(.bottom, Self.bottomPadding)
+        .background(alignment: .top) { backdrop }
+    }
 
-                // Soft edge instead of a hard cut where content disappears.
+    /// Masks whatever scrolls underneath. Transparent at rest, so the app's
+    /// gradient background stays unbroken; opaque once the header is acting as
+    /// a pinned bar.
+    ///
+    /// One fill, faded out at its lower edge by a mask. An earlier version
+    /// stacked a solid-colour gradient on top of the material to soften that
+    /// edge — two different fills that never blended, which showed up as a
+    /// hard-edged lighter box below the date.
+    private var backdrop: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask(
                 LinearGradient(
-                    colors: [Theme.canvas.opacity(0.85 * progress), .clear],
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.85),
+                        .init(color: .clear, location: 1.0)
+                    ],
                     startPoint: .top, endPoint: .bottom
                 )
-                .frame(height: 16)
-                .offset(y: 16)
-                .allowsHitTesting(false)
-            }
+            )
+            .opacity(progress)
+            .allowsHitTesting(false)
             .ignoresSafeArea(edges: .top)
-        }
     }
 }
