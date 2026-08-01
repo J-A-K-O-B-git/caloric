@@ -142,41 +142,42 @@ struct DailyJournalView: View {
         ZStack {
             CaloricBackground()
 
-            VStack(spacing: 0) {
-                // STATIC HEADER (Aligned with DashboardView)
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(language == "de" ? "Dein Check-in" : "Daily Journal")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
+            // Header scrolls with the content instead of sitting above the
+            // ScrollView, so the page simply runs top to bottom.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text(language == "de" ? "Dein Check-in" : "Daily Journal")
+                                .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                        }
+                        dateNavigationRow
                     }
-                    dateNavigationRow
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 16)
 
-                ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         cardsSection
-                        
+
                         Spacer().frame(height: 20)
                     }
                 }
-                .dataSyncObservers(
-                    menstruationActive: $menstruationActive,
-                    sickToggle: $sickToggle,
-                    sickEnergyLevel: $sickEnergyLevel,
-                    feverLevel: $feverLevel,
-                    caffeineText: $caffeineText,
-                    proteinByMeal: $proteinByMeal,
-                    carbsByMeal: $carbsByMeal,
-                    fatByMeal: $fatByMeal,
-                    selectedDate: selectedDate,
-                    store: store
-                )
             }
+            .dataSyncObservers(
+                menstruationActive: $menstruationActive,
+                sickToggle: $sickToggle,
+                sickEnergyLevel: $sickEnergyLevel,
+                feverLevel: $feverLevel,
+                caffeineText: $caffeineText,
+                proteinByMeal: $proteinByMeal,
+                carbsByMeal: $carbsByMeal,
+                fatByMeal: $fatByMeal,
+                selectedDate: selectedDate,
+                store: store
+            )
 
             VStack {
                 Spacer()

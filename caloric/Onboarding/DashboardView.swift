@@ -782,25 +782,26 @@ struct DashboardView: View {
         ZStack {
             CaloricBackground()
 
-            VStack(spacing: 0) {
-                // STATIC HEADER
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(language == "de" ? "Dein Überblick" : "Your Overview")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
+            // Header scrolls with the content instead of sitting above the
+            // ScrollView, so the page simply runs top to bottom.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text(language == "de" ? "Dein Überblick" : "Your Overview")
+                                .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                        }
+                        .overlay(alignment: .trailing) {
+                            profileIconButton
+                        }
+                        dateNavigationRow
                     }
-                    .overlay(alignment: .trailing) {
-                        profileIconButton
-                    }
-                    dateNavigationRow
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 16)
 
-                ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         calorieRingWidget
                             .padding(.horizontal, 20)
@@ -826,16 +827,16 @@ struct DashboardView: View {
                         Spacer().frame(height: 20)
                     }
                 }
-                .refreshable {
-                    await healthKit.fetchAll()
-                    Task { @MainActor in
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-                            showRefreshBadge = true
-                        }
-                        try? await Task.sleep(nanoseconds: 2_200_000_000)
-                        withAnimation(.easeOut(duration: 0.45)) {
-                            showRefreshBadge = false
-                        }
+            }
+            .refreshable {
+                await healthKit.fetchAll()
+                Task { @MainActor in
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                        showRefreshBadge = true
+                    }
+                    try? await Task.sleep(nanoseconds: 2_200_000_000)
+                    withAnimation(.easeOut(duration: 0.45)) {
+                        showRefreshBadge = false
                     }
                 }
             }

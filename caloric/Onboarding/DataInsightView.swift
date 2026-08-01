@@ -117,30 +117,31 @@ struct DataInsightView: View {
     var body: some View {
         ZStack {
             CaloricBackground()
-            VStack(spacing: 0) {
-                // Header section aligned with DashboardView
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(language == "de" ? "Deine Daten" : "Your Data")
-                            .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
+            // Header scrolls with the content instead of sitting above the
+            // ScrollView, so the page simply runs top to bottom.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Text(language == "de" ? "Deine Daten" : "Your Data")
+                                .font(.poppins(size: LayoutMetrics.titleFontSize, weight: .heavy))
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                        }
+                        tabPicker
                     }
-                    tabPicker
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                    .padding(.bottom, 16)
 
-                ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
-                        
+
                         Spacer().frame(height: 20)
                     }
                 }
-                .scrollDismissesKeyboard(.interactively)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .sheet(item: $editingField) { field in
             FieldEditSheet(
