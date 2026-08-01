@@ -54,6 +54,10 @@ struct DashboardView: View {
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
 
+    // Collapsing header
+    @State private var headerCollapse: CGFloat = 0
+    @State private var expandedHeaderHeight: CGFloat = 130
+
     // Tageserklärung
     @State private var narrativeStore = DayNarrativeStore()
     @State private var narrative: DayNarrativeService.Narrative? = nil
@@ -565,7 +569,16 @@ struct DashboardView: View {
         f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
         return f.string(from: selectedDate)
     }
-    
+
+    /// Shown in the collapsed header bar — the full weekday+day+month+year
+    /// string doesn't fit next to the profile icon at that size.
+    private var compactDateString: String {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        return f.string(from: selectedDate)
+    }
+
     private var currentTimeString: String {
         let f = DateFormatter()
         f.timeStyle = .short
@@ -783,7 +796,25 @@ struct DashboardView: View {
             CaloricBackground()
 
             VStack(spacing: 0) {
-                // STATIC HEADER
+                // Compact bar — always visible. The collapsed date label fades
+                // in as the expanded block below shrinks away; the profile
+                // icon stays put in both states, so it never has to jump.
+                HStack {
+                    Text(compactDateString)
+                        .font(.poppins(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                        .opacity(headerCollapse)
+                    Spacer()
+                    profileIconButton
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .frame(height: 40)
+
+                // Expanded content — title + full date navigation — shrinks
+                // and fades together as the user scrolls, reclaiming its own
+                // layout space rather than leaving an empty gap behind.
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(language == "de" ? "Dein Überblick" : "Your Overview")
@@ -791,14 +822,15 @@ struct DashboardView: View {
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
                     }
-                    .overlay(alignment: .trailing) {
-                        profileIconButton
-                    }
                     dateNavigationRow
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 14)
+                .padding(.top, 16)
                 .padding(.bottom, 16)
+                .measuringHeight(into: $expandedHeaderHeight)
+                .frame(height: expandedHeaderHeight * (1 - headerCollapse), alignment: .top)
+                .opacity(1 - headerCollapse)
+                .clipped()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
@@ -826,6 +858,7 @@ struct DashboardView: View {
                         Spacer().frame(height: 20)
                     }
                 }
+                .trackingHeaderCollapse(progress: $headerCollapse)
                 .refreshable {
                     await healthKit.fetchAll()
                     Task { @MainActor in

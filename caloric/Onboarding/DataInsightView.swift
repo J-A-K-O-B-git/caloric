@@ -66,6 +66,10 @@ struct DataInsightView: View {
     @State private var selectedTabSource = 0
     @State private var editingField: ProfileField? = nil
     @State private var checkinExpanded = false
+
+    // Collapsing header — only the title collapses, tabPicker stays put.
+    @State private var headerCollapse: CGFloat = 0
+    @State private var titleHeight: CGFloat = 40
     @State private var selectedHistoryType: HistoryType? = nil
 
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
@@ -118,7 +122,9 @@ struct DataInsightView: View {
         ZStack {
             CaloricBackground()
             VStack(spacing: 0) {
-                // Header section aligned with DashboardView
+                // Header section aligned with DashboardView. Only the title
+                // collapses away on scroll — tabPicker stays fully visible
+                // and simply slides up into the space the title vacates.
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(language == "de" ? "Deine Daten" : "Your Data")
@@ -126,6 +132,11 @@ struct DataInsightView: View {
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
                     }
+                    .measuringHeight(into: $titleHeight)
+                    .frame(height: titleHeight * (1 - headerCollapse), alignment: .top)
+                    .opacity(1 - headerCollapse)
+                    .clipped()
+
                     tabPicker
                 }
                 .padding(.horizontal, 20)
@@ -135,10 +146,11 @@ struct DataInsightView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         if selectedTabSource == 0 { liveSourcesTab } else { stammdatenTab }
-                        
+
                         Spacer().frame(height: 20)
                     }
                 }
+                .trackingHeaderCollapse(progress: $headerCollapse)
                 .scrollDismissesKeyboard(.interactively)
             }
         }
