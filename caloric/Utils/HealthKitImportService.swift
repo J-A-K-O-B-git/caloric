@@ -381,9 +381,8 @@ final class HealthKitImportService {
                 processed.insert(sorted[j].id)
                 clusterEnd = max(clusterEnd, sorted[j].endDate)
 
-                // Prefer the richer record: a workout carrying heart rate can
-                // be turned into calories, one without cannot. Apple wins ties,
-                // as before.
+                // Apple Watch always wins when the same session was logged
+                // twice — it's the device worn for exactly this purpose.
                 if Self.preferred(sorted[j], over: best) {
                     best = sorted[j]
                 }
@@ -403,13 +402,16 @@ final class HealthKitImportService {
 
     private static func preferred(_ candidate: HKWorkoutSnapshot,
                                   over current: HKWorkoutSnapshot) -> Bool {
-        let candidateHasHR = (candidate.averageHeartRate ?? 0) > 0
-        let currentHasHR   = (current.averageHeartRate ?? 0) > 0
-        if candidateHasHR != currentHasHR { return candidateHasHR }
-
         let candidateIsWhoop = whoopBundles.contains(candidate.sourceBundleID)
         let currentIsWhoop   = whoopBundles.contains(current.sourceBundleID)
-        return !candidateIsWhoop && currentIsWhoop
+        if candidateIsWhoop != currentIsWhoop { return currentIsWhoop }
+
+        // Both from the same vendor (or neither is Whoop): fall back to
+        // whichever record actually carries a heart rate, since only that
+        // one can be turned into calories.
+        let candidateHasHR = (candidate.averageHeartRate ?? 0) > 0
+        let currentHasHR   = (current.averageHeartRate ?? 0) > 0
+        return candidateHasHR && !currentHasHR
     }
 
     // MARK: - Activity (steps + distance + stand + HR)
