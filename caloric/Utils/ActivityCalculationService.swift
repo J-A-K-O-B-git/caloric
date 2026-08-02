@@ -104,6 +104,11 @@ struct ActivityCalculationService {
         let id: UUID
         let name: String
         let kcal: Double
+        /// Which app or device recorded the session — "Apple Watch", "WHOOP", …
+        /// Worth showing now that workouts arrive from more than one source.
+        let sourceName: String
+        let startDate: Date
+        let endDate: Date
     }
 
     struct ActivityResult {
@@ -257,7 +262,14 @@ struct ActivityCalculationService {
         for w in workouts {
             let kcal = eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
                            hrRest: restingHR, age: age, isMale: isMale)
-            details.append(WorkoutDetail(id: w.id, name: w.activityType.name, kcal: kcal))
+            details.append(WorkoutDetail(
+                id: w.id,
+                name: w.activityType.name,
+                kcal: kcal,
+                sourceName: w.sourceName,
+                startDate: w.startDate,
+                endDate: w.endDate
+            ))
         }
         
         let totalEatKcal = details.reduce(0) { $0 + $1.kcal }

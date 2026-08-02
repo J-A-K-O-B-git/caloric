@@ -1072,7 +1072,7 @@ struct DashboardView: View {
                     let prevDetails = previousActivityResult.workoutDetails
                     ForEach(activityResult.workoutDetails) { detail in
                         let matchedPrev = prevDetails.first(where: { $0.name == detail.name })?.kcal
-                        breakdownItem(label: detail.name, value: detail.kcal, prevValue: matchedPrev.map { $0 * f })
+                        workoutBreakdownItem(detail, prevValue: matchedPrev.map { $0 * f })
                     }
                     if activityResult.workoutDetails.isEmpty {
                         breakdownItem(label: language == "de" ? "Keine Workouts" : "No workouts", value: 0)
@@ -1107,6 +1107,57 @@ struct DashboardView: View {
     }
 
     
+
+    /// Like breakdownItem, plus a second line naming where the session came
+    /// from and when it ran. Workouts now arrive from several sources, so
+    /// "Laufen outdoor" alone no longer says which of them recorded it.
+    private func workoutBreakdownItem(
+        _ detail: ActivityCalculationService.WorkoutDetail,
+        prevValue: Double?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(detail.name)
+                    .font(.poppins(size: 13, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+
+                Spacer()
+
+                if let prev = prevValue, prev > 0 {
+                    PercentDeltaBadge(percent: (detail.kcal - prev) / prev * 100.0, compact: true)
+                }
+
+                Text(String(format: "%.0f kcal", detail.kcal))
+                    .font(.poppins(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(minWidth: 56, alignment: .trailing)
+            }
+
+            HStack(spacing: 5) {
+                Image(systemName: "dot.radiowaves.up.forward")
+                    .font(.system(size: 8, weight: .semibold))
+                Text(detail.sourceName)
+                Text("·")
+                Text(Self.workoutTimeRange(detail))
+            }
+            .font(.poppins(size: 10, weight: .regular))
+            .foregroundStyle(Theme.textSecondary.opacity(0.7))
+            .lineLimit(1)
+        }
+    }
+
+    private static let workoutTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.dateStyle = .none
+        return f
+    }()
+
+    private static func workoutTimeRange(_ detail: ActivityCalculationService.WorkoutDetail) -> String {
+        let start = workoutTimeFormatter.string(from: detail.startDate)
+        let end   = workoutTimeFormatter.string(from: detail.endDate)
+        return "\(start) – \(end)"
+    }
 
     private func breakdownItem(label: String, value: Double, prevValue: Double? = nil) -> some View {
         HStack {
