@@ -301,7 +301,13 @@ final class HealthKitImportService {
     }
 
     private func makeSnapshot(from w: HKWorkout) async -> HKWorkoutSnapshot {
-        let hr = await averageHeartRate(from: w.startDate, to: w.endDate)
+        // The workout's own statistics come from the device that recorded it.
+        // Querying the time window instead would average across every source
+        // that happened to be measuring — with a watch and a strap both worn,
+        // that mixes two devices' readings into one figure. Fall back to the
+        // window only when the session carries no statistics of its own.
+        let hr = Self.recordedAverageHeartRate(of: w)
+            ?? (await averageHeartRate(from: w.startDate, to: w.endDate))
         return HKWorkoutSnapshot(
             id:                 w.uuid,
             activityType:       w.workoutActivityType,
@@ -313,12 +319,28 @@ final class HealthKitImportService {
         )
     }
 
+    /// Average bpm the recording device itself logged for this session.
+    /// Nil when the source wrote no heart-rate statistics with the workout.
+    private static func recordedAverageHeartRate(of w: HKWorkout) -> Double? {
+        guard let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate),
+              let average = w.statistics(for: hrType)?.averageQuantity() else { return nil }
+        let bpm = average.doubleValue(for: HKUnit(from: "count/min"))
+        return bpm > 0 ? bpm : nil
+    }
+
+    /// Average bpm for a workout window, across every source.
+    ///
+    /// This used to inherit hkStatistic's `requireWatch: true` default, so the
+    /// same predicate that excluded Whoop workouts also excluded Whoop's heart
+    /// rate. A strap-recorded session therefore arrived without a pulse and
+    /// eat() scored it at zero — the data was in Health all along.
     private func averageHeartRate(from start: Date, to end: Date) async -> Double? {
         guard let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return nil }
         let predicate = HKQuery.predicateForSamples(
             withStart: start, end: end, options: [.strictStartDate, .strictEndDate]
         )
-        return await hkStatistic(type: hrType, predicate: predicate, options: .discreteAverage) {
+        return await hkStatistic(type: hrType, predicate: predicate,
+                                 options: .discreteAverage, requireWatch: false) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "count/min"))
         }
     }
@@ -506,7 +528,14 @@ final class HealthKitImportService {
         }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
-        let samples: [HKQuantitySample] = await hkSamples(type: type, predicate: predicate, sort: sort)
+        // Every source: a chest strap or band measures the same pulse a watch
+        // would, and with only a strap worn this block would otherwise be
+        // empty. Where two devices both record, the extra samples shorten each
+        // segment's derived duration rather than adding time, and the awake
+        // budget in NEATCalculator caps the total regardless.
+        let samples: [HKQuantitySample] = await hkSamples(
+            type: type, predicate: predicate, sort: sort, requireWatch: false
+        )
         let unit = HKUnit.count().unitDivided(by: .minute())
         let valid = samples.filter { s in
             !windows.contains { $0.intersects(DateInterval(start: s.startDate, end: s.endDate)) }
@@ -581,10 +610,13 @@ final class HealthKitImportService {
         }
     }
 
+    /// Feeds the heart-rate chart under Meine Daten. All sources, so the chart
+    /// is not blank on days the watch stayed in the drawer.
     private func fetchAvgHeartRate(from start: Date, to end: Date) async -> Double? {
         guard let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return nil }
         let pred = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-        return await hkStatistic(type: hrType, predicate: pred, options: .discreteAverage) {
+        return await hkStatistic(type: hrType, predicate: pred,
+                                 options: .discreteAverage, requireWatch: false) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "count/min"))
         }
     }
