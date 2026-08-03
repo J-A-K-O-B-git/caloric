@@ -36,6 +36,10 @@ struct DashboardView: View {
     @State private var showActivityBreakdown = false
     @State private var ringProgress: Double = 0
     @State private var animatedBurn: Double = 0
+    /// Mittel der 14 Tage vor dem gewählten — färbt den Ring ein.
+    /// Gecached, weil die Berechnung pro Tag eine volle NEAT/EAT-Auswertung
+    /// kostet und eine computed property bei jedem Render 14-mal liefe.
+    @State private var trailingAverage: Double? = nil
     @State private var editWeightKg: Int = 70
     @State private var editWeightLb: Int = 154
     @State private var editHeightCm: Int = 170
@@ -450,7 +454,51 @@ struct DashboardView: View {
             return 1.0
         }
     }
-    
+
+    // MARK: - Ring-Einfärbung nach 14-Tage-Schnitt
+
+    /// Ab dieser relativen Abweichung ist die Rampe ausgereizt. ±20 % deckt die
+    /// übliche Tagesstreuung ab, ohne dass Ausreißer alles andere flach machen.
+    private static let ringDeviationSpan = 0.20
+
+    /// Wo der gewählte Tag gegenüber seinem 14-Tage-Schnitt steht, 0…1.
+    /// 0.5 heißt "auf dem Schnitt" — auch dann, wenn noch kein Schnitt vorliegt.
+    private var ringPosition: Double {
+        guard !isSelectedFuture, let average = trailingAverage, average > 0 else { return 0.5 }
+        let relative = (displayBurnedSoFar - average) / average
+        let span = Self.ringDeviationSpan
+        return min(max((relative + span) / (2 * span), 0), 1)
+    }
+
+    /// Ein vergangener Tag so, wie er zur aktuellen Uhrzeit dagestanden hätte.
+    ///
+    /// Der Ring zeigt heute die bisher verbrannten Kalorien. Gegen volle
+    /// Vortage gerechnet stünde jeder Vormittag zwangsläufig weit unter dem
+    /// Schnitt. Die Komponenten werden deshalb genauso skaliert wie in
+    /// `previousValue(for:)`, damit beide Seiten dieselbe Tagesscheibe meinen.
+    private func comparableTotal(_ c: DayComponents) -> Double {
+        guard isSelectedToday else { return c.total }
+        let bmrRatio = tdeeResult.bmrDynamisch > 0 ? bmrBurnedSoFar / tdeeResult.bmrDynamisch : 1
+        let active   = elapsedActivityFraction
+        let clock    = nowFraction / 24.0
+        return c.bmr * bmrRatio + (c.neat + c.eat) * active + (c.tef + c.caffeine) * clock
+    }
+
+    /// Nur Tage zählen, für die HealthKit tatsächlich Daten hat — ein Lücken-Tag
+    /// käme sonst als reiner Grundumsatz in den Schnitt und würde jeden echten
+    /// Tag besser aussehen lassen, als er war. Unter drei Tagen ist der
+    /// "Schnitt" Rauschen, dann bleibt der Ring neutral.
+    private func updateTrailingAverage() {
+        let calendar = Calendar.current
+        var totals: [Double] = []
+        for offset in 1...14 {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: selectedDate),
+                  healthKit.history[HealthKitImportService.dateKey(day)] != nil else { continue }
+            totals.append(comparableTotal(dayComponents(for: day)))
+        }
+        trailingAverage = totals.count >= 3 ? totals.reduce(0, +) / Double(totals.count) : nil
+    }
+
     /// The five parts of one day's total, in the exact composition the KPI tile
     /// compares. Having a single implementation is what lets the narrative
     /// decompose the percentage the user actually sees instead of a number of
@@ -912,6 +960,9 @@ struct DashboardView: View {
             Task { await refreshNarrative() }
         }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
+        // History arrives after the first fetch, so the average would otherwise
+        // stay empty until the next refresh and the ring stay neutral.
+        .onChange(of: healthKit.history.count) { _, _ in updateTrailingAverage() }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
         }
@@ -937,6 +988,9 @@ struct DashboardView: View {
     }
 
     private func runBurnAnimation() {
+        // Same triggers the ring itself reacts to, so its tint never describes
+        // a different day than its fill.
+        updateTrailingAverage()
         ringProgress = 0
         animatedBurn = 0
         withAnimation(.spring(response: 0.9, dampingFraction: 0.85).delay(0.15)) {
@@ -1853,19 +1907,20 @@ struct DashboardView: View {
                         .rotationEffect(.degrees(135))
                     
                     // 2. Active Progress Arc (Glowing)
+                    // Tinted by where the day stands against its 14-day
+                    // average: lighter above it, darker below.
                     if !isSelectedFuture {
+                        let tint = Theme.ringTint(position: ringPosition)
                         Circle()
                             .trim(from: 0, to: ringProgress * 0.75)
                             .stroke(
-                                LinearGradient(
-                                    colors: [Theme.accentSky, accentBlue],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                ),
+                                Theme.ringGradient(position: ringPosition),
                                 style: StrokeStyle(lineWidth: 12, lineCap: .round)
                             )
                             .rotationEffect(.degrees(135))
-                            .shadow(color: accentBlue.opacity(0.4), radius: 8, x: 0, y: 0)
-                        
+                            .shadow(color: tint.opacity(0.4), radius: 8, x: 0, y: 0)
+                            .animation(.easeInOut(duration: 0.55), value: ringPosition)
+
                         // Small Indicator Bead only today
                         if isSelectedToday {
                             GeometryReader { geo in
@@ -1874,12 +1929,12 @@ struct DashboardView: View {
                                 let radius = geo.size.width / 2
                                 let x = radius + radius * cos(rad)
                                 let y = radius + radius * sin(rad)
-                                
+
                                 Circle()
                                     .fill(.white)
-                                    .overlay(Circle().strokeBorder(accentBlue, lineWidth: 1.5))
+                                    .overlay(Circle().strokeBorder(tint, lineWidth: 1.5))
                                     .frame(width: 8, height: 8)
-                                    .shadow(color: accentBlue.opacity(0.5), radius: 3)
+                                    .shadow(color: tint.opacity(0.5), radius: 3)
                                     .position(x: x, y: y)
                             }
                         }
