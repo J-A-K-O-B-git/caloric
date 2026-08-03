@@ -392,12 +392,16 @@ final class HealthKitImportService {
         return result
     }
 
+    /// Two wearables rarely agree on exact start/stop for the same physical
+    /// activity — Whoop's auto-detection in particular can lag Apple Watch's
+    /// boundaries by several minutes, especially for "Other"/strength
+    /// sessions. Requiring 50% interval overlap missed most real duplicates,
+    /// since the overlap was often well under half of either device's
+    /// recorded duration. Any overlap at all — or a small gap between the
+    /// two windows — is treated as the same session instead.
     private static func isSameSession(_ a: HKWorkoutSnapshot, _ b: HKWorkoutSnapshot) -> Bool {
-        let overlap = min(a.endDate, b.endDate).timeIntervalSince(max(a.startDate, b.startDate))
-        guard overlap > 0 else { return false }
-        let shorter = min(a.duration, b.duration)
-        guard shorter > 0 else { return false }
-        return overlap >= shorter * 0.5
+        let gap = max(a.startDate, b.startDate).timeIntervalSince(min(a.endDate, b.endDate))
+        return gap <= 10 * 60
     }
 
     private static func preferred(_ candidate: HKWorkoutSnapshot,
