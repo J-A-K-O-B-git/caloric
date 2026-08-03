@@ -40,6 +40,16 @@ struct DashboardView: View {
     /// Gecached, weil die Berechnung pro Tag eine volle NEAT/EAT-Auswertung
     /// kostet und eine computed property bei jedem Render 14-mal liefe.
     @State private var trailingAverage: Double? = nil
+    /// Same basis, seven days — feeds the optional "vs. Ø 7 Tage" tile.
+    @State private var sevenDayAverage: Double? = nil
+
+    /// Which KPI tiles the user keeps on the dashboard, in order.
+    /// Stored as raw values so adding a case never invalidates a saved layout —
+    /// unknown entries are simply dropped on read.
+    @AppStorage("dashboard.kpiTiles") private var kpiTilesRaw: String = DashboardKPI.defaultRaw
+    @State private var isEditingKPIs = false
+    @State private var jiggleUp = false
+    @State private var showKPIPicker = false
     @State private var editWeightKg: Int = 70
     @State private var editWeightLb: Int = 154
     @State private var editHeightCm: Int = 170
@@ -524,12 +534,22 @@ struct DashboardView: View {
     private func updateTrailingAverage() {
         let calendar = Calendar.current
         var totals: [Double] = []
+        var lastSeven: [Double] = []
         for offset in 1...14 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: selectedDate),
                   healthKit.history[HealthKitImportService.dateKey(day)] != nil else { continue }
-            totals.append(comparableTotal(dayComponents(for: day)))
+            let value = comparableTotal(dayComponents(for: day))
+            totals.append(value)
+            if offset <= 7 { lastSeven.append(value) }
         }
-        trailingAverage = totals.count >= 3 ? totals.reduce(0, +) / Double(totals.count) : nil
+        trailingAverage  = totals.count    >= 3 ? totals.reduce(0, +)    / Double(totals.count)    : nil
+        sevenDayAverage  = lastSeven.count >= 3 ? lastSeven.reduce(0, +) / Double(lastSeven.count) : nil
+    }
+
+    /// Same basis as the ring's average, over seven days instead of fourteen.
+    private var vsSevenDayPercent: Double? {
+        guard !isSelectedFuture, let average = sevenDayAverage, average > 0 else { return nil }
+        return (displayBurnedSoFar - average) / average * 100
     }
 
     /// The five parts of one day's total, in the exact composition the KPI tile
@@ -2073,34 +2093,242 @@ struct DashboardView: View {
         .padding(.horizontal, 20)
     }
 
+    private var activeKPITiles: [DashboardKPI] { DashboardKPI.decode(kpiTilesRaw) }
+
+    /// The reading for a tile, plus a tint when the number carries a direction.
+    /// "–" wherever the day has no answer: the future, or Health not connected.
+    private func kpiReading(_ kpi: DashboardKPI) -> (value: String, tint: Color?) {
+        let health = healthKit.isAuthorized && !isSelectedFuture
+        switch kpi {
+        case .dayEstimate:
+            if isSelectedToday    { return ("\(Int(todayProjected))", nil) }
+            if isSelectedFuture   { return ("\(Int(tdeeResult.tdeeTotal))", nil) }
+            return ("\(Int(displayBurnedSoFar))", nil)
+
+        case .vsYesterday:
+            guard !isSelectedFuture else { return ("–", nil) }
+            return (String(format: "%+.0f", vsSelectedDayPercent), vsSelectedDayColor)
+
+        case .vsSevenDayAverage:
+            guard let percent = vsSevenDayPercent else { return ("–", nil) }
+            return (String(format: "%+.0f", percent), percent >= 0 ? .green : .red)
+
+        case .activeBurn:
+            return (health ? "\(Int(activityResult.totalActiveKcal))" : "–", nil)
+        case .neat:
+            return (health ? "\(Int(activityResult.neatKcal))" : "–", nil)
+        case .eat:
+            return (health ? "\(Int(activityResult.eatKcal))" : "–", nil)
+        case .bmr:
+            return (isSelectedFuture ? "–" : "\(Int(tdeeResult.bmrDynamisch))", nil)
+
+        case .steps:
+            return (health ? "\(selectedActivity.steps)" : "–", nil)
+        case .distance:
+            return (health ? String(format: "%.1f", selectedActivity.distanceMeters / 1000) : "–", nil)
+        case .standMinutes:
+            return (health ? "\(Int(selectedActivity.standTimeMinutes))" : "–", nil)
+        case .workoutMinutes:
+            guard health else { return ("–", nil) }
+            let minutes = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
+            return ("\(Int(minutes.rounded()))", nil)
+        case .restingHeartRate:
+            guard health, let hr = selectedActivity.restingHeartRate, hr > 0 else { return ("–", nil) }
+            return ("\(Int(hr.rounded()))", nil)
+        }
+    }
+
     private var kpiRow: some View {
-        HStack(spacing: 10) {
-            kpiBox(
-                icon: "target",
-                value: isSelectedToday
-                    ? "\(Int(todayProjected))"
-                    : isSelectedFuture
-                        ? "\(Int(tdeeResult.tdeeTotal))"
-                        : "\(Int(displayBurnedSoFar))",
-                unit: language == "de" ? "Schätzung für den kompletten Tag" : "Estimate for the full day",
-                accent: false,
-            )
-            kpiBox(
-                icon: "arrow.up.arrow.down",
-                value: isSelectedFuture ? "–" : String(format: "%+.0f", vsSelectedDayPercent),
-                unit: language == "de" ? "% vs. Gestern" : "% vs. Yesterday",
-                accent: false,
-                tint: isSelectedFuture ? nil : vsSelectedDayColor
-            )
-            kpiBox(
-                icon: "bolt.fill",
-                value: healthKit.isAuthorized && !isSelectedFuture
-                    ? "\(Int(activityResult.totalActiveKcal))"
-                    : "–",
-                unit: language == "de" ? "Aktiver Kalorienverbrauch" : "Active Calorie Burn",
-                accent: false
+        VStack(spacing: 10) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                spacing: 10
+            ) {
+                ForEach(Array(activeKPITiles.enumerated()), id: \.element.id) { index, kpi in
+                    let reading = kpiReading(kpi)
+                    kpiBox(
+                        icon: kpi.icon,
+                        value: reading.value,
+                        unit: kpi.title(language: language),
+                        accent: false,
+                        tint: reading.tint
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        if isEditingKPIs { removeBadge(for: kpi) }
+                    }
+                    // Alternating direction so the row wobbles like the
+                    // home screen instead of moving as one block.
+                    .rotationEffect(.degrees(jiggleAngle(index: index)))
+                    .animation(
+                        isEditingKPIs
+                            ? .easeInOut(duration: 0.14).repeatForever(autoreverses: true)
+                            : .easeOut(duration: 0.15),
+                        value: jiggleUp
+                    )
+                }
+
+                if isEditingKPIs && activeKPITiles.count < DashboardKPI.allCases.count {
+                    addTileButton
+                }
+            }
+            .onLongPressGesture(minimumDuration: 0.45) {
+                enterKPIEditMode()
+            }
+
+            if isEditingKPIs {
+                Button(action: exitKPIEditMode) {
+                    Text(t.done)
+                        .font(.poppins(size: 13, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
+        }
+        .sensoryFeedback(.impact, trigger: isEditingKPIs)
+        .sheet(isPresented: $showKPIPicker) { kpiPickerSheet }
+    }
+
+    private func jiggleAngle(index: Int) -> Double {
+        guard isEditingKPIs else { return 0 }
+        let magnitude = jiggleUp ? 1.1 : -1.1
+        return index.isMultiple(of: 2) ? magnitude : -magnitude
+    }
+
+    private func enterKPIEditMode() {
+        guard !isEditingKPIs else { return }
+        jiggleUp = false
+        withAnimation(.easeOut(duration: 0.2)) { isEditingKPIs = true }
+        withAnimation(.easeInOut(duration: 0.14).repeatForever(autoreverses: true)) {
+            jiggleUp = true
+        }
+    }
+
+    /// Clearing jiggleUp as well is what lets the tiles settle: the rotation
+    /// animates on that value, so leaving it set would freeze them mid-tilt.
+    private func exitKPIEditMode() {
+        withAnimation(.easeOut(duration: 0.18)) {
+            isEditingKPIs = false
+            jiggleUp = false
+        }
+    }
+
+    private func removeBadge(for kpi: DashboardKPI) -> some View {
+        Button {
+            var tiles = activeKPITiles
+            // One tile has to survive, or the row disappears with no way back.
+            guard tiles.count > 1 else { return }
+            tiles.removeAll { $0 == kpi }
+            withAnimation(.easeOut(duration: 0.2)) {
+                kpiTilesRaw = DashboardKPI.encode(tiles)
+            }
+        } label: {
+            Image(systemName: "minus")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color.red))
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(activeKPITiles.count <= 1)
+        .opacity(activeKPITiles.count <= 1 ? 0.35 : 1)
+        .offset(x: 6, y: -6)
+    }
+
+    private var addTileButton: some View {
+        Button {
+            showKPIPicker = true
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(language == "de" ? "Hinzufügen" : "Add")
+                    .font(.poppins(size: 11, weight: .medium))
+            }
+            .foregroundStyle(accentBlue)
+            .frame(maxWidth: .infinity, minHeight: 128)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        accentBlue.opacity(0.45),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])
+                    )
             )
         }
+        .buttonStyle(.plain)
+    }
+
+    private var kpiPickerSheet: some View {
+        let available = DashboardKPI.allCases.filter { !activeKPITiles.contains($0) }
+        return NavigationStack {
+            ZStack {
+                CaloricBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        ForEach(available) { kpi in
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    kpiTilesRaw = DashboardKPI.encode(activeKPITiles + [kpi])
+                                }
+                                showKPIPicker = false
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: kpi.icon)
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(accentBlue)
+                                        .frame(width: 38, height: 38)
+                                        .background(Circle().fill(accentBlue.opacity(0.13)))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(kpi.title(language: language))
+                                            .font(.poppins(size: 14, weight: .medium))
+                                            .foregroundStyle(Theme.textPrimary)
+                                            .multilineTextAlignment(.leading)
+                                        Text(kpiReading(kpi).value)
+                                            .font(.poppins(size: 12, weight: .regular))
+                                            .foregroundStyle(Theme.textSecondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(accentBlue)
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(Theme.card)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if available.isEmpty {
+                            Text(language == "de"
+                                 ? "Alle Kacheln sind bereits auf dem Dashboard."
+                                 : "Every tile is already on the dashboard.")
+                                .font(.poppins(size: 13, weight: .regular))
+                                .foregroundStyle(Theme.textSecondary)
+                                .padding(.top, 40)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                }
+            }
+            .navigationTitle(language == "de" ? "Kachel hinzufügen" : "Add tile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(t.done) { showKPIPicker = false }
+                        .foregroundStyle(accentBlue)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .caloricAppearance()
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Theme.canvas)
     }
 
     private func kpiBox(icon: String, value: String, unit: String, accent: Bool, tint: Color? = nil) -> some View {
@@ -2876,5 +3104,78 @@ struct InfographicSegmentBar: View {
                 .fill(Theme.card.opacity(0.4))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.divider, lineWidth: 1))
         )
+    }
+}
+
+// MARK: - Dashboard KPI tiles
+
+/// The KPIs available for the dashboard row.
+///
+/// Lives here rather than in its own file because a new file has to be
+/// registered in project.pbxproj by hand in four places, and this project
+/// carries no filesystem-synchronised groups to do it automatically.
+enum DashboardKPI: String, CaseIterable, Identifiable {
+    case dayEstimate
+    case vsYesterday
+    case activeBurn
+    case vsSevenDayAverage
+    case steps
+    case distance
+    case workoutMinutes
+    case standMinutes
+    case restingHeartRate
+    case neat
+    case eat
+    case bmr
+
+    var id: String { rawValue }
+
+    /// The three the dashboard has always shown.
+    static let defaultRaw = "dayEstimate,vsYesterday,activeBurn"
+
+    static func decode(_ raw: String) -> [DashboardKPI] {
+        let parsed = raw.split(separator: ",").compactMap { DashboardKPI(rawValue: String($0)) }
+        // Never hand back an empty row — a layout that lost every entry to a
+        // renamed case would otherwise leave the dashboard blank.
+        return parsed.isEmpty ? decode(defaultRaw) : parsed
+    }
+
+    static func encode(_ tiles: [DashboardKPI]) -> String {
+        tiles.map(\.rawValue).joined(separator: ",")
+    }
+
+    var icon: String {
+        switch self {
+        case .dayEstimate:       return "target"
+        case .vsYesterday:       return "arrow.up.arrow.down"
+        case .activeBurn:        return "bolt.fill"
+        case .vsSevenDayAverage: return "chart.line.uptrend.xyaxis"
+        case .steps:             return "shoeprints.fill"
+        case .distance:          return "figure.walk.motion"
+        case .workoutMinutes:    return "dumbbell.fill"
+        case .standMinutes:      return "figure.stand"
+        case .restingHeartRate:  return "heart.fill"
+        case .neat:              return "figure.walk"
+        case .eat:               return "flame.fill"
+        case .bmr:               return "moon.zzz.fill"
+        }
+    }
+
+    func title(language: String) -> String {
+        let de = language == "de"
+        switch self {
+        case .dayEstimate:       return de ? "Schätzung für den kompletten Tag" : "Estimate for the full day"
+        case .vsYesterday:       return de ? "% vs. Gestern" : "% vs. Yesterday"
+        case .activeBurn:        return de ? "Aktiver Kalorienverbrauch" : "Active Calorie Burn"
+        case .vsSevenDayAverage: return de ? "% vs. Ø 7 Tage" : "% vs. 7-day avg"
+        case .steps:             return de ? "Schritte" : "Steps"
+        case .distance:          return de ? "Strecke (km)" : "Distance (km)"
+        case .workoutMinutes:    return de ? "Trainingsminuten" : "Workout minutes"
+        case .standMinutes:      return de ? "Stehminuten" : "Stand minutes"
+        case .restingHeartRate:  return de ? "Ruhepuls (bpm)" : "Resting HR (bpm)"
+        case .neat:              return de ? "Alltagsbewegung (NEAT)" : "Everyday movement (NEAT)"
+        case .eat:               return de ? "Workout-Kalorien (EAT)" : "Workout calories (EAT)"
+        case .bmr:               return de ? "Grundumsatz" : "Basal metabolic rate"
+        }
     }
 }
