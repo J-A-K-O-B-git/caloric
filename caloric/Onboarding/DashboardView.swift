@@ -393,6 +393,9 @@ struct DashboardView: View {
             narrativeFingerprint = summary.fingerprint
             narrativeStore.store(result, for: summary)
         } catch {
+            // The card only ever shows a generic sentence — this is the one
+            // place the real HTTP status/body from OpenRouter surfaces.
+            print("DayNarrative failed: \(error.localizedDescription)")
             narrativeError = error.localizedDescription
         }
     }
