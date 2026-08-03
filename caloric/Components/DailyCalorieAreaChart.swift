@@ -52,19 +52,56 @@ struct DailyCalorieAreaChart: View {
         )
     }
 
+    /// Muted slate rather than a blue: sleep should read as the quiet part of
+    /// the day and stay clearly apart from both the awake blue and the
+    /// workout indigo.
+    private var sleepGradient: LinearGradient {
+        LinearGradient(
+            colors: [Theme.slate.opacity(0.55), Theme.slate.opacity(0.18)],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
+    private var workoutGradient: LinearGradient {
+        LinearGradient(
+            colors: [Theme.segEAT, Theme.segEAT.opacity(0.35)],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
     // MARK: Body
 
     var body: some View {
         Chart {
-            // ① Past bars
+            // ① Past bars — the three phases stack on the same x.
             ForEach(slots.filter { !$0.isFuture }, id: \.id) { slot in
-                BarMark(
-                    x: .value("Zeit", slot.hour + 0.25),
-                    y: .value("kcal", slot.total),
-                    width: .fixed(4)
-                )
-                .foregroundStyle(pastGradient)
-                .cornerRadius(2)
+                if slot.sleepKcal > 0 {
+                    BarMark(
+                        x: .value("Zeit", slot.hour + 0.25),
+                        y: .value("kcal", slot.sleepKcal),
+                        width: .fixed(4)
+                    )
+                    .foregroundStyle(sleepGradient)
+                    .cornerRadius(2)
+                }
+                if slot.awakeKcal > 0 {
+                    BarMark(
+                        x: .value("Zeit", slot.hour + 0.25),
+                        y: .value("kcal", slot.awakeKcal),
+                        width: .fixed(4)
+                    )
+                    .foregroundStyle(pastGradient)
+                    .cornerRadius(2)
+                }
+                if slot.workoutKcal > 0 {
+                    BarMark(
+                        x: .value("Zeit", slot.hour + 0.25),
+                        y: .value("kcal", slot.workoutKcal),
+                        width: .fixed(4)
+                    )
+                    .foregroundStyle(workoutGradient)
+                    .cornerRadius(2)
+                }
             }
 
             // ② Future bars (lighter)
@@ -150,7 +187,11 @@ struct DailyCalorieAreaChart: View {
         let minute = slot.hour.truncatingRemainder(dividingBy: 1) >= 0.5 ? 30 : 0
         let time   = String(format: "%02d:%02d", hour, minute)
         let kcal   = Int(slot.total.rounded())
-        return Text("\(time) · \(kcal) kcal")
+        let phase: String
+        if slot.isWorkout   { phase = language == "de" ? "Sport"     : "Workout" }
+        else if slot.isSleep { phase = language == "de" ? "Schlaf"   : "Sleep" }
+        else                 { phase = language == "de" ? "Wach"     : "Awake" }
+        return Text("\(time) · \(phase) · \(kcal) kcal")
             .font(.poppins(size: 11, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 11)
@@ -184,6 +225,7 @@ private extension [CalorieSlot] {
             return CalorieSlot(
                 hour:       hour,
                 calories:   base * 0.5 * mult,
+                activeKcal: (sleeping || isFuture || isWorkout) ? 0.0 : 14.0,
                 workoutKcal: isWorkout ? 90.0 : 0.0,
                 isSleep:    sleeping,
                 isWorkout:  isWorkout,

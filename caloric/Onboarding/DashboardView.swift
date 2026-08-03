@@ -180,12 +180,42 @@ struct DashboardView: View {
         let totalWorkoutMinutes = workoutList.reduce(0.0) { $0 + $1.duration / 60.0 }
         let totalEatKcal = healthKit.isAuthorized && !isSelectedFuture ? activityResult.eatKcal : 0.0
         let dayStart = Calendar.current.startOfDay(for: selectedDate)
-        
-        return stride(from: 0.0, to: 24.0, by: 0.5).map { hour in
+
+        // NEAT was missing from this chart entirely — the bars showed the
+        // resting share plus workouts and therefore summed to a few hundred
+        // kcal below the day the ring reports. It is spread here together with
+        // the digestion and caffeine bonuses, over the waking, non-workout
+        // time that has actually elapsed: that is precisely the window the
+        // NEAT model itself budgets over, and keeping it out of the workout
+        // windows is what stops it being counted twice against EAT.
+        let neatKcal = healthKit.isAuthorized && !isSelectedFuture ? activityResult.neatKcal : 0.0
+        let bonusKcal = isSelectedFuture
+            ? 0.0
+            : (tdeeResult.tefKcal + tdeeResult.koffeinBonus) * (isSelectedToday ? now / 24.0 : 1.0)
+        let activeToSpread = neatKcal + bonusKcal
+
+        let hours = Array(stride(from: 0.0, to: 24.0, by: 0.5))
+
+        /// Hours of each slot spent awake, elapsed and outside a workout.
+        let awakeShares: [Double] = hours.map { hour in
+            let slotEnd = hour + 0.5
+            let cutoff  = isSelectedFuture ? hour : (isSelectedToday ? min(slotEnd, now) : slotEnd)
+            let start   = max(hour, sleepHours)
+            var share   = max(0, cutoff - start)
+            for w in workoutList {
+                let wStart = w.startDate.timeIntervalSince(dayStart) / 3600.0
+                let wEnd   = w.endDate.timeIntervalSince(dayStart)   / 3600.0
+                share -= max(0, min(cutoff, wEnd) - max(start, wStart))
+            }
+            return max(0, share)
+        }
+        let awakeTotal = awakeShares.reduce(0, +)
+
+        return hours.enumerated().map { index, hour in
             let slotEnd = hour + 0.5
             let sleeping = hour < sleepHours
             let isFuture = isSelectedFuture || (isSelectedToday && hour >= now)
-            
+
             var workoutKcal = 0.0
             var isWorkout = false
             if !sleeping && !isFuture && totalWorkoutMinutes > 0 {
@@ -199,7 +229,9 @@ struct DashboardView: View {
                     }
                 }
             }
-            
+
+            let activeKcal = awakeTotal > 0 ? activeToSpread * (awakeShares[index] / awakeTotal) : 0
+
             var mult: Double = sleeping ? 0.88 : 1.0
             if !sleeping {
                 switch hour {
@@ -215,6 +247,7 @@ struct DashboardView: View {
             return CalorieSlot(
                 hour: hour,
                 calories: hourlyBMR * 0.5 * mult,
+                activeKcal: activeKcal,
                 workoutKcal: workoutKcal,
                 isSleep: sleeping,
                 isWorkout: isWorkout,
@@ -2002,16 +2035,13 @@ struct DashboardView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button {
-                    showCalorieDetail = true
-                } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(accentBlue)
-                        .frame(width: 28, height: 28)
-                        .background(accentBlue.opacity(0.12))
-                        .clipShape(Circle())
-                }
+                // The whole card opens the detail view, so this is an
+                // affordance, not a second hit target. A filled circle gave it
+                // the visual weight of a primary action it never had.
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.5))
+                    .padding(.top, 2)
             }
 
             DailyCalorieAreaChart(
@@ -2025,6 +2055,8 @@ struct DashboardView: View {
             .frame(height: LayoutMetrics.chartHeight)
 
             HStack(spacing: 14) {
+                legendItem(color: Theme.slate.opacity(0.55),
+                           label: language == "de" ? "Schlafphase" : "Sleep")
                 legendItem(color: accentBlue,
                            label: language == "de" ? "Wachphase" : "Awake")
                 if healthKit.isAuthorized && !isSelectedFuture && !selectedWorkouts.isEmpty {
