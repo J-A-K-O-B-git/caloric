@@ -306,8 +306,12 @@ final class HealthKitImportService {
         // that happened to be measuring — with a watch and a strap both worn,
         // that mixes two devices' readings into one figure. Fall back to the
         // window only when the session carries no statistics of its own.
-        let hr = Self.recordedAverageHeartRate(of: w)
-            ?? (await averageHeartRate(from: w.startDate, to: w.endDate))
+        let hr: Double?
+        if let recorded = Self.recordedAverageHeartRate(of: w) {
+            hr = recorded
+        } else {
+            hr = await averageHeartRate(from: w.startDate, to: w.endDate)
+        }
         return HKWorkoutSnapshot(
             id:                 w.uuid,
             activityType:       w.workoutActivityType,

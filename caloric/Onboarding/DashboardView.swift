@@ -1586,7 +1586,7 @@ struct DashboardView: View {
                     }
                 }
             }
-            .navigationTitle(language == "de" ? "Aufschlüsselung" : "Breakdown")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: Binding(
                 get: { infoSegmentType.map { InfoSegment(type: $0) } },
@@ -1604,10 +1604,7 @@ struct DashboardView: View {
             }
         }
         .caloricAppearance()
-        // .medium left a lot of empty canvas below TEF on a typical day's
-        // content (hero + 4 rows). .large stays available for days with a
-        // long workout list that pushes past this fraction.
-        .presentationDetents([.fraction(0.75), .large])
+        .presentationDetents([.height(440), .large])
         .presentationBackground(Theme.canvas)
     }
 
