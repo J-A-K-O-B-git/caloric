@@ -1347,7 +1347,7 @@ struct DashboardView: View {
         let pct = total > 0 ? s.kcal / total : 0
         let isExpanded = expandedSegmentType == s.type
 
-        return VStack(spacing: 11) {
+        return VStack(spacing: 9) {
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
@@ -1395,14 +1395,14 @@ struct DashboardView: View {
             .buttonStyle(.plain)
 
             InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
-                .frame(height: 12)
+                .frame(height: 10)
 
             if isExpanded {
                 expandedContent(for: s.type, currentKcal: s.kcal)
                     .transition(.opacity)
             }
         }
-        .padding(14)
+        .padding(12)
         .glassCard(16)
     }
 
@@ -1519,92 +1519,94 @@ struct DashboardView: View {
         }
     }
 
+    /// No navigation bar here on purpose — this sheet is one screen with
+    /// nothing to navigate to, so a title bar was just dead space above the
+    /// content. "Fertig" floats over the scroll content instead.
     private var activityBreakdownSheet: some View {
         let segs = energySegments
         let total = max(segs.reduce(0) { $0 + $1.kcal }, 1)
-        return NavigationStack {
-            ZStack {
-                CaloricBackground()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 14) {
-                        Spacer().frame(height: 6)
+        return ZStack(alignment: .top) {
+            CaloricBackground()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    Spacer().frame(height: 38)
 
-                        // Hero — total + stacked micro-chart
-                        VStack(spacing: 18) {
-                            VStack(spacing: 3) {
-                                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                    Text("\(Int(displayBurnedSoFar))")
-                                        .font(.poppins(size: 46, weight: .semibold))
-                                        .foregroundStyle(Theme.textPrimary)
-                                    Text("kcal")
-                                        .font(.poppins(size: 16, weight: .regular))
+                    // Hero — total + stacked micro-chart
+                    VStack(spacing: 14) {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text("\(Int(displayBurnedSoFar))")
+                                .font(.poppins(size: 42, weight: .semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text("kcal")
+                                .font(.poppins(size: 15, weight: .regular))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        energyStackedBar(segs, total: total)
+                        // Legend
+                        HStack(spacing: 14) {
+                            ForEach(segs) { s in
+                                HStack(spacing: 5) {
+                                    Circle().fill(s.color).frame(width: 7, height: 7)
+                                    Text(s.short)
+                                        .font(.poppins(size: 10, weight: .regular))
                                         .foregroundStyle(Theme.textSecondary)
                                 }
                             }
-                            energyStackedBar(segs, total: total)
-                            // Legend
-                            HStack(spacing: 14) {
-                                ForEach(segs) { s in
-                                    HStack(spacing: 5) {
-                                        Circle().fill(s.color).frame(width: 7, height: 7)
-                                        Text(s.short)
-                                            .font(.poppins(size: 10, weight: .regular))
-                                            .foregroundStyle(Theme.textSecondary)
-                                    }
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(20)
-                        .glassCard(22, tint: accentBlue, tintStrength: 0.04)
-                        .padding(.horizontal, 18)
-
-                        // Per-component rows with progress bars
-                        VStack(spacing: 10) {
-                            ForEach(segs) { s in
-                                energySegmentRow(s, total: total)
-                            }
-                        }
-                        .padding(.horizontal, 18)
-
-                        if !healthKit.isAuthorized {
-                            HStack(spacing: 8) {
-                                Image(systemName: "heart.text.square.fill")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(accentBlue)
-                                Text(language == "de"
-                                     ? "Verbinde Apple Health für NEAT & EAT Daten."
-                                     : "Connect Apple Health for NEAT & EAT data.")
-                                    .font(.poppins(size: 12, weight: .regular))
-                                    .foregroundStyle(Theme.textSecondary)
-                            }
-                            .padding(.horizontal, 30)
-                            .padding(.top, 4)
-                        }
-
-                        Spacer().frame(height: 24)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .padding(16)
+                    .glassCard(22, tint: accentBlue, tintStrength: 0.04)
+                    .padding(.horizontal, 18)
+
+                    // Per-component rows with progress bars
+                    VStack(spacing: 8) {
+                        ForEach(segs) { s in
+                            energySegmentRow(s, total: total)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+
+                    if !healthKit.isAuthorized {
+                        HStack(spacing: 8) {
+                            Image(systemName: "heart.text.square.fill")
+                                .font(.system(size: 13))
+                                .foregroundStyle(accentBlue)
+                            Text(language == "de"
+                                 ? "Verbinde Apple Health für NEAT & EAT Daten."
+                                 : "Connect Apple Health for NEAT & EAT data.")
+                                .font(.poppins(size: 12, weight: .regular))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        .padding(.horizontal, 30)
+                        .padding(.top, 4)
+                    }
+
+                    Spacer().frame(height: 14)
                 }
             }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(item: Binding(
-                get: { infoSegmentType.map { InfoSegment(type: $0) } },
-                set: { infoSegmentType = $0?.type }
-            )) { info in
-                infoSheet(for: info.type)
-                    .presentationBackground(Theme.canvas)
+
+            HStack {
+                Spacer()
+                Button(t.done) { showActivityBreakdown = false }
+                    .font(.poppins(size: 15, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Theme.card))
             }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(t.done) { showActivityBreakdown = false }
-                        .foregroundStyle(accentBlue)
-                        .fontWeight(.semibold)
-                }
-            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+        }
+        .sheet(item: Binding(
+            get: { infoSegmentType.map { InfoSegment(type: $0) } },
+            set: { infoSegmentType = $0?.type }
+        )) { info in
+            infoSheet(for: info.type)
+                .presentationBackground(Theme.canvas)
         }
         .caloricAppearance()
-        .presentationDetents([.height(440), .large])
+        .presentationDetents([.fraction(0.62), .large])
         .presentationBackground(Theme.canvas)
     }
 
