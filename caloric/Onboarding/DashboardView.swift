@@ -2074,28 +2074,34 @@ struct DashboardView: View {
     private func kpiBox(icon: String, value: String, unit: String, accent: Bool, tint: Color? = nil) -> some View {
         let iconColor: Color = tint ?? accentBlue
         let valueFg: Color  = tint ?? Theme.textPrimary
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: 5) {
             ZStack {
                 Circle()
                     .fill(iconColor.opacity(0.13))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 40, height: 40)
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(iconColor)
             }
             Spacer(minLength: 10)
             Text(value)
-                .font(.poppins(size: 20, weight: .bold))
+                .font(.poppins(size: 21, weight: .bold))
                 .foregroundStyle(valueFg)
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
+            // Labels like "Schätzung für den kompletten Tag" never fit one
+            // line at a third of the screen width, so they were being cut off.
+            // The space is reserved either way — otherwise a one-line label
+            // would make its tile shorter than the two next to it.
             Text(unit)
-                .font(.poppins(size: 10, weight: .regular))
+                .font(.poppins(size: 11, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
-                .lineLimit(1)
+                .lineLimit(2, reservesSpace: true)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+        .padding(13)
+        .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Theme.card)
