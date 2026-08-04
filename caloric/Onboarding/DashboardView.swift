@@ -613,6 +613,12 @@ struct DashboardView: View {
         return (displayBurnedSoFar - average) / average * 100
     }
 
+    /// The ring's own average, expressed as a percentage for a tile.
+    private var vsFourteenDayPercent: Double? {
+        guard !isSelectedFuture, let average = trailingAverage, average > 0 else { return nil }
+        return (displayBurnedSoFar - average) / average * 100
+    }
+
     /// The five parts of one day's total, in the exact composition the KPI tile
     /// compares. Having a single implementation is what lets the narrative
     /// decompose the percentage the user actually sees instead of a number of
@@ -2158,23 +2164,35 @@ struct DashboardView: View {
 
     private var activeKPITiles: [DashboardKPI] { DashboardKPI.decode(kpiTilesRaw) }
 
+    /// Hours spent awake so far on the selected day.
+    private var wakingHoursElapsed: Double {
+        let end = isSelectedToday ? nowFraction : 24.0
+        return max(0, end - sleepHours)
+    }
+
+    /// Total EPOC across the day's sessions.
+    private var afterburnKcalToday: Double {
+        activityResult.workoutDetails.reduce(0) { $0 + $1.afterburnKcal }
+    }
+
+    /// A share of the day's total, formatted as a percentage.
+    private func shareReading(_ value: Double) -> (value: String, tint: Color?) {
+        let total = dayComponents(for: selectedDate).total
+        guard total > 0 else { return ("–", nil) }
+        return (String(format: "%.0f", value / total * 100), nil)
+    }
+
     /// The reading for a tile, plus a tint when the number carries a direction.
     /// "–" wherever the day has no answer: the future, or Health not connected.
     private func kpiReading(_ kpi: DashboardKPI) -> (value: String, tint: Color?) {
         let health = healthKit.isAuthorized && !isSelectedFuture
+        let parts  = dayComponents(for: selectedDate)
+
         switch kpi {
         case .dayEstimate:
-            if isSelectedToday    { return ("\(Int(todayProjected))", nil) }
-            if isSelectedFuture   { return ("\(Int(tdeeResult.tdeeTotal))", nil) }
+            if isSelectedToday  { return ("\(Int(todayProjected))", nil) }
+            if isSelectedFuture { return ("\(Int(tdeeResult.tdeeTotal))", nil) }
             return ("\(Int(displayBurnedSoFar))", nil)
-
-        case .vsYesterday:
-            guard !isSelectedFuture else { return ("–", nil) }
-            return (String(format: "%+.0f", vsSelectedDayPercent), vsSelectedDayColor)
-
-        case .vsSevenDayAverage:
-            guard let percent = vsSevenDayPercent else { return ("–", nil) }
-            return (String(format: "%+.0f", percent), percent >= 0 ? .green : .red)
 
         case .activeBurn:
             return (health ? "\(Int(activityResult.totalActiveKcal))" : "–", nil)
@@ -2184,20 +2202,55 @@ struct DashboardView: View {
             return (health ? "\(Int(activityResult.eatKcal))" : "–", nil)
         case .bmr:
             return (isSelectedFuture ? "–" : "\(Int(tdeeResult.bmrDynamisch))", nil)
+        case .afterburn:
+            return (health ? "\(Int(afterburnKcalToday.rounded()))" : "–", nil)
 
-        case .steps:
-            return (health ? "\(selectedActivity.steps)" : "–", nil)
-        case .distance:
-            return (health ? String(format: "%.1f", selectedActivity.distanceMeters / 1000) : "–", nil)
-        case .standMinutes:
-            return (health ? "\(Int(selectedActivity.standTimeMinutes))" : "–", nil)
-        case .workoutMinutes:
+        case .vsYesterday:
+            guard !isSelectedFuture else { return ("–", nil) }
+            return (String(format: "%+.0f", vsSelectedDayPercent), vsSelectedDayColor)
+        case .vsSevenDayAverage:
+            guard let percent = vsSevenDayPercent else { return ("–", nil) }
+            return (String(format: "%+.0f", percent), percent >= 0 ? .green : .red)
+        case .vsFourteenDayAverage:
+            guard let percent = vsFourteenDayPercent else { return ("–", nil) }
+            return (String(format: "%+.0f", percent), percent >= 0 ? .green : .red)
+
+        case .bmrShare:
+            guard !isSelectedFuture else { return ("–", nil) }
+            return shareReading(parts.bmr)
+        case .activeShare:
             guard health else { return ("–", nil) }
-            let minutes = selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0
-            return ("\(Int(minutes.rounded()))", nil)
-        case .restingHeartRate:
-            guard health, let hr = selectedActivity.restingHeartRate, hr > 0 else { return ("–", nil) }
-            return ("\(Int(hr.rounded()))", nil)
+            return shareReading(parts.neat + parts.eat)
+        case .neatShare:
+            guard health else { return ("–", nil) }
+            return shareReading(parts.neat)
+        case .eatShare:
+            guard health else { return ("–", nil) }
+            return shareReading(parts.eat)
+        case .tefShare:
+            guard !isSelectedFuture else { return ("–", nil) }
+            return shareReading(parts.tef)
+        case .afterburnShareOfWorkout:
+            guard health, parts.eat > 0 else { return ("–", nil) }
+            return (String(format: "%.0f", afterburnKcalToday / parts.eat * 100), nil)
+
+        case .palFactor:
+            // Total over resting: the classic activity level. Below ~1.4 is a
+            // desk day, above ~1.8 a properly active one.
+            guard !isSelectedFuture, parts.bmr > 0 else { return ("–", nil) }
+            return (String(format: "%.2f", parts.total / parts.bmr), nil)
+        case .burnPerWakingHour:
+            guard !isSelectedFuture, wakingHoursElapsed > 0.5 else { return ("–", nil) }
+            return ("\(Int((displayBurnedSoFar / wakingHoursElapsed).rounded()))", nil)
+        case .neatPerThousandSteps:
+            // How much each thousand steps is actually worth for this body —
+            // the raw step count says nothing on its own.
+            guard health, selectedActivity.steps > 0 else { return ("–", nil) }
+            let per = parts.neat / Double(selectedActivity.steps) * 1000
+            return (String(format: "%.0f", per), nil)
+        case .kcalPerKg:
+            guard !isSelectedFuture, weightInKg > 0 else { return ("–", nil) }
+            return (String(format: "%.1f", displayBurnedSoFar / weightInKg), nil)
         }
     }
 
@@ -3178,23 +3231,37 @@ struct InfographicSegmentBar: View {
 /// registered in project.pbxproj by hand in four places, and this project
 /// carries no filesystem-synchronised groups to do it automatically.
 enum DashboardKPI: String, CaseIterable, Identifiable {
+    // Totals the app computes itself.
     case dayEstimate
-    case vsYesterday
     case activeBurn
-    case vsSevenDayAverage
-    case steps
-    case distance
-    case workoutMinutes
-    case standMinutes
-    case restingHeartRate
     case neat
     case eat
     case bmr
+    case afterburn
+
+    // Comparisons against the user's own history.
+    case vsYesterday
+    case vsSevenDayAverage
+    case vsFourteenDayAverage
+
+    // Composition — how the day's energy is split.
+    case bmrShare
+    case activeShare
+    case neatShare
+    case eatShare
+    case tefShare
+    case afterburnShareOfWorkout
+
+    // Rates and efficiency.
+    case palFactor
+    case burnPerWakingHour
+    case neatPerThousandSteps
+    case kcalPerKg
 
     var id: String { rawValue }
 
     /// The three the dashboard has always shown.
-    static let defaultRaw = "dayEstimate,vsYesterday,activeBurn"
+    static let defaultRaw = "dayEstimate,vsYesterday,activeShare"
 
     static func decode(_ raw: String) -> [DashboardKPI] {
         let parsed = raw.split(separator: ",").compactMap { DashboardKPI(rawValue: String($0)) }
@@ -3209,36 +3276,54 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .dayEstimate:       return "target"
-        case .vsYesterday:       return "arrow.up.arrow.down"
-        case .activeBurn:        return "bolt.fill"
-        case .vsSevenDayAverage: return "chart.line.uptrend.xyaxis"
-        case .steps:             return "shoeprints.fill"
-        case .distance:          return "figure.walk.motion"
-        case .workoutMinutes:    return "dumbbell.fill"
-        case .standMinutes:      return "figure.stand"
-        case .restingHeartRate:  return "heart.fill"
-        case .neat:              return "figure.walk"
-        case .eat:               return "flame.fill"
-        case .bmr:               return "moon.zzz.fill"
+        case .dayEstimate:              return "target"
+        case .activeBurn:               return "bolt.fill"
+        case .neat:                     return "figure.walk"
+        case .eat:                      return "dumbbell.fill"
+        case .bmr:                      return "moon.zzz.fill"
+        case .afterburn:                return "flame.fill"
+        case .vsYesterday:              return "arrow.up.arrow.down"
+        case .vsSevenDayAverage:        return "chart.line.uptrend.xyaxis"
+        case .vsFourteenDayAverage:     return "chart.bar.xaxis"
+        case .bmrShare:                 return "chart.pie.fill"
+        case .activeShare:              return "bolt.circle.fill"
+        case .neatShare:                return "figure.walk.circle.fill"
+        case .eatShare:                 return "figure.strengthtraining.traditional"
+        case .tefShare:                 return "fork.knife"
+        case .afterburnShareOfWorkout:  return "flame.circle.fill"
+        case .palFactor:                return "gauge.with.dots.needle.67percent"
+        case .burnPerWakingHour:        return "clock.arrow.circlepath"
+        case .neatPerThousandSteps:     return "shoeprints.fill"
+        case .kcalPerKg:                return "scalemass.fill"
         }
     }
 
     func title(language: String) -> String {
         let de = language == "de"
         switch self {
-        case .dayEstimate:       return de ? "Schätzung für den kompletten Tag" : "Estimate for the full day"
-        case .vsYesterday:       return de ? "% vs. Gestern" : "% vs. Yesterday"
-        case .activeBurn:        return de ? "Aktiver Kalorienverbrauch" : "Active Calorie Burn"
-        case .vsSevenDayAverage: return de ? "% vs. Ø 7 Tage" : "% vs. 7-day avg"
-        case .steps:             return de ? "Schritte" : "Steps"
-        case .distance:          return de ? "Strecke (km)" : "Distance (km)"
-        case .workoutMinutes:    return de ? "Trainingsminuten" : "Workout minutes"
-        case .standMinutes:      return de ? "Stehminuten" : "Stand minutes"
-        case .restingHeartRate:  return de ? "Ruhepuls (bpm)" : "Resting HR (bpm)"
-        case .neat:              return de ? "Alltagsbewegung (NEAT)" : "Everyday movement (NEAT)"
-        case .eat:               return de ? "Workout-Kalorien (EAT)" : "Workout calories (EAT)"
-        case .bmr:               return de ? "Grundumsatz" : "Basal metabolic rate"
+        case .dayEstimate:   return de ? "Schätzung für den kompletten Tag" : "Estimate for the full day"
+        case .activeBurn:    return de ? "Aktiver Kalorienverbrauch" : "Active calorie burn"
+        case .neat:          return de ? "Alltagsbewegung (NEAT)" : "Everyday movement (NEAT)"
+        case .eat:           return de ? "Workout-Kalorien (EAT)" : "Workout calories (EAT)"
+        case .bmr:           return de ? "Grundumsatz" : "Basal metabolic rate"
+        case .afterburn:     return de ? "Nachbrennen (EPOC)" : "Afterburn (EPOC)"
+
+        case .vsYesterday:          return de ? "% vs. Gestern" : "% vs. yesterday"
+        case .vsSevenDayAverage:    return de ? "% vs. Ø 7 Tage" : "% vs. 7-day avg"
+        case .vsFourteenDayAverage: return de ? "% vs. Ø 14 Tage" : "% vs. 14-day avg"
+
+        case .bmrShare:    return de ? "% Grundumsatz am Tag" : "% basal of the day"
+        case .activeShare: return de ? "% Aktivanteil am Tag" : "% active of the day"
+        case .neatShare:   return de ? "% Alltag am Tag" : "% everyday of the day"
+        case .eatShare:    return de ? "% Sport am Tag" : "% workout of the day"
+        case .tefShare:    return de ? "% Verdauung am Tag" : "% digestion of the day"
+        case .afterburnShareOfWorkout:
+            return de ? "% Nachbrennen am Sport" : "% afterburn of workout"
+
+        case .palFactor:            return de ? "Aktivitätsfaktor (PAL)" : "Activity factor (PAL)"
+        case .burnPerWakingHour:    return de ? "kcal je Wachstunde" : "kcal per waking hour"
+        case .neatPerThousandSteps: return de ? "kcal je 1.000 Schritte" : "kcal per 1,000 steps"
+        case .kcalPerKg:            return de ? "kcal je kg Körpergewicht" : "kcal per kg body weight"
         }
     }
 }
