@@ -42,46 +42,61 @@ enum Theme {
 
     // MARK: - Ring-Einfärbung nach Tagesform
 
-    /// Stützstellen der Blau-Rampe, von tief (deutlich unter dem Schnitt) nach
-    /// hell (deutlich darüber). Zwischen ihnen wird stufenlos interpoliert, der
-    /// Ring nimmt also beliebig viele Zwischentöne an statt zwischen ein paar
-    /// festen Farben zu springen.
+    /// Divergierende Rot-Grün-Skala: rot deutlich unter dem 14-Tage-Schnitt,
+    /// grün deutlich darüber, Bernstein genau auf dem Schnitt.
+    ///
+    /// Der Mittelpunkt ist kein Zierrat, sondern nötig: eine direkte
+    /// Interpolation von Rot nach Grün läuft in RGB durch schlammige
+    /// Ockergrau-Töne. Über Koralle, Bernstein und Gelbgrün bleibt der
+    /// Farbverlauf auf der ganzen Strecke klar. Sieben Stützstellen statt
+    /// fünf, damit benachbarte Tage sich sichtbar unterscheiden.
+    ///
+    /// Die Töne sind bewusst gedämpft — informativ, keine Ampel. Kein Wert
+    /// fällt unter mittlere Helligkeit, sonst verschwände das untere Ende der
+    /// Skala im Dunkelmodus.
     private static let ringRamp: [(r: Double, g: Double, b: Double)] = [
-        (0x06/255, 0x3E/255, 0x63/255),   // #063E63 tiefes Navy
-        (0x0B/255, 0x7B/255, 0xC4/255),   // #0B7BC4 accentDeep
-        (0x11/255, 0x9B/255, 0xE8/255),   // #119BE8 accentBlue
-        (0x66/255, 0xCC/255, 0xFF/255),   // #66CCFF accentSky
-        (0xA8/255, 0xE4/255, 0xFF/255)    // #A8E4FF blasses Eisblau
+        (0xC0/255, 0x39/255, 0x2B/255),   // #C0392B tiefes Ziegelrot
+        (0xE0/255, 0x5C/255, 0x4A/255),   // #E05C4A Rot
+        (0xF0/255, 0x88/255, 0x5A/255),   // #F0885A Koralle
+        (0xED/255, 0xB9/255, 0x4D/255),   // #EDB94D Bernstein — auf dem Schnitt
+        (0xA9/255, 0xC7/255, 0x55/255),   // #A9C755 Gelbgrün
+        (0x57/255, 0xB9/255, 0x6B/255),   // #57B96B Grün
+        (0x22/255, 0xA0/255, 0x6B/255)    // #22A06B Smaragd
     ]
 
-    private static func rampColor(at position: Double) -> Color {
+    private static func rampComponents(at position: Double) -> (r: Double, g: Double, b: Double) {
         let clamped = min(max(position, 0), 1)
         let scaled  = clamped * Double(ringRamp.count - 1)
         let lower   = min(Int(scaled), ringRamp.count - 2)
         let t       = scaled - Double(lower)
         let a = ringRamp[lower]
         let b = ringRamp[lower + 1]
-        return Color(red:   a.r + (b.r - a.r) * t,
-                     green: a.g + (b.g - a.g) * t,
-                     blue:  a.b + (b.b - a.b) * t)
+        return (a.r + (b.r - a.r) * t,
+                a.g + (b.g - a.g) * t,
+                a.b + (b.b - a.b) * t)
     }
-
-    /// Die Rampe wird auf 0…0.82 gestaucht, damit oberhalb jedes Basistons noch
-    /// Platz für den helleren Verlaufspartner bleibt — der Abstand der beiden
-    /// Stopps ist so über die ganze Skala gleich.
-    private static let ringGradientSpread = 0.18
 
     /// Basiston des Rings.
     /// - Parameter position: 0 = deutlich unter dem Schnitt, 1 = deutlich darüber.
     static func ringTint(position: Double) -> Color {
-        rampColor(at: min(max(position, 0), 1) * (1 - ringGradientSpread))
+        let c = rampComponents(at: position)
+        return Color(red: c.r, green: c.g, blue: c.b)
     }
 
-    /// Zwei Stopps derselben Rampe — der hellere führt, wie in `accentGradient`.
+    /// Zwei Stopps, der hellere führt — wie in `accentGradient`.
+    ///
+    /// Der helle Partner entsteht durch Aufhellen desselben Tons, nicht durch
+    /// Weiterwandern auf der Rampe. Auf einer divergierenden Skala hieße
+    /// Weiterwandern nämlich Farbtonwechsel: ein Ring auf dem Schnitt liefe
+    /// von Gelbgrün nach Bernstein und sähe aus, als stünde er zwischen zwei
+    /// Bewertungen.
     static func ringGradient(position: Double) -> LinearGradient {
-        let base = min(max(position, 0), 1) * (1 - ringGradientSpread)
+        let c = rampComponents(at: position)
+        let light = Color(red:   c.r + (1 - c.r) * 0.30,
+                          green: c.g + (1 - c.g) * 0.30,
+                          blue:  c.b + (1 - c.b) * 0.30)
         return LinearGradient(
-            colors: [rampColor(at: base + ringGradientSpread), rampColor(at: base)],
+            colors: [light, Color(red: c.r, green: c.g, blue: c.b)],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
     }

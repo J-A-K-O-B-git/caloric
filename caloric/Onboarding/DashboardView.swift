@@ -500,9 +500,12 @@ struct DashboardView: View {
 
     // MARK: - Ring-Einfärbung nach 14-Tage-Schnitt
 
-    /// Ab dieser relativen Abweichung ist die Rampe ausgereizt. ±20 % deckt die
-    /// übliche Tagesstreuung ab, ohne dass Ausreißer alles andere flach machen.
-    private static let ringDeviationSpan = 0.20
+    /// Ab dieser relativen Abweichung ist die Rampe ausgereizt.
+    ///
+    /// ±15 %, nicht ±20 %: bei der weiteren Spanne blieben normale Tage im
+    /// mittleren Drittel der Skala hängen und sahen alle gleich aus. Mit ±15 %
+    /// trennt schon eine Abweichung von zwei Prozentpunkten zwei Tage sichtbar.
+    private static let ringDeviationSpan = 0.15
 
     /// Wo der gewählte Tag gegenüber seinem 14-Tage-Schnitt steht, 0…1.
     /// 0.5 heißt "auf dem Schnitt" — auch dann, wenn noch kein Schnitt vorliegt.
