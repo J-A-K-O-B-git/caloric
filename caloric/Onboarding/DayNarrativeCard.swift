@@ -39,13 +39,24 @@ struct DayNarrativeCard: View {
                 content(narrative)
             } else if isLoading {
                 shimmerPlaceholder
-            } else if errorMessage != nil {
-                Text(language == "de"
-                     ? "Die Erklärung konnte gerade nicht erstellt werden."
-                     : "The explanation could not be generated right now.")
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            } else if let errorMessage {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(language == "de"
+                         ? "Die Erklärung konnte gerade nicht erstellt werden."
+                         : "The explanation could not be generated right now.")
+                        .font(.poppins(size: 12, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // The reason, not just the fact. A generic sentence gave
+                    // no way to tell a spent key from a routing problem
+                    // without attaching a debugger.
+                    Text(errorMessage.prefix(300))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
             }
 
             footer

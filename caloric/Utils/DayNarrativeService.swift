@@ -124,17 +124,51 @@ struct DayNarrativeService {
 
     // MARK: - Public API
 
+    /// An open-weight model on OpenRouter is served by a dozen different
+    /// providers, and not all of them implement `response_format`. The first
+    /// attempt pins routing to those that do; if none is reachable the request
+    /// comes back 400/404 and the schema is dropped, the model asked for raw
+    /// JSON in prose instead. Losing the schema costs reliability, which is
+    /// why it is the second choice — but an explanation parsed out of text
+    /// beats an empty card.
     static func explain(_ summary: DayDeltaSummary, language: String) async throws -> Narrative {
-        let payload: [String: Any] = [
+        do {
+            return try await send(summary, language: language, useSchema: true)
+        } catch NarrativeError.requestFailed(let status, _)
+                    where [400, 404, 422].contains(status) {
+            return try await send(summary, language: language, useSchema: false)
+        }
+    }
+
+    private static func send(
+        _ summary: DayDeltaSummary,
+        language: String,
+        useSchema: Bool
+    ) async throws -> Narrative {
+        var prompt = systemPrompt(language: language)
+        if !useSchema {
+            prompt += """
+            \n\nAntworte ausschließlich mit einem JSON-Objekt der Form \
+            {"headline": "…", "body": "…"} — ohne Markdown, ohne Codeblock \
+            und ohne Text davor oder dahinter.
+            """
+        }
+
+        var payload: [String: Any] = [
             "model": model,
             "messages": [
-                ["role": "system", "content": systemPrompt(language: language)],
+                ["role": "system", "content": prompt],
                 ["role": "user", "content": summary.promptJSON()]
             ],
-            "response_format": responseFormat,
             // Low temperature: this is a reporting task, not a creative one.
             "temperature": 0.3
         ]
+        if useSchema {
+            payload["response_format"] = responseFormat
+            // Skip providers that would silently ignore response_format and
+            // hand back prose the strict path cannot read.
+            payload["provider"] = ["require_parameters": true]
+        }
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -158,11 +192,21 @@ struct DayNarrativeService {
         }
 
         let envelope = try JSONDecoder().decode(OpenRouterEnvelope.self, from: data)
-        guard let json = envelope.choices.first?.message.content,
-              let jsonData = json.data(using: .utf8) else {
+        guard let content = envelope.choices.first?.message.content,
+              let jsonData = Self.jsonObject(in: content) else {
             throw NarrativeError.unreadableResult
         }
         return try JSONDecoder().decode(Narrative.self, from: jsonData)
+    }
+
+    /// The outermost `{…}` of a reply. Without the schema models like to wrap
+    /// the object in a ```json fence or introduce it with a sentence, and both
+    /// make a plain decode fail.
+    private static func jsonObject(in text: String) -> Data? {
+        guard let start = text.firstIndex(of: "{"),
+              let end = text.lastIndex(of: "}"),
+              start < end else { return nil }
+        return String(text[start...end]).data(using: .utf8)
     }
 
     // MARK: - API envelope
