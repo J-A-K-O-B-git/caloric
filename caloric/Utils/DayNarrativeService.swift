@@ -29,6 +29,8 @@ struct DayNarrativeService {
     struct Narrative: Codable, Equatable {
         let headline: String
         let body: String
+        /// One short, genuinely interesting observation about the day.
+        let insight: String
     }
 
     enum NarrativeError: LocalizedError {
@@ -53,52 +55,66 @@ struct DayNarrativeService {
 
     private static func systemPrompt(language: String) -> String {
         let localeRule = language == "de"
-            ? "Antworte auf Deutsch und duze die Person."
-            : "Answer in English and address the person directly."
+            ? "Schreibe auf Deutsch und duze die Person."
+            : "Write in English and address the person directly."
 
         return """
-        In der App Caloric steht dem Nutzer eine Kennzahl vor Augen: \
-        "% vs. Gestern". Deine einzige Aufgabe ist, genau diese Zahl zu \
-        erklären — woran es liegt, dass sie so ausfällt. Du bekommst sie als \
-        percentToExplain zusammen mit ihrer Zerlegung als JSON.
+        Du schreibst die Tagesnotiz in der App Caloric. Sie ist das Erste, was \
+        jemand nach dem Öffnen liest. Sie soll sich lohnen: erzähl der Person \
+        kurz, wie ihr Tag energetisch gelaufen ist, ordne ihn ein und gib ihr \
+        etwas mit, das sie vorher nicht wusste.
+
+        Ton: warm, zugewandt, auf Augenhöhe. Wie jemand, der die Zahlen \
+        gelesen hat und sich ehrlich freut, wenn etwas gut lief. Kein \
+        Coach-Geschrei, keine Ausrufezeichen-Ketten, keine leeren \
+        Motivationsfloskeln. Ein ruhiger, kluger Satz wirkt stärker als drei \
+        begeisterte.
 
         Aufbau der Daten:
-        - percentToExplain ist die Zahl, die erklärt werden soll.
-        - totalDelta ist die Differenz in kcal dahinter.
-        - components zerlegt totalDelta vollständig. Die delta-Werte der \
-        Komponenten ergeben zusammen totalDelta, und \
-        shareOfTotalDeltaPercent sagt, wie viel Prozent der Gesamtdifferenz \
-        auf eine Komponente entfallen.
-        - neatBreakdown zerlegt die Komponente neat weiter.
-        - context liefert die Rohwerte dahinter (Schritte, Stehminuten, \
-        Workout-Minuten), mit denen du den Grund benennen kannst.
+        - percentToExplain ist die Kennzahl "% vs. Gestern", die auf dem \
+        Bildschirm steht. totalDelta ist die Differenz in kcal dahinter.
+        - components zerlegt totalDelta vollständig; shareOfTotalDeltaPercent \
+        sagt, wie viel Prozent davon auf eine Komponente entfallen.
+        - neatBreakdown zerlegt neat weiter.
+        - context liefert die Rohwerte: Schritte, Stehminuten, \
+        Workout-Minuten, jeweils auch für den Vortag.
+        - weekly vergleicht den Tag mit dem Schnitt der letzten Tage \
+        (daysCounted sagt, wie viele es sind).
+        - highlights enthält fertig gerechnete Kennzahlen: Aktivanteil, \
+        Aktivitätsfaktor PAL, Nachbrennen, kcal je 1.000 Schritte, Wachstunden.
 
-        Regeln:
+        Was du schreibst:
+        - headline: höchstens 60 Zeichen, benennt die Richtung des Tages.
+        - body: zwei bis drei Sätze. Beschreibe knapp, was den Tag geprägt \
+        hat — beginne mit der Komponente unter leadWith und belege sie mit \
+        einem Rohwert aus context. Ordne den Tag danach ein: gegenüber \
+        gestern und, wenn weekly vorhanden ist, gegenüber dem Schnitt. Zwei \
+        Komponenten reichen; ist eine gegenläufig und spürbar, nenne sie als \
+        Gegengewicht.
+        - insight: ein einzelner Satz mit einer Beobachtung, die nicht schon \
+        im body steht. Nutze dafür highlights oder weekly — etwa was der \
+        Aktivitätsfaktor über den Tag sagt, was tausend Schritte bei dieser \
+        Person tatsächlich bringen, oder wie viel eine Einheit über ihr Ende \
+        hinaus noch kostet. Etwas, das man weitererzählen würde.
+
+        Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
-        leite nichts ab und schätze nichts dazu.
-        - Beginne mit der Komponente, die unter leadWith steht. Sie ist bereits \
-        als Hauptursache bestimmt — wähle keine andere.
-        - Nenne höchstens zwei Komponenten. Wenn eine zweite gegenläufig ist \
-        und einen spürbaren Anteil hat, erwähne sie als Gegengewicht.
-        - Belege die Ursache mit einem Rohwert aus context, wo es passt, etwa \
-        der Schrittzahl gegenüber dem Vortag.
-        - Wenn isPartialDay true ist, zählen für heute nur die bisherigen \
-        Stunden, für den Vortag der ganze Tag. Bleib dann bei der Beschreibung \
-        der aktuellen Werte im Vergleich zum Vortag und deute die Differenz \
-        nicht als Rückgang.
+        leite nichts ab, schätze nichts dazu und runde nichts um. Eine \
+        erfundene Zahl ist der einzige Fehler, den diese Notiz nicht machen darf.
         - Erwähne den Grundumsatz (bmr) nur, wenn bmrFactorsChanged true ist. \
-        Andernfalls ist seine Differenz reines Modellrauschen und keine \
-        Aussage über den Tag.
+        Sonst ist seine Differenz reines Modellrauschen.
+        - Wenn isPartialDay true ist, zählen für heute nur die bisherigen \
+        Stunden, für den Vortag der ganze Tag. Beschreibe den Stand dann als \
+        Zwischenstand und deute die Differenz nicht als Rückgang.
         - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute die \
-        tef-Differenz für diesen Tag nicht — dann fehlen schlicht die \
-        Einträge. Sag das lieber, statt es zu interpretieren.
-        - Bleib beschreibend. Gib keine Gesundheits-, Ernährungs- oder \
-        Trainingsempfehlungen und bewerte den Tag nicht moralisch.
+        tef-Differenz nicht — dann fehlen die Einträge. Sag das lieber.
+        - Fehlt weekly, vergleiche nur mit gestern und erfinde keinen Schnitt.
+        - Keine Gesundheits-, Ernährungs- oder Trainingsempfehlungen, keine \
+        moralische Bewertung des Tages. Beschreiben und einordnen, nicht raten.
+        - Ein schwacher Tag wird nicht schöngeredet. Sachlich bleiben und, wo \
+        es die Daten hergeben, zeigen, was trotzdem gut lief.
         - Komponentennamen: bmr = Grundumsatz, neat = Alltagsbewegung, \
         eat = Workouts, tef = Verdauung, caffeine = Koffein.
-        - headline: eine kurze Zeile, höchstens 60 Zeichen, die die Richtung \
-        auf den Punkt bringt.
-        - body: zwei bis drei Sätze, sachlich und ohne Aufzählungszeichen.
         \(localeRule)
         """
     }
@@ -114,9 +130,10 @@ struct DayNarrativeService {
                 "type": "object",
                 "properties": [
                     "headline": ["type": "string"],
-                    "body":     ["type": "string"]
+                    "body":     ["type": "string"],
+                    "insight":  ["type": "string"]
                 ],
-                "required": ["headline", "body"],
+                "required": ["headline", "body", "insight"],
                 "additionalProperties": false
             ]
         ]
@@ -149,8 +166,8 @@ struct DayNarrativeService {
         if !useSchema {
             prompt += """
             \n\nAntworte ausschließlich mit einem JSON-Objekt der Form \
-            {"headline": "…", "body": "…"} — ohne Markdown, ohne Codeblock \
-            und ohne Text davor oder dahinter.
+            {"headline": "…", "body": "…", "insight": "…"} — ohne Markdown, \
+            ohne Codeblock und ohne Text davor oder dahinter.
             """
         }
 

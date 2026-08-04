@@ -24,6 +24,9 @@ final class DayNarrativeStore {
     struct Entry: Codable, Equatable {
         let headline: String
         let body: String
+        /// Optional so entries written before insights existed still decode —
+        /// a failed decode would drop every cached narrative at once.
+        let insight: String?
         let fingerprint: String
         let createdAt: Date
     }
@@ -49,6 +52,7 @@ final class DayNarrativeStore {
         entries[summary.dateKey] = Entry(
             headline: narrative.headline,
             body: narrative.body,
+            insight: narrative.insight,
             fingerprint: summary.fingerprint,
             createdAt: Date()
         )

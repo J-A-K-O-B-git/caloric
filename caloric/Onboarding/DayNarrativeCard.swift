@@ -91,6 +91,23 @@ struct DayNarrativeCard: View {
                 .foregroundStyle(Theme.textSecondary)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // Set apart from the body on purpose: this is the line worth
+            // staying for, and it should not read as a third sentence.
+            if !narrative.insight.isEmpty {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                        .padding(.top, 1)
+                    Text(narrative.insight)
+                        .font(.poppins(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary.opacity(0.85))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 7)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .transition(.opacity.combined(with: .move(edge: .top)))

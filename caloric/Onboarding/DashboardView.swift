@@ -42,6 +42,9 @@ struct DashboardView: View {
     @State private var trailingAverage: Double? = nil
     /// Same basis, seven days — feeds the optional "vs. Ø 7 Tage" tile.
     @State private var sevenDayAverage: Double? = nil
+    /// Average steps over the same seven days, for the narrative's insights.
+    @State private var sevenDayAverageSteps: Int? = nil
+    @State private var sevenDayCount: Int = 0
 
     /// Which KPI tiles the user keeps on the dashboard, in order.
     /// Stored as raw values so adding a case never invalidates a saved layout —
@@ -431,7 +434,35 @@ struct DashboardView: View {
                 sleepHours: sleepHours,
                 foodLoggedToday: hasLoggedFood(on: selectedDate),
                 foodLoggedPrevious: hasLoggedFood(on: prevDate)
-            )
+            ),
+            weekly: narrativeWeekly,
+            highlights: narrativeHighlights
+        )
+    }
+
+    /// How the day stands against the last seven, when there are enough of them.
+    private var narrativeWeekly: DayDeltaSummary.Weekly? {
+        guard let average = sevenDayAverage, average > 0,
+              let steps = sevenDayAverageSteps else { return nil }
+        return DayDeltaSummary.Weekly(
+            averageKcal: average,
+            percentVsAverage: (displayBurnedSoFar - average) / average * 100,
+            averageSteps: steps,
+            daysCounted: sevenDayCount
+        )
+    }
+
+    /// Derived figures the narrative may quote. Computed here so the model
+    /// never has to divide anything itself.
+    private var narrativeHighlights: DayDeltaSummary.Highlights {
+        let parts = dayComponents(for: selectedDate)
+        let steps = selectedActivity.steps
+        return DayDeltaSummary.Highlights(
+            activeSharePercent: parts.total > 0 ? (parts.neat + parts.eat) / parts.total * 100 : 0,
+            palFactor: parts.bmr > 0 ? parts.total / parts.bmr : 0,
+            afterburnKcal: afterburnKcalToday,
+            kcalPerThousandSteps: steps > 0 ? parts.neat / Double(steps) * 1000 : 0,
+            wakingHours: wakingHoursElapsed
         )
     }
 
@@ -469,7 +500,9 @@ struct DashboardView: View {
 
         // Cached text for exactly these numbers — nothing to do.
         if !force, let cached = narrativeStore.narrative(for: summary) {
-            narrative = DayNarrativeService.Narrative(headline: cached.headline, body: cached.body)
+            narrative = DayNarrativeService.Narrative(
+                headline: cached.headline, body: cached.body, insight: cached.insight ?? ""
+            )
             narrativeFingerprint = summary.fingerprint
             narrativeError = nil
             return
@@ -596,15 +629,23 @@ struct DashboardView: View {
         let calendar = Calendar.current
         var totals: [Double] = []
         var lastSeven: [Double] = []
+        var lastSevenSteps: [Int] = []
         for offset in 1...14 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: selectedDate),
-                  healthKit.history[HealthKitImportService.dateKey(day)] != nil else { continue }
+                  let snap = healthKit.history[HealthKitImportService.dateKey(day)] else { continue }
             let value = comparableTotal(dayComponents(for: day))
             totals.append(value)
-            if offset <= 7 { lastSeven.append(value) }
+            if offset <= 7 {
+                lastSeven.append(value)
+                lastSevenSteps.append(snap.activity.steps)
+            }
         }
         trailingAverage  = totals.count    >= 3 ? totals.reduce(0, +)    / Double(totals.count)    : nil
         sevenDayAverage  = lastSeven.count >= 3 ? lastSeven.reduce(0, +) / Double(lastSeven.count) : nil
+        sevenDayCount    = lastSeven.count
+        sevenDayAverageSteps = lastSevenSteps.count >= 3
+            ? lastSevenSteps.reduce(0, +) / lastSevenSteps.count
+            : nil
     }
 
     /// Same basis as the ring's average, over seven days instead of fourteen.

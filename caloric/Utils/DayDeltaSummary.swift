@@ -51,6 +51,31 @@ struct DayDeltaSummary: Codable, Equatable {
         let foodLoggedPrevious: Bool
     }
 
+    /// How the day sits against the last seven, and the raw material for an
+    /// insight worth reading. Optional throughout: early on there is no week
+    /// to compare against, and a narrative must still work without one.
+    struct Weekly: Codable, Equatable {
+        let averageKcal: Double
+        let percentVsAverage: Double
+        let averageSteps: Int
+        let daysCounted: Int
+    }
+
+    /// Figures derived from the day that are interesting in their own right —
+    /// the model may quote these, but it may not compute new ones.
+    struct Highlights: Codable, Equatable {
+        /// Share of the day's burn that came from moving at all.
+        let activeSharePercent: Double
+        /// Total over resting: below ~1.4 a desk day, above ~1.8 an active one.
+        let palFactor: Double
+        /// EPOC still owed from today's sessions.
+        let afterburnKcal: Double
+        /// What a thousand steps are worth for this body.
+        let kcalPerThousandSteps: Double
+        /// Longest stretch of the day, in hours, spent awake so far.
+        let wakingHours: Double
+    }
+
     let dateKey: String
     /// Exactly the figure rendered in the KPI tile.
     let percentVsPreviousDay: Double
@@ -67,6 +92,8 @@ struct DayDeltaSummary: Codable, Equatable {
     /// Whether the day's BMR actually changed for a reason (illness, cycle).
     let bmrFactorsChanged: Bool
     let context: Context
+    let weekly: Weekly?
+    let highlights: Highlights?
 
     var totalDeltaKcal: Double { todayTotalKcal - previousTotalKcal }
 
@@ -124,6 +151,24 @@ struct DayDeltaSummary: Codable, Equatable {
                 "foodLoggedPreviousDay": context.foodLoggedPrevious
             ]
         ]
+
+        if let weekly {
+            payload["weekly"] = [
+                "averageKcal": round0(weekly.averageKcal),
+                "percentVsAverage": round0(weekly.percentVsAverage),
+                "averageSteps": weekly.averageSteps,
+                "daysCounted": weekly.daysCounted
+            ]
+        }
+        if let h = highlights {
+            payload["highlights"] = [
+                "activeSharePercent": round0(h.activeSharePercent),
+                "palFactor": (h.palFactor * 100).rounded() / 100,
+                "afterburnKcal": round0(h.afterburnKcal),
+                "kcalPerThousandSteps": round0(h.kcalPerThousandSteps),
+                "wakingHours": (h.wakingHours * 10).rounded() / 10
+            ]
+        }
 
         // Named here rather than left to the model: picking the main driver is a
         // ranking decision, and ranking is arithmetic.
