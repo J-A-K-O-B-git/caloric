@@ -2,10 +2,11 @@
 //  CalorieDetailView.swift
 //  caloric
 //
-//  Full-screen view of the day's burn, split into the three phases the
-//  dashboard chart shows: asleep, awake, training. Bars stack the phases on
-//  the same half hour rather than colouring a whole bar by its dominant one,
-//  so a half hour that was partly a workout reads as exactly that.
+//  Full-screen view of the day's burn, split into the four phases the
+//  dashboard chart shows: asleep, awake, training and the afterburn trailing
+//  it. Bars stack the phases on the same half hour rather than colouring a
+//  whole bar by its dominant one, so a half hour that was partly a workout
+//  reads as exactly that.
 //
 
 import SwiftUI
@@ -30,10 +31,11 @@ struct CalorieDetailView: View {
     /// share, which belongs in the chart but not in a "burnt so far" total.
     private var pastSlots: [CalorieSlot] { slots.filter { !$0.isFuture } }
 
-    private var sleepKcal:   Double { pastSlots.reduce(0) { $0 + $1.sleepKcal } }
-    private var awakeKcal:   Double { pastSlots.reduce(0) { $0 + $1.awakeKcal } }
-    private var workoutKcal: Double { pastSlots.reduce(0) { $0 + $1.workoutKcal } }
-    private var dayKcal:     Double { sleepKcal + awakeKcal + workoutKcal }
+    private var sleepKcal:     Double { pastSlots.reduce(0) { $0 + $1.sleepKcal } }
+    private var awakeKcal:     Double { pastSlots.reduce(0) { $0 + $1.awakeKcal } }
+    private var workoutKcal:   Double { pastSlots.reduce(0) { $0 + $1.workoutKcal } }
+    private var afterburnKcal: Double { pastSlots.reduce(0) { $0 + $1.afterburnKcal } }
+    private var dayKcal: Double { sleepKcal + awakeKcal + workoutKcal + afterburnKcal }
 
     private var selectedSlot: CalorieSlot? {
         guard let selectedHour else { return nil }
@@ -110,6 +112,11 @@ struct CalorieDetailView: View {
                     if slot.workoutKcal > 0 {
                         phaseChip(Theme.segEAT, language == "de" ? "Sport" : "Workout", slot.workoutKcal)
                     }
+                    if slot.afterburnKcal > 0 {
+                        phaseChip(Theme.segCaf,
+                                  language == "de" ? "Nachbrennen" : "Afterburn",
+                                  slot.afterburnKcal)
+                    }
                 }
                 .padding(.top, 2)
             }
@@ -171,6 +178,13 @@ struct CalorieDetailView: View {
                         BarMark(x: .value("Zeit", slot.hour + 0.25),
                                 y: .value("kcal", slot.workoutKcal))
                             .foregroundStyle(Theme.segEAT)
+                            .cornerRadius(3)
+                            .opacity(dimming(slot))
+                    }
+                    if slot.afterburnKcal > 0 {
+                        BarMark(x: .value("Zeit", slot.hour + 0.25),
+                                y: .value("kcal", slot.afterburnKcal))
+                            .foregroundStyle(Theme.segCaf)
                             .cornerRadius(3)
                             .opacity(dimming(slot))
                     }
@@ -239,10 +253,13 @@ struct CalorieDetailView: View {
             phaseRow(color: Theme.segEAT, icon: "dumbbell.fill",
                      label: language == "de" ? "Sport" : "Workout",
                      kcal: workoutKcal)
+            phaseRow(color: Theme.segCaf, icon: "flame.fill",
+                     label: language == "de" ? "Nachbrennen" : "Afterburn",
+                     kcal: afterburnKcal)
 
             Text(language == "de"
-                 ? "Die Wachphase enthält den Ruheumsatz dieser Stunden plus Alltagsbewegung, Verdauung und Koffein."
-                 : "Awake covers the resting burn of those hours plus everyday movement, digestion and caffeine.")
+                 ? "Die Wachphase enthält den Ruheumsatz dieser Stunden plus Alltagsbewegung, Verdauung und Koffein. Das Nachbrennen ist ein Modellwert: Wir schätzen, wie viel eine Einheit über ihr Ende hinaus kostet, und verteilen ihn abklingend über die folgenden Stunden — gemessen ist er nicht."
+                 : "Awake covers the resting burn of those hours plus everyday movement, digestion and caffeine. Afterburn is modelled, not measured: we estimate what a session costs beyond its end and let that decay over the hours after it.")
                 .font(.poppins(size: 10, weight: .regular))
                 .foregroundStyle(Theme.textSecondary.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)

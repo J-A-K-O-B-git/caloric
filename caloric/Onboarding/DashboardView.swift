@@ -186,10 +186,23 @@ struct DashboardView: View {
     
     private var calorieSlots: [CalorieSlot] {
         let now = nowFraction
-        let workoutList = healthKit.isAuthorized && !isSelectedFuture ? selectedWorkouts : []
-        let totalWorkoutMinutes = workoutList.reduce(0.0) { $0 + $1.duration / 60.0 }
-        let totalEatKcal = healthKit.isAuthorized && !isSelectedFuture ? activityResult.eatKcal : 0.0
         let dayStart = Calendar.current.startOfDay(for: selectedDate)
+        /// How far into the day the drawing goes: the clock today, else midnight.
+        let dayCutoff = isSelectedFuture ? 0.0 : (isSelectedToday ? now : 24.0)
+
+        // Each session carries its own two figures rather than a flat rate
+        // across all workout minutes — with two sessions of different
+        // intensity, the flat rate credited the calmer one too much.
+        // Ends are clamped to midnight; a session running past it spreads its
+        // energy over the part that belongs to this day.
+        let sessions: [(start: Double, end: Double, during: Double, after: Double)] =
+            (healthKit.isAuthorized && !isSelectedFuture ? activityResult.workoutDetails : [])
+                .compactMap { d in
+                    let s = d.startDate.timeIntervalSince(dayStart) / 3600.0
+                    let e = min(d.endDate.timeIntervalSince(dayStart) / 3600.0, 24.0)
+                    guard e > s else { return nil }
+                    return (s, e, d.duringKcal, d.afterburnKcal)
+                }
 
         // NEAT was missing from this chart entirely — the bars showed the
         // resting share plus workouts and therefore summed to a few hundred
@@ -209,13 +222,11 @@ struct DashboardView: View {
         /// Hours of each slot spent awake, elapsed and outside a workout.
         let awakeShares: [Double] = hours.map { hour in
             let slotEnd = hour + 0.5
-            let cutoff  = isSelectedFuture ? hour : (isSelectedToday ? min(slotEnd, now) : slotEnd)
+            let cutoff  = min(slotEnd, dayCutoff)
             let start   = max(hour, sleepHours)
             var share   = max(0, cutoff - start)
-            for w in workoutList {
-                let wStart = w.startDate.timeIntervalSince(dayStart) / 3600.0
-                let wEnd   = w.endDate.timeIntervalSince(dayStart)   / 3600.0
-                share -= max(0, min(cutoff, wEnd) - max(start, wStart))
+            for s in sessions {
+                share -= max(0, min(cutoff, s.end) - max(start, s.start))
             }
             return max(0, share)
         }
@@ -227,17 +238,17 @@ struct DashboardView: View {
             let isFuture = isSelectedFuture || (isSelectedToday && hour >= now)
 
             var workoutKcal = 0.0
+            var afterburnKcal = 0.0
             var isWorkout = false
-            if !sleeping && !isFuture && totalWorkoutMinutes > 0 {
-                for w in workoutList {
-                    let wStart = w.startDate.timeIntervalSince(dayStart) / 3600.0
-                    let wEnd   = w.endDate.timeIntervalSince(dayStart)   / 3600.0
-                    let overlap = max(0, min(slotEnd, wEnd) - max(hour, wStart))
-                    if overlap > 0 {
-                        isWorkout = true
-                        workoutKcal += (totalEatKcal / totalWorkoutMinutes) * (overlap * 60.0)
-                    }
+            for s in sessions {
+                let overlap = max(0, min(slotEnd, s.end) - max(hour, s.start))
+                if overlap > 0 {
+                    isWorkout = true
+                    workoutKcal += s.during * (overlap / (s.end - s.start))
                 }
+                afterburnKcal += Self.afterburnShare(
+                    session: s, slotStart: hour, slotEnd: slotEnd, dayCutoff: dayCutoff
+                )
             }
 
             let activeKcal = awakeTotal > 0 ? activeToSpread * (awakeShares[index] / awakeTotal) : 0
@@ -259,6 +270,7 @@ struct DashboardView: View {
                 calories: hourlyBMR * 0.5 * mult,
                 activeKcal: activeKcal,
                 workoutKcal: workoutKcal,
+                afterburnKcal: afterburnKcal,
                 isSleep: sleeping,
                 isWorkout: isWorkout,
                 isFuture: isFuture
@@ -266,6 +278,52 @@ struct DashboardView: View {
         }
     }
     
+    // MARK: - Nachbrenneffekt (EPOC)
+
+    /// Hours over which the afterburn is drawn before it is treated as spent.
+    private static let epocSpanHours = 3.0
+    /// Time constant of the decay. At τ = 1 h about 95 % lands inside the span.
+    private static let epocTauHours = 1.0
+
+    /// ∫ exp(−(t − origin)/τ) dt between `a` and `b`.
+    private static func decayIntegral(origin: Double, from a: Double, to b: Double) -> Double {
+        guard b > a else { return 0 }
+        let tau = epocTauHours
+        return tau * (exp(-(a - origin) / tau) - exp(-(b - origin) / tau))
+    }
+
+    /// How much of a session's afterburn falls into one half hour.
+    ///
+    /// EPOC decays exponentially once the session ends. The window is clamped
+    /// to midnight and, today, to the current time — the ring credits a
+    /// session's afterburn the moment it ends, so spreading it across hours
+    /// that have not happened yet would leave the bars summing to less than
+    /// the ring above them. Normalising over whatever window is available
+    /// keeps the two in step; a session that has only just finished therefore
+    /// shows its afterburn concentrated, and it spreads out as the day runs on.
+    private static func afterburnShare(
+        session: (start: Double, end: Double, during: Double, after: Double),
+        slotStart: Double,
+        slotEnd: Double,
+        dayCutoff: Double
+    ) -> Double {
+        guard session.after > 0 else { return 0 }
+
+        let windowEnd = min(session.end + epocSpanHours, min(24.0, dayCutoff))
+        guard windowEnd > session.end else {
+            // Nowhere to spread it yet: keep it in the half hour the session
+            // ended in rather than dropping it and undershooting the ring.
+            return (session.end >= slotStart && session.end < slotEnd) ? session.after : 0
+        }
+
+        let whole = decayIntegral(origin: session.end, from: session.end, to: windowEnd)
+        guard whole > 0 else { return 0 }
+        let part = decayIntegral(origin: session.end,
+                                 from: max(slotStart, session.end),
+                                 to:   min(slotEnd, windowEnd))
+        return session.after * (part / whole)
+    }
+
     private var nowFraction: Double {
         let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
         return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60.0
@@ -2085,6 +2143,8 @@ struct DashboardView: View {
                 if healthKit.isAuthorized && !isSelectedFuture && !selectedWorkouts.isEmpty {
                     legendItem(color: Theme.segEAT,
                                label: language == "de" ? "Sport" : "Workout")
+                    legendItem(color: Theme.segCaf,
+                               label: language == "de" ? "Nachbrennen" : "Afterburn")
                 }
             }
         }

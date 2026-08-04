@@ -103,7 +103,12 @@ struct ActivityCalculationService {
     struct WorkoutDetail: Identifiable {
         let id: UUID
         let name: String
+        /// Everything the session costs, afterburn included.
         let kcal: Double
+        /// The share of `kcal` spent during the session itself…
+        let duringKcal: Double
+        /// …and the share that continues after it (EPOC).
+        let afterburnKcal: Double
         /// Which app or device recorded the session — "Apple Watch", "WHOOP", …
         /// Worth showing now that workouts arrive from more than one source.
         let sourceName: String
@@ -130,22 +135,38 @@ struct ActivityCalculationService {
 
     // MARK: - EAT (Exercise Activity Thermogenesis)
 
+    /// A workout's energy, split by *when* it is spent.
+    ///
+    /// The two halves used to be one number, which meant the afterburn was
+    /// drawn inside the session that caused it. Keeping them apart lets the
+    /// charts put EPOC in the hours it actually belongs to.
+    struct WorkoutEnergy {
+        /// Burnt during the session itself.
+        let duringKcal: Double
+        /// EPOC — the elevated burn that continues once the session ends.
+        let afterburnKcal: Double
+
+        var total: Double { duringKcal + afterburnKcal }
+
+        static let zero = WorkoutEnergy(duringKcal: 0, afterburnKcal: 0)
+    }
+
     /// Net active calories from a single workout using the Hiilloskorpi HRR formula.
     /// Hiilloskorpi already measures net expenditure above rest — no extra BMR subtraction.
     /// VO2max fallback: 45 mL/kg·min (male) / 40 mL/kg·min (female).
-    static func eat(
+    static func energy(
         workout: HKWorkoutSnapshot,
         weightKg: Double,
         vo2Max: Double?,
         hrRest: Double?,
         age: Int,
         isMale: Bool
-    ) -> Double {
+    ) -> WorkoutEnergy {
         guard let avgHR = workout.averageHeartRate,
-              avgHR > 0, weightKg > 0 else { return 0 }
+              avgHR > 0, weightKg > 0 else { return .zero }
 
         let minutes = workout.duration / 60.0
-        guard minutes > 0 else { return 0 }
+        guard minutes > 0 else { return .zero }
 
         let vo2   = (vo2Max ?? 0) > 0 ? vo2Max! : (isMale ? 45.0 : 40.0)
         let hrRst = (hrRest ?? 0) > 0 ? hrRest! : 60.0
@@ -155,23 +176,40 @@ struct ActivityCalculationService {
         let kJperMin: Double = isMale
             ? weightKg * vo2 * (0.019  * hrr - 0.0043)
             : weightKg * vo2 * (0.0143 * hrr - 0.0038)
-        var bruttoKcal = (kJperMin / 4.184) * minutes
+        let duringKcal = max(0, (kJperMin / 4.184) * minutes)
 
-        // EPOC — strength: fixed ×1.20. Others: linear 0–20 % between 60 % and 85 % HR_max.
+        // EPOC — strength: fixed 20 %. Others: linear 0–20 % between 60 % and 85 % HR_max.
         let isStrength = workout.activityType == .functionalStrengthTraining ||
                          workout.activityType == .traditionalStrengthTraining
+        let epocFraction: Double
         if isStrength {
-            bruttoKcal *= 1.20
+            epocFraction = 0.20
         } else {
             let intensity = hrMax > 0 ? avgHR / hrMax : 0
             if intensity >= 0.85 {
-                bruttoKcal *= 1.20
+                epocFraction = 0.20
             } else if intensity > 0.60 {
-                bruttoKcal *= 1.0 + (intensity - 0.60) / (0.85 - 0.60) * 0.20
+                epocFraction = (intensity - 0.60) / (0.85 - 0.60) * 0.20
+            } else {
+                epocFraction = 0
             }
         }
 
-        return max(0, bruttoKcal)
+        return WorkoutEnergy(duringKcal: duringKcal,
+                             afterburnKcal: duringKcal * epocFraction)
+    }
+
+    /// Total for callers that do not care when the energy was spent.
+    static func eat(
+        workout: HKWorkoutSnapshot,
+        weightKg: Double,
+        vo2Max: Double?,
+        hrRest: Double?,
+        age: Int,
+        isMale: Bool
+    ) -> Double {
+        energy(workout: workout, weightKg: weightKg, vo2Max: vo2Max,
+               hrRest: hrRest, age: age, isMale: isMale).total
     }
 
     // MARK: - Combined (synchronous)
@@ -260,12 +298,14 @@ struct ActivityCalculationService {
         
         // HealthKit Workouts
         for w in workouts {
-            let kcal = eat(workout: w, weightKg: weightKg, vo2Max: vo2Max,
+            let e = energy(workout: w, weightKg: weightKg, vo2Max: vo2Max,
                            hrRest: restingHR, age: age, isMale: isMale)
             details.append(WorkoutDetail(
                 id: w.id,
                 name: w.activityType.name,
-                kcal: kcal,
+                kcal: e.total,
+                duringKcal: e.duringKcal,
+                afterburnKcal: e.afterburnKcal,
                 sourceName: w.sourceName,
                 startDate: w.startDate,
                 endDate: w.endDate

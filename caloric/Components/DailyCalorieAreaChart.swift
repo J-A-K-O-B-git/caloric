@@ -69,6 +69,15 @@ struct DailyCalorieAreaChart: View {
         )
     }
 
+    /// Amber for the afterburn — a warm glow trailing the indigo of the
+    /// session that caused it, and impossible to confuse with it.
+    private var afterburnGradient: LinearGradient {
+        LinearGradient(
+            colors: [Theme.segCaf, Theme.segCaf.opacity(0.35)],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
     // MARK: Body
 
     var body: some View {
@@ -100,6 +109,15 @@ struct DailyCalorieAreaChart: View {
                         width: .fixed(4)
                     )
                     .foregroundStyle(workoutGradient)
+                    .cornerRadius(2)
+                }
+                if slot.afterburnKcal > 0 {
+                    BarMark(
+                        x: .value("Zeit", slot.hour + 0.25),
+                        y: .value("kcal", slot.afterburnKcal),
+                        width: .fixed(4)
+                    )
+                    .foregroundStyle(afterburnGradient)
                     .cornerRadius(2)
                 }
             }
@@ -188,9 +206,12 @@ struct DailyCalorieAreaChart: View {
         let time   = String(format: "%02d:%02d", hour, minute)
         let kcal   = Int(slot.total.rounded())
         let phase: String
-        if slot.isWorkout   { phase = language == "de" ? "Sport"     : "Workout" }
-        else if slot.isSleep { phase = language == "de" ? "Schlaf"   : "Sleep" }
-        else                 { phase = language == "de" ? "Wach"     : "Awake" }
+        if slot.isWorkout    { phase = language == "de" ? "Sport"      : "Workout" }
+        else if slot.afterburnKcal > 0 {
+            phase = language == "de" ? "Nachbrennen" : "Afterburn"
+        }
+        else if slot.isSleep { phase = language == "de" ? "Schlaf"     : "Sleep" }
+        else                 { phase = language == "de" ? "Wach"       : "Awake" }
         return Text("\(time) · \(phase) · \(kcal) kcal")
             .font(.poppins(size: 11, weight: .semibold))
             .foregroundStyle(.white)
@@ -227,6 +248,8 @@ private extension [CalorieSlot] {
                 calories:   base * 0.5 * mult,
                 activeKcal: (sleeping || isFuture || isWorkout) ? 0.0 : 14.0,
                 workoutKcal: isWorkout ? 90.0 : 0.0,
+                afterburnKcal: (hour >= 18.5 && hour < 21.0 && !isFuture)
+                    ? 30.0 * exp(-(hour - 18.5)) : 0.0,
                 isSleep:    sleeping,
                 isWorkout:  isWorkout,
                 isFuture:   isFuture

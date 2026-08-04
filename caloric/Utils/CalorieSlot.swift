@@ -19,12 +19,17 @@ struct CalorieSlot: Identifiable {
     /// Burnt awake and outside training: NEAT plus the digestion and
     /// caffeine bonuses. Zero while asleep and in the future.
     let activeKcal: Double
+    /// Burnt during a session overlapping this half hour.
     let workoutKcal: Double
+    /// EPOC still decaying from a session that ended earlier. Deliberately
+    /// separate from `workoutKcal`: the afterburn belongs to the hours after
+    /// the session, not to the session itself.
+    let afterburnKcal: Double
     let isSleep: Bool
     let isWorkout: Bool
     let isFuture: Bool
 
-    var total: Double { calories + activeKcal + workoutKcal }
+    var total: Double { calories + activeKcal + workoutKcal + afterburnKcal }
 
     // MARK: - Phase shares (chart segments)
 
