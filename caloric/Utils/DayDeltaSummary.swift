@@ -66,8 +66,6 @@ struct DayDeltaSummary: Codable, Equatable {
     struct Highlights: Codable, Equatable {
         /// Share of the day's burn that came from moving at all.
         let activeSharePercent: Double
-        /// Total over resting: below ~1.4 a desk day, above ~1.8 an active one.
-        let palFactor: Double
         /// EPOC still owed from today's sessions.
         let afterburnKcal: Double
         /// What a thousand steps are worth for this body.
@@ -163,7 +161,6 @@ struct DayDeltaSummary: Codable, Equatable {
         if let h = highlights {
             payload["highlights"] = [
                 "activeSharePercent": round0(h.activeSharePercent),
-                "palFactor": (h.palFactor * 100).rounded() / 100,
                 "afterburnKcal": round0(h.afterburnKcal),
                 "kcalPerThousandSteps": round0(h.kcalPerThousandSteps),
                 "wakingHours": (h.wakingHours * 10).rounded() / 10

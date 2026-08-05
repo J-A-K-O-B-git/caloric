@@ -53,6 +53,12 @@ struct DashboardView: View {
     @State private var isEditingKPIs = false
     @State private var jiggleUp = false
     @State private var showKPIPicker = false
+    /// Which tile is currently explaining itself, if any.
+    @State private var kpiInfoShown: DashboardKPI? = nil
+    /// One-time move: PAL was pulled out of the day narrative and belongs on
+    /// the dashboard instead. Changing the default alone would never reach a
+    /// layout the user has already saved.
+    @AppStorage("dashboard.kpiPalMigrated") private var kpiPalMigrated = false
     @State private var editWeightKg: Int = 70
     @State private var editWeightLb: Int = 154
     @State private var editHeightCm: Int = 170
@@ -461,7 +467,6 @@ struct DashboardView: View {
         let steps = selectedActivity.steps
         return DayDeltaSummary.Highlights(
             activeSharePercent: parts.total > 0 ? (parts.neat + parts.eat) / parts.total * 100 : 0,
-            palFactor: parts.bmr > 0 ? parts.total / parts.bmr : 0,
             afterburnKcal: afterburnKcalToday,
             kcalPerThousandSteps: steps > 0 ? parts.neat / Double(steps) * 1000 : 0,
             wakingHours: wakingHoursElapsed
@@ -1213,6 +1218,7 @@ struct DashboardView: View {
             }
     }
         .onAppear {
+            migrateKPITilesForPAL()
             runBurnAnimation()
             Task { await refreshNarrative() }
         }
@@ -2314,6 +2320,18 @@ struct DashboardView: View {
 
     private var activeKPITiles: [DashboardKPI] { DashboardKPI.decode(kpiTilesRaw) }
 
+    /// Adds the PAL tile once to layouts saved before it moved here from the
+    /// day narrative. Runs a single time and never touches the row again, so a
+    /// user who then removes the tile does not get it back on the next launch.
+    private func migrateKPITilesForPAL() {
+        guard !kpiPalMigrated else { return }
+        kpiPalMigrated = true
+        var tiles = activeKPITiles
+        guard !tiles.contains(.palFactor) else { return }
+        tiles.append(.palFactor)
+        kpiTilesRaw = DashboardKPI.encode(tiles)
+    }
+
     /// Hours spent awake so far on the selected day.
     private var wakingHoursElapsed: Double {
         let end = isSelectedToday ? nowFraction : 24.0
@@ -2411,14 +2429,7 @@ struct DashboardView: View {
                 spacing: 10
             ) {
                 ForEach(Array(activeKPITiles.enumerated()), id: \.element.id) { index, kpi in
-                    let reading = kpiReading(kpi)
-                    kpiBox(
-                        icon: kpi.icon,
-                        value: reading.value,
-                        unit: kpi.title(language: language),
-                        accent: false,
-                        tint: reading.tint
-                    )
+                    kpiBox(kpi)
                     .overlay(alignment: .topTrailing) {
                         if isEditingKPIs { removeBadge(for: kpi) }
                     }
@@ -2597,15 +2608,18 @@ struct DashboardView: View {
         .presentationBackground(Theme.canvas)
     }
 
-    private func kpiBox(icon: String, value: String, unit: String, accent: Bool, tint: Color? = nil) -> some View {
-        let iconColor: Color = tint ?? accentBlue
-        let valueFg: Color  = tint ?? Theme.textPrimary
+    private func kpiBox(_ kpi: DashboardKPI) -> some View {
+        let reading = kpiReading(kpi)
+        let iconColor: Color = reading.tint ?? accentBlue
+        let valueFg: Color  = reading.tint ?? Theme.textPrimary
+        let value = reading.value
+        let unit  = kpi.title(language: language)
         return VStack(alignment: .leading, spacing: 5) {
             ZStack {
                 Circle()
                     .fill(iconColor.opacity(0.13))
                     .frame(width: 40, height: 40)
-                Image(systemName: icon)
+                Image(systemName: kpi.icon)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(iconColor)
             }
@@ -2633,6 +2647,40 @@ struct DashboardView: View {
                 .fill(Theme.card)
                 .shadow(color: Theme.cardShadow, radius: 12, x: 0, y: 4)
         )
+        // Hidden in edit mode: the remove badge owns this corner there, and
+        // two controls a thumb apart would be a coin toss.
+        .overlay(alignment: .topTrailing) {
+            if !isEditingKPIs {
+                Button { kpiInfoShown = kpi } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.45))
+                        .padding(9)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .popover(isPresented: Binding(
+            get: { kpiInfoShown == kpi },
+            set: { if !$0 { kpiInfoShown = nil } }
+        )) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(kpi.title(language: language))
+                    .font(.poppins(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(kpi.explanation(language: language))
+                    .font(.poppins(size: 12, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(width: 250)
+            // Without this a popover becomes a full sheet on iPhone, which is
+            // far too much ceremony for two sentences.
+            .presentationCompactAdaptation(.popover)
+        }
     }
 
     // MARK: - Workout Name
@@ -3411,7 +3459,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// The three the dashboard has always shown.
-    static let defaultRaw = "dayEstimate,vsYesterday,activeShare"
+    static let defaultRaw = "dayEstimate,vsYesterday,activeShare,palFactor"
 
     static func decode(_ raw: String) -> [DashboardKPI] {
         let parsed = raw.split(separator: ",").compactMap { DashboardKPI(rawValue: String($0)) }
@@ -3474,6 +3522,77 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .burnPerWakingHour:    return de ? "kcal je Wachstunde" : "kcal per waking hour"
         case .neatPerThousandSteps: return de ? "kcal je 1.000 Schritte" : "kcal per 1,000 steps"
         case .kcalPerKg:            return de ? "kcal je kg Körpergewicht" : "kcal per kg body weight"
+        }
+    }
+
+    /// One or two sentences behind the little "i".
+    ///
+    /// Several of these are ratios whose name gives nothing away — PAL above
+    /// all. A number nobody can interpret is decoration, so every tile can
+    /// explain itself.
+    func explanation(language: String) -> String {
+        let de = language == "de"
+        switch self {
+        case .dayEstimate:
+            return de ? "Was du an diesem Tag voraussichtlich insgesamt verbrennst — Grundumsatz, Alltag, Sport und Verdauung zusammen."
+                      : "What you are on track to burn across the whole day — basal, everyday movement, workouts and digestion together."
+        case .activeBurn:
+            return de ? "Alles, was durch Bewegung dazukam: Alltagsbewegung plus Training. Ohne Grundumsatz."
+                      : "Everything movement added: everyday activity plus training. Basal burn excluded."
+        case .neat:
+            return de ? "Alltagsbewegung außerhalb des Trainings — Gehen, Stehen, Treppen, Unruhe. Oft der größte Hebel im Tag."
+                      : "Everyday movement outside training — walking, standing, stairs, fidgeting. Often the biggest lever in a day."
+        case .eat:
+            return de ? "Was deine Trainingseinheiten gekostet haben, Nachbrennen eingerechnet."
+                      : "What your sessions cost, afterburn included."
+        case .bmr:
+            return de ? "Was dein Körper in Ruhe braucht, nur um zu laufen. Ändert sich von Tag zu Tag kaum."
+                      : "What your body needs at rest just to keep running. Barely moves day to day."
+        case .afterburn:
+            return de ? "Der Nachbrenneffekt: erhöhter Verbrauch nach dem Training. Geschätzt, nicht gemessen."
+                      : "The afterburn: raised expenditure once a session ends. Estimated, not measured."
+
+        case .vsYesterday:
+            return de ? "Wie dieser Tag gegenüber dem Vortag steht. Läuft der Tag noch, wird nur die bisherige Zeit verglichen."
+                      : "How this day stands against the one before. While the day is still running, only the elapsed part is compared."
+        case .vsSevenDayAverage:
+            return de ? "Wie dieser Tag gegenüber dem Schnitt deiner letzten sieben Tage steht."
+                      : "How this day stands against your last seven days."
+        case .vsFourteenDayAverage:
+            return de ? "Wie dieser Tag gegenüber dem Schnitt deiner letzten vierzehn Tage steht. Derselbe Wert färbt den Ring."
+                      : "How this day stands against your last fourteen days. The same figure tints the ring."
+
+        case .bmrShare:
+            return de ? "Wie viel Prozent des Tages allein auf den Grundumsatz entfallen. Ein hoher Wert heißt: ruhiger Tag."
+                      : "How much of the day was basal burn alone. A high figure means a quiet day."
+        case .activeShare:
+            return de ? "Wie viel Prozent des Tages du dir durch Bewegung verdient hast — Alltag und Sport zusammen."
+                      : "How much of the day you earned through movement — everyday activity and training together."
+        case .neatShare:
+            return de ? "Der Anteil des Tages, der aus Alltagsbewegung kam."
+                      : "The share of the day that came from everyday movement."
+        case .eatShare:
+            return de ? "Der Anteil des Tages, der aus Training kam."
+                      : "The share of the day that came from training."
+        case .tefShare:
+            return de ? "Der Anteil, den die Verdauung deiner Mahlzeiten gekostet hat. Nur belastbar, wenn du gegessen eingetragen hast."
+                      : "The share digestion cost. Only meaningful on days you logged what you ate."
+        case .afterburnShareOfWorkout:
+            return de ? "Wie viel deiner Trainingskalorien erst nach der Einheit anfallen."
+                      : "How much of your training burn lands after the session rather than during it."
+
+        case .palFactor:
+            return de ? "Dein Tagesverbrauch geteilt durch deinen Grundumsatz. Um 1,4 ist ein Schreibtischtag, ab etwa 1,8 ein richtig aktiver. Unabhängig von Größe und Gewicht — deshalb über Tage hinweg gut vergleichbar."
+                      : "Your day's burn divided by your basal rate. Around 1.4 is a desk day, from roughly 1.8 a properly active one. Independent of height and weight, so it compares well across days."
+        case .burnPerWakingHour:
+            return de ? "Dein durchschnittlicher Verbrauch pro Stunde, seit du wach bist."
+                      : "Your average burn per hour since you woke."
+        case .neatPerThousandSteps:
+            return de ? "Was tausend Schritte bei dir tatsächlich bringen. Hängt an Gewicht und Schrittlänge — die reine Schrittzahl sagt das nicht."
+                      : "What a thousand steps are actually worth for you. Depends on weight and stride, which a raw step count never shows."
+        case .kcalPerKg:
+            return de ? "Dein Tagesverbrauch je Kilo Körpergewicht — macht Tage über Gewichtsänderungen hinweg vergleichbar."
+                      : "Your daily burn per kilo of body weight — comparable across changes in weight."
         }
     }
 }

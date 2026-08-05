@@ -81,7 +81,7 @@ struct DayNarrativeService {
         - weekly vergleicht den Tag mit dem Schnitt der letzten Tage \
         (daysCounted sagt, wie viele es sind).
         - highlights enthält fertig gerechnete Kennzahlen: Aktivanteil, \
-        Aktivitätsfaktor PAL, Nachbrennen, kcal je 1.000 Schritte, Wachstunden.
+        Nachbrennen, kcal je 1.000 Schritte, Wachstunden.
 
         Was du schreibst:
         - headline: höchstens 60 Zeichen, benennt die Richtung des Tages.
@@ -92,10 +92,10 @@ struct DayNarrativeService {
         Komponenten reichen; ist eine gegenläufig und spürbar, nenne sie als \
         Gegengewicht.
         - insight: ein einzelner Satz mit einer Beobachtung, die nicht schon \
-        im body steht. Nutze dafür highlights oder weekly — etwa was der \
-        Aktivitätsfaktor über den Tag sagt, was tausend Schritte bei dieser \
-        Person tatsächlich bringen, oder wie viel eine Einheit über ihr Ende \
-        hinaus noch kostet. Etwas, das man weitererzählen würde.
+        im body steht. Nutze dafür highlights oder weekly — etwa was tausend \
+        Schritte bei dieser Person tatsächlich bringen, wie groß der \
+        Aktivanteil ausfällt, oder wie viel eine Einheit über ihr Ende hinaus \
+        noch kostet. Etwas, das man weitererzählen würde.
 
         Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
