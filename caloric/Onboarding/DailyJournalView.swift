@@ -185,6 +185,7 @@ struct DailyJournalView: View {
             } action: { _, newValue in
                 headerCollapseProgress = newValue
             }
+            .collapsingHeaderFade(progress: headerCollapseProgress)
             .dataSyncObservers(
                 menstruationActive: $menstruationActive,
                 sickToggle: $sickToggle,

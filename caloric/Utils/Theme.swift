@@ -439,6 +439,36 @@ extension View {
         background(GlassCardBackground(cornerRadius: cornerRadius,
                                        tint: tint, tintStrength: tintStrength))
     }
+
+    /// Dissolves the top of a scroll view as its header collapses.
+    ///
+    /// Without this, content scrolling up simply passes behind the pinned date
+    /// bar and pokes out around it — a ring arc appearing above the bar reads
+    /// as a glitch rather than as depth. Masking makes it disappear on the way
+    /// there instead.
+    ///
+    /// Both bands scale with `progress`, so at rest the mask is a single opaque
+    /// rectangle and nothing is touched: the header is fully readable until the
+    /// user starts scrolling, and the fade arrives exactly as it is needed.
+    ///
+    /// - Parameters:
+    ///   - hide: band that ends up fully transparent — the pinned row's height.
+    ///   - fade: band below it that ramps back to opaque.
+    func collapsingHeaderFade(progress: Double,
+                              hide: CGFloat = 48,
+                              fade: CGFloat = 34) -> some View {
+        let p = CGFloat(min(max(progress, 0), 1))
+        return mask(
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: hide * p)
+                LinearGradient(colors: [.clear, .black],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: fade * p)
+                Color.black
+            }
+        )
+    }
 }
 
 // MARK: - Responsive Layout Metrics

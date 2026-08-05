@@ -1132,6 +1132,7 @@ struct DashboardView: View {
             // Progress is derived and clamped here rather than in the body, so
             // state only changes when the rounded value actually moves — and
             // scrolling back up reverses the whole effect for free.
+            // Attached before the mask so it sits directly on the scroll view.
             .onScrollGeometryChange(for: Double.self) { geometry in
                 let travelled = geometry.contentOffset.y + geometry.contentInsets.top
                 let raw = Double(travelled / Self.headerCollapseDistance)
@@ -1141,6 +1142,7 @@ struct DashboardView: View {
             } action: { _, newValue in
                 headerCollapseProgress = newValue
             }
+            .collapsingHeaderFade(progress: headerCollapseProgress)
             .refreshable {
                 await healthKit.fetchAll()
                 Task { @MainActor in
