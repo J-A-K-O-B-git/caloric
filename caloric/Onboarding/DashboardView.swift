@@ -988,23 +988,35 @@ struct DashboardView: View {
 
     /// Compact stand-in for the date strip: appears pinned top-left once the
     /// full strip has scrolled away, and opens the same picker.
+    ///
+    /// Deliberately the same capsule, fill and hairline as the strip it
+    /// replaces, only smaller and without the two arrows — so it reads as that
+    /// control shrunk down rather than as a different one.
     private var compactDateButton: some View {
         Button {
             showCalendarPicker = true
         } label: {
-            Image(systemName: "calendar")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(accentBlue)
-                .frame(width: 40, height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Theme.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Theme.cardStroke, lineWidth: 1)
-                        )
-                        .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
-                )
+            HStack(spacing: 7) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                Text(selectedDateString)
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    // The written-out date is long; on a narrow screen it
+                    // shrinks rather than crowding the profile button.
+                    .minimumScaleFactor(0.7)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Theme.card)
+                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
+            )
+            .contentShape(Capsule())
         }
         .buttonStyle(SpringyButtonStyle())
     }
@@ -1017,11 +1029,13 @@ struct DashboardView: View {
             HStack(spacing: 0) {
                 compactDateButton
                     .opacity(headerCollapseProgress)
-                    .scaleEffect(0.86 + 0.14 * headerCollapseProgress)
+                    // Anchored left so the bar grows out of the corner it is
+                    // pinned to instead of drifting sideways into place.
+                    .scaleEffect(0.9 + 0.1 * headerCollapseProgress, anchor: .leading)
                     // Untappable while it is still mostly transparent, so a tap
                     // meant for the content below never lands here.
                     .allowsHitTesting(headerCollapseProgress > 0.6)
-                Spacer(minLength: 0)
+                Spacer(minLength: 12)
                 profileIconButton
             }
             .frame(height: 40)
