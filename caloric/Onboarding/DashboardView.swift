@@ -70,6 +70,8 @@ struct DashboardView: View {
     @State private var nameDraft: String = ""
     @State private var showResetConfirmation = false
     @State private var showCalendarPicker = false
+    /// 0 = full header, 1 = collapsed to the pinned row. Driven by scrolling.
+    @State private var headerCollapseProgress: Double = 0
 
     // Tageserklärung
     @State private var narrativeStore = DayNarrativeStore()
@@ -969,6 +971,67 @@ struct DashboardView: View {
         }
     }
     
+    // MARK: - Collapsing header
+
+    /// Scroll distance over which the full header gives way to the pinned row.
+    /// Roughly the height of the title plus the date strip, so the swap is
+    /// finished about when they have left the screen.
+    private static let headerCollapseDistance: CGFloat = 76
+
+    /// Steps the progress is rounded to before it reaches state.
+    ///
+    /// This body is large, and a raw offset would re-evaluate all of it on
+    /// every scroll frame. Twenty steps is fine enough that the eye reads it
+    /// as continuous, especially with the short easing on the affected views,
+    /// and it cuts the re-render count by an order of magnitude.
+    private static let headerCollapseSteps: Double = 20
+
+    /// Compact stand-in for the date strip: appears pinned top-left once the
+    /// full strip has scrolled away, and opens the same picker.
+    private var compactDateButton: some View {
+        Button {
+            showCalendarPicker = true
+        } label: {
+            Image(systemName: "calendar")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(accentBlue)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Theme.card)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Theme.cardStroke, lineWidth: 1)
+                        )
+                        .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
+                )
+        }
+        .buttonStyle(SpringyButtonStyle())
+    }
+
+    /// Sits above the scroll content. The profile button never moves — it keeps
+    /// the exact position it had in the flowing header, which is why this row
+    /// carries the same height and padding as the title row below it.
+    private var pinnedHeaderRow: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                compactDateButton
+                    .opacity(headerCollapseProgress)
+                    .scaleEffect(0.86 + 0.14 * headerCollapseProgress)
+                    // Untappable while it is still mostly transparent, so a tap
+                    // meant for the content below never lands here.
+                    .allowsHitTesting(headerCollapseProgress > 0.6)
+                Spacer(minLength: 0)
+                profileIconButton
+            }
+            .frame(height: 40)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            Spacer(minLength: 0)
+        }
+        .animation(.easeOut(duration: 0.12), value: headerCollapseProgress)
+    }
+
     private var profileIconButton: some View {
         Button {
             withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
@@ -1005,14 +1068,23 @@ struct DashboardView: View {
                                 .foregroundStyle(Theme.textPrimary)
                             Spacer()
                         }
-                        .overlay(alignment: .trailing) {
-                            profileIconButton
-                        }
+                        // Fixed height, and the profile button lifted out into
+                        // pinnedHeaderRow: both so the pinned copy lands on the
+                        // exact pixel this one occupied.
+                        .frame(height: 40)
                         dateNavigationRow
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 14)
                     .padding(.bottom, 16)
+                    // Fades and drifts up as it goes, rather than only sliding
+                    // out of frame — that is what makes the swap read as one
+                    // movement instead of two things happening at once.
+                    .opacity(1 - headerCollapseProgress)
+                    .offset(y: -headerCollapseProgress * 10)
+                    .scaleEffect(1 - headerCollapseProgress * 0.04, anchor: .topLeading)
+                    .allowsHitTesting(headerCollapseProgress < 0.5)
+                    .animation(.easeOut(duration: 0.12), value: headerCollapseProgress)
 
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         calorieRingWidget
@@ -1040,6 +1112,18 @@ struct DashboardView: View {
                     }
                 }
             }
+            // Progress is derived and clamped here rather than in the body, so
+            // state only changes when the rounded value actually moves — and
+            // scrolling back up reverses the whole effect for free.
+            .onScrollGeometryChange(for: Double.self) { geometry in
+                let travelled = geometry.contentOffset.y + geometry.contentInsets.top
+                let raw = Double(travelled / Self.headerCollapseDistance)
+                let clamped = min(max(raw, 0), 1)
+                let steps = Self.headerCollapseSteps
+                return (clamped * steps).rounded() / steps
+            } action: { _, newValue in
+                headerCollapseProgress = newValue
+            }
             .refreshable {
                 await healthKit.fetchAll()
                 Task { @MainActor in
@@ -1052,6 +1136,8 @@ struct DashboardView: View {
                     }
                 }
             }
+
+            pinnedHeaderRow
 
             // Abdunkelung beim Öffnen der Leiste
             if showProfileSidebar {
