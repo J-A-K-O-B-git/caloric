@@ -1007,6 +1007,9 @@ struct DashboardView: View {
                     // The written-out date is long; on a narrow screen it
                     // shrinks rather than crowding the profile button.
                     .minimumScaleFactor(0.7)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.7))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

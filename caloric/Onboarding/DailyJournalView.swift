@@ -78,6 +78,8 @@ struct DailyJournalView: View {
 
     @State private var showSavedSummary = false
     @State private var showCalendarPicker = false
+    /// 0 = full header, 1 = collapsed to the pinned date bar.
+    @State private var headerCollapseProgress: Double = 0
     
     @Environment(JournalStore.self) private var store
     @Environment(HealthKitImportService.self) private var healthKit
@@ -153,11 +155,17 @@ struct DailyJournalView: View {
                                 .foregroundStyle(Theme.textPrimary)
                             Spacer()
                         }
+                        .frame(height: 40)
                         dateNavigationRow
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 14)
                     .padding(.bottom, 16)
+                    .opacity(1 - headerCollapseProgress)
+                    .offset(y: -headerCollapseProgress * 10)
+                    .scaleEffect(1 - headerCollapseProgress * 0.04, anchor: .topLeading)
+                    .allowsHitTesting(headerCollapseProgress < 0.5)
+                    .animation(.easeOut(duration: 0.12), value: headerCollapseProgress)
 
                     VStack(spacing: LayoutMetrics.cardSpacing) {
                         cardsSection
@@ -165,6 +173,17 @@ struct DailyJournalView: View {
                         Spacer().frame(height: 20)
                     }
                 }
+            }
+            // Rounded before it reaches state so this body is not re-evaluated
+            // on every scroll frame — see the same treatment on the dashboard.
+            .onScrollGeometryChange(for: Double.self) { geometry in
+                let travelled = geometry.contentOffset.y + geometry.contentInsets.top
+                let raw = Double(travelled / Self.headerCollapseDistance)
+                let clamped = min(max(raw, 0), 1)
+                let steps = Self.headerCollapseSteps
+                return (clamped * steps).rounded() / steps
+            } action: { _, newValue in
+                headerCollapseProgress = newValue
             }
             .dataSyncObservers(
                 menstruationActive: $menstruationActive,
@@ -178,6 +197,8 @@ struct DailyJournalView: View {
                 selectedDate: selectedDate,
                 store: store
             )
+
+            pinnedHeaderRow
 
             VStack {
                 Spacer()
@@ -488,6 +509,62 @@ struct DailyJournalView: View {
         }
         .presentationDetents([.height(440)])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - Collapsing header
+
+    /// Same travel and rounding as the dashboard, so both tabs collapse at an
+    /// identical rate — a difference between them would be felt when switching.
+    private static let headerCollapseDistance: CGFloat = 76
+    private static let headerCollapseSteps: Double = 20
+
+    /// The date strip shrunk to a bar, pinned top-left. No profile button here:
+    /// that one lives on the dashboard, and the journal's header never had it.
+    private var compactDateButton: some View {
+        Button {
+            showCalendarPicker = true
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                Text(selectedDateString)
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.7))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Theme.card)
+                    .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                    .shadow(color: Theme.cardShadow, radius: 8, x: 0, y: 3)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(SpringyButtonStyle())
+    }
+
+    private var pinnedHeaderRow: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                compactDateButton
+                    .opacity(headerCollapseProgress)
+                    .scaleEffect(0.9 + 0.1 * headerCollapseProgress, anchor: .leading)
+                    .allowsHitTesting(headerCollapseProgress > 0.6)
+                Spacer(minLength: 12)
+            }
+            .frame(height: 40)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            Spacer(minLength: 0)
+        }
+        .animation(.easeOut(duration: 0.12), value: headerCollapseProgress)
     }
 
     private var dateNavigationRow: some View {
