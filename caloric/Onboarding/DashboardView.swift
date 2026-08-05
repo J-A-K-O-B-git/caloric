@@ -2180,11 +2180,15 @@ struct DashboardView: View {
                         Circle()
                             .trim(from: 0, to: ringProgress * 0.75)
                             .stroke(
-                                Theme.ringGradient(position: ringPosition),
+                                Theme.ringArcGradient(position: ringPosition,
+                                                      progress: ringProgress),
                                 style: StrokeStyle(lineWidth: 12, lineCap: .round)
                             )
                             .rotationEffect(.degrees(135))
-                            .shadow(color: tint.opacity(0.4), radius: 8, x: 0, y: 0)
+                            // Glow in the brand blue that now dominates the
+                            // arc — a tinted halo around a mostly blue ring
+                            // would colour it far more than the stroke does.
+                            .shadow(color: accentBlue.opacity(0.35), radius: 8, x: 0, y: 0)
                             .animation(.easeInOut(duration: 0.55), value: ringPosition)
 
                         // Small Indicator Bead only today

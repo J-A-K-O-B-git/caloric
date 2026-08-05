@@ -83,21 +83,38 @@ enum Theme {
         return Color(red: c.r, green: c.g, blue: c.b)
     }
 
-    /// Zwei Stopps, der hellere führt — wie in `accentGradient`.
+    /// Anteil des gezeichneten Bogens, der Caloric-Blau bleibt.
+    private static let ringBlueShare = 0.80
+
+    /// Strich des Kalorienrings: über den Großteil des Bogens Caloric-Blau,
+    /// erst auf dem letzten Fünftel weich in den Tagesfarbton.
     ///
-    /// Der helle Partner entsteht durch Aufhellen desselben Tons, nicht durch
-    /// Weiterwandern auf der Rampe. Auf einer divergierenden Skala hieße
-    /// Weiterwandern nämlich Farbtonwechsel: ein Ring auf dem Schnitt liefe
-    /// von Gelbgrün nach Bernstein und sähe aus, als stünde er zwischen zwei
-    /// Bewertungen.
-    static func ringGradient(position: Double) -> LinearGradient {
-        let c = rampComponents(at: position)
-        let light = Color(red:   c.r + (1 - c.r) * 0.30,
-                          green: c.g + (1 - c.g) * 0.30,
-                          blue:  c.b + (1 - c.b) * 0.30)
-        return LinearGradient(
-            colors: [light, Color(red: c.r, green: c.g, blue: c.b)],
-            startPoint: .topLeading, endPoint: .bottomTrailing
+    /// Bewusst ein Winkel- und kein linearer Verlauf: Die Farbe muss dem Bogen
+    /// folgen, sonst wäre "der letzte Abschnitt" eine Ecke des Rahmens statt
+    /// das Ende des Rings.
+    ///
+    /// - Parameters:
+    ///   - position: Lage gegenüber dem Schnitt, 0…1.
+    ///   - progress: Anteil des gezeichneten Bogens, 0…1.
+    ///   - sweep: Winkel, den der Ring überstreicht.
+    static func ringArcGradient(position: Double,
+                                progress: Double,
+                                sweep: Angle = .degrees(270)) -> AngularGradient {
+        let p = min(max(progress, 0), 1)
+        // Die Stopps liegen auf dem *gezeichneten* Teil, nicht auf der ganzen
+        // Bahn. Sonst säße der Farbwechsel bei 30 % Tagesfortschritt weit
+        // hinter dem Strichende und wäre nie zu sehen.
+        let handover = max(0.0001, ringBlueShare * p)
+        let tip      = max(handover + 0.0001, p)
+        return AngularGradient(
+            gradient: Gradient(stops: [
+                .init(color: accentSky,  location: 0),
+                .init(color: accentBlue, location: handover),
+                .init(color: ringTint(position: position), location: tip)
+            ]),
+            center: .center,
+            startAngle: .degrees(0),
+            endAngle: sweep
         )
     }
 
