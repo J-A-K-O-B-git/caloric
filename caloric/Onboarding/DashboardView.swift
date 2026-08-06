@@ -9,6 +9,7 @@ import SwiftUI
 import Charts
 import HealthKit
 import SwiftData
+import Combine   // Timer.publish, für die Uhr hinter nowFraction
 
 struct DashboardView: View {
     let accentBlue: Color
@@ -78,6 +79,8 @@ struct DashboardView: View {
     @State private var showCalendarPicker = false
     /// 0 = full header, 1 = collapsed to the pinned row. Driven by scrolling.
     @State private var headerCollapseProgress: Double = 0
+    /// Drives every time-dependent figure — see `nowFraction`.
+    @State private var clockTick = Date()
 
     // Tageserklärung
     @State private var narrativeStore = DayNarrativeStore()
@@ -103,6 +106,7 @@ struct DashboardView: View {
             .first?.windows.first?.safeAreaInsets.top ?? 50
     }
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase)  private var scenePhase
     private var isDark: Bool { colorScheme == .dark }
     private var cardAlpha: Double { isDark ? 0.17 : 0.07 }
     private var controlAlpha: Double { isDark ? 0.22 : 0.10 }
@@ -335,8 +339,15 @@ struct DashboardView: View {
         return session.after * (part / whole)
     }
 
+    /// Hour of day as a fraction, read from `clockTick` rather than `Date()`.
+    ///
+    /// Everything time-dependent on this screen hangs off this one value — the
+    /// elapsed BMR, the "now" line in the chart, how far a partial day has
+    /// run. Reading the wall clock directly made all of it freeze at whatever
+    /// moment the view last happened to render, so a dashboard left open drifted
+    /// quietly out of date. Tied to state, a tick brings the whole page along.
     private var nowFraction: Double {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        let c = Calendar.current.dateComponents([.hour, .minute], from: clockTick)
         return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60.0
     }
     
@@ -489,8 +500,13 @@ struct DashboardView: View {
 
     /// Shortest gap between two automatic requests. A running day keeps nudging
     /// the numbers, and without this every HealthKit update would buy a new
-    /// generation; the manual refresh bypasses it.
-    private static let narrativeAutoInterval: TimeInterval = 120
+    /// generation; opening the app and pulling to refresh bypass it.
+    ///
+    /// Two minutes was too long: the numbers moved, the text did not, and the
+    /// card sat there flagged as stale — which is exactly the thing the flag
+    /// is supposed to warn about, not a state to park in. At a fraction of a
+    /// cent per generation, waiting is the more expensive option.
+    private static let narrativeAutoInterval: TimeInterval = 30
 
     /// Single entry point: serves the cache when it still matches, otherwise
     /// generates. Called on appear, on date change and when HealthKit reports
@@ -679,6 +695,116 @@ struct DashboardView: View {
         var caffeine = 0.0
 
         var total: Double { bmr + neat + eat + tef + caffeine }
+    }
+
+    /// Everything a tile needs for one day, for any date in the history.
+    ///
+    /// `dayComponents` throws away the activity result it computes internally,
+    /// which is all the tiles that are not pure kcal need — steps, afterburn,
+    /// the waking window. Rather than compute a day twice, this returns the
+    /// lot; `dayComponents` is left alone since half the screen calls it.
+    private struct KPIDay {
+        let components: DayComponents
+        let steps: Int
+        let afterburnKcal: Double
+        let wakingHours: Double
+        /// False when HealthKit has nothing for the day — the tile then has no
+        /// honest answer rather than a confident zero.
+        let hasActivity: Bool
+    }
+
+    private func kpiDay(for date: Date) -> KPIDay {
+        let calendar = Calendar.current
+        let components = dayComponents(for: date)
+
+        if calendar.isDate(date, inSameDayAs: selectedDate) {
+            return KPIDay(
+                components: components,
+                steps: selectedActivity.steps,
+                afterburnKcal: afterburnKcalToday,
+                wakingHours: wakingHoursElapsed,
+                hasActivity: healthKit.isAuthorized && !isSelectedFuture
+            )
+        }
+
+        guard let snap = healthKit.history[HealthKitImportService.dateKey(date)] else {
+            return KPIDay(components: components, steps: 0, afterburnKcal: 0,
+                          wakingHours: 0, hasActivity: false)
+        }
+
+        let tdee = TDEECalculationService.calculate(
+            bmrStandard: activeFinalBMR,
+            inputs: store.journalInputs(for: date),
+            isFemale: selectedGender == femaleText
+        )
+        let active = ActivityCalculationService.calculate(
+            steps: snap.activity.steps,
+            nonWorkoutSteps: snap.activity.nonWorkoutSteps,
+            nonWorkoutDistanceMeters: snap.activity.nonWorkoutDistanceMeters,
+            standTimeMinutes: snap.activity.standTimeMinutes,
+            nonWorkoutStandMinutes: snap.activity.nonWorkoutStandMinutes,
+            restingHR: snap.activity.restingHeartRate,
+            hrSegments: snap.activity.hrSegments,
+            wakeMinuteOfDay: snap.activity.wakeMinuteOfDay,
+            vo2Max: healthKit.vo2Max,
+            workouts: snap.workouts,
+            weightKg: weightInKg,
+            age: userAge,
+            isMale: selectedGender != femaleText,
+            sleepHours: sleepHours,
+            bmrDynamisch: tdee.bmrDynamisch,
+            referenceDate: date
+        )
+
+        return KPIDay(
+            components: components,
+            steps: snap.activity.steps,
+            afterburnKcal: active.workoutDetails.reduce(0) { $0 + $1.afterburnKcal },
+            wakingHours: max(0, 24.0 - sleepHours),
+            hasActivity: true
+        )
+    }
+
+    /// The tile's figure for a past day, or nil when the day cannot answer it.
+    /// Deliberately numeric — the table needs to scale bars against it, which
+    /// the formatted strings in `kpiReading` cannot support.
+    private func kpiNumericValue(_ kpi: DashboardKPI, on date: Date) -> Double? {
+        let day = kpiDay(for: date)
+        let c = day.components
+        guard c.total > 0 else { return nil }
+        let hasActivity = day.hasActivity
+
+        switch kpi {
+        case .dayEstimate:  return c.total
+        case .bmr:          return c.bmr
+        case .activeBurn:   return hasActivity ? c.neat + c.eat : nil
+        case .neat:         return hasActivity ? c.neat : nil
+        case .eat:          return hasActivity ? c.eat : nil
+        case .afterburn:    return hasActivity ? day.afterburnKcal : nil
+
+        case .bmrShare:     return c.bmr / c.total * 100
+        case .tefShare:     return c.tef / c.total * 100
+        case .activeShare:  return hasActivity ? (c.neat + c.eat) / c.total * 100 : nil
+        case .neatShare:    return hasActivity ? c.neat / c.total * 100 : nil
+        case .eatShare:     return hasActivity ? c.eat / c.total * 100 : nil
+        case .afterburnShareOfWorkout:
+            guard hasActivity, c.eat > 0 else { return nil }
+            return day.afterburnKcal / c.eat * 100
+
+        case .palFactor:    return c.bmr > 0 ? c.total / c.bmr : nil
+        case .kcalPerKg:    return weightInKg > 0 ? c.total / weightInKg : nil
+        case .burnPerWakingHour:
+            return day.wakingHours > 0.5 ? c.total / day.wakingHours : nil
+        case .neatPerThousandSteps:
+            guard hasActivity, day.steps > 0 else { return nil }
+            return c.neat / Double(day.steps) * 1000
+
+        // Comparisons against a moving baseline. A fortnight of "% vs. the day
+        // before" would be a table of second derivatives — true, and unreadable.
+        // These tiles show their own history as the underlying total instead.
+        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage:
+            return c.total
+        }
     }
 
     private func dayComponents(for date: Date) -> DayComponents {
@@ -1150,6 +1276,11 @@ struct DashboardView: View {
             .collapsingHeaderFade(progress: headerCollapseProgress)
             .refreshable {
                 await healthKit.fetchAll()
+                clockTick = Date()
+                runBurnAnimation()
+                // A deliberate reload should never leave yesterday's wording
+                // sitting above today's numbers.
+                await refreshNarrative(force: true)
                 Task { @MainActor in
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                         showRefreshBadge = true
@@ -1235,6 +1366,24 @@ struct DashboardView: View {
         // History arrives after the first fetch, so the average would otherwise
         // stay empty until the next refresh and the ring stay neutral.
         .onChange(of: healthKit.history.count) { _, _ in updateTrailingAverage() }
+        // Coming back to the app is the moment the numbers are most likely to
+        // be wrong — minutes or hours have passed with nothing running. Pull
+        // everything fresh and regenerate the note unconditionally.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            clockTick = Date()
+            Task {
+                await healthKit.fetchAll()
+                runBurnAnimation()
+                await refreshNarrative(force: true)
+            }
+        }
+        // Keeps a dashboard left open honest: the elapsed BMR, the "now" line
+        // and the partial-day comparisons all move with the clock.
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { tick in
+            clockTick = tick
+            Task { await refreshNarrative() }
+        }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
         }
@@ -2429,7 +2578,7 @@ struct DashboardView: View {
                 spacing: 10
             ) {
                 ForEach(Array(activeKPITiles.enumerated()), id: \.element.id) { index, kpi in
-                    kpiBox(kpi)
+                    reorderable(kpi, kpiBox(kpi))
                     .overlay(alignment: .topTrailing) {
                         if isEditingKPIs { removeBadge(for: kpi) }
                     }
@@ -2464,6 +2613,51 @@ struct DashboardView: View {
         }
         .sensoryFeedback(.impact, trigger: isEditingKPIs)
         .sheet(isPresented: $showKPIPicker) { kpiPickerSheet }
+        .sheet(item: $kpiInfoShown) { kpiDetailSheet($0) }
+    }
+
+    /// Drag-to-reorder, but only while editing.
+    ///
+    /// Applied unconditionally the drag would fight the scroll view for every
+    /// press, and the tap that opens a tile's history would become a gamble.
+    /// The raw value travels as the payload rather than making the enum
+    /// Transferable — String already is, and one line of conformance is not
+    /// worth a new dependency on UniformTypeIdentifiers.
+    @ViewBuilder
+    private func reorderable(_ kpi: DashboardKPI, _ tile: some View) -> some View {
+        if isEditingKPIs {
+            tile
+                .draggable(kpi.rawValue) {
+                    tile
+                        .frame(width: 120)
+                        .opacity(0.9)
+                }
+                .dropDestination(for: String.self) { items, _ in
+                    guard let raw = items.first,
+                          let dragged = DashboardKPI(rawValue: raw) else { return false }
+                    moveKPI(dragged, before: kpi)
+                    return true
+                }
+        } else {
+            tile
+        }
+    }
+
+    /// Puts `dragged` where `target` currently sits.
+    ///
+    /// The insertion index is looked up *after* the removal — taken before, it
+    /// would be off by one whenever a tile moves rightwards, which is half of
+    /// all drags.
+    private func moveKPI(_ dragged: DashboardKPI, before target: DashboardKPI) {
+        guard dragged != target else { return }
+        var tiles = activeKPITiles
+        guard let from = tiles.firstIndex(of: dragged) else { return }
+        tiles.remove(at: from)
+        let insertAt = tiles.firstIndex(of: target) ?? tiles.count
+        tiles.insert(dragged, at: insertAt)
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            kpiTilesRaw = DashboardKPI.encode(tiles)
+        }
     }
 
     private func jiggleAngle(index: Int) -> Double {
@@ -2534,6 +2728,135 @@ struct DashboardView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Kachel-Detail
+
+    /// Explanation plus a fortnight of the same figure. No chart: fourteen
+    /// rows fit on one screen, read exactly, and a table cannot mislead about
+    /// a gap the way a smoothed line can.
+    private func kpiDetailSheet(_ kpi: DashboardKPI) -> some View {
+        let calendar = Calendar.current
+        let days: [(date: Date, value: Double?)] = (0..<14).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: selectedDate)
+            else { return nil }
+            return (date, kpiNumericValue(kpi, on: date))
+        }
+        let known = days.compactMap(\.value)
+        // Bars are scaled from zero to the fortnight's peak. Scaling to the
+        // range instead would stretch a quiet fortnight into drama.
+        let peak = known.max() ?? 0
+        let average = known.isEmpty ? nil : known.reduce(0, +) / Double(known.count)
+        let unit = kpi.tableUnit(language: language)
+
+        return NavigationStack {
+            ZStack {
+                CaloricBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text(kpi.explanation(language: language))
+                            .font(.poppins(size: 13, weight: .regular))
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineSpacing(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .glassCard(16)
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(language == "de" ? "Letzte 14 Tage" : "Last 14 days")
+                                    .font(.poppins(size: 14, weight: .semibold))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Spacer()
+                                if let average {
+                                    Text((language == "de" ? "Ø " : "avg ")
+                                         + kpi.formatted(average) + (unit.isEmpty ? "" : " " + unit))
+                                        .font(.poppins(size: 12, weight: .medium))
+                                        .foregroundStyle(accentBlue)
+                                }
+                            }
+
+                            if let caption = kpi.tableCaption(language: language) {
+                                Text(caption)
+                                    .font(.poppins(size: 11, weight: .regular))
+                                    .foregroundStyle(Theme.textSecondary.opacity(0.8))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            VStack(spacing: 0) {
+                                ForEach(Array(days.enumerated()), id: \.offset) { index, row in
+                                    kpiHistoryRow(kpi, date: row.date, value: row.value,
+                                                  peak: peak, unit: unit)
+                                    if index < days.count - 1 {
+                                        Divider().overlay(Theme.divider)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
+                            .glassCard(16)
+                        }
+
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                }
+            }
+            .navigationTitle(kpi.title(language: language))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(t.done) { kpiInfoShown = nil }
+                        .foregroundStyle(accentBlue)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .caloricAppearance()
+        .presentationDetents([.large])
+        .presentationBackground(Theme.canvas)
+    }
+
+    private func kpiHistoryRow(_ kpi: DashboardKPI, date: Date,
+                               value: Double?, peak: Double, unit: String) -> some View {
+        let isToday = Calendar.current.isDate(date, inSameDayAs: selectedDate)
+        let share = (peak > 0 && value != nil) ? min(1, max(0, value! / peak)) : 0
+        return HStack(spacing: 12) {
+            Text(kpiRowDateFormatter.string(from: date))
+                .font(.poppins(size: 12, weight: isToday ? .semibold : .regular))
+                .foregroundStyle(isToday ? Theme.textPrimary : Theme.textSecondary)
+                .frame(width: 74, alignment: .leading)
+
+            GeometryReader { geo in
+                Capsule()
+                    .fill(Theme.trackFill)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(isToday ? accentBlue : accentBlue.opacity(0.45))
+                            .frame(width: geo.size.width * share)
+                    }
+                    .clipShape(Capsule())
+            }
+            .frame(height: 5)
+
+            // Days HealthKit never saw print an em dash. A zero would read as
+            // "you did nothing", which is a different claim entirely.
+            Text(value.map { kpi.formatted($0) + (unit.isEmpty ? "" : " " + unit) } ?? "—")
+                .font(.poppins(size: 12, weight: isToday ? .semibold : .regular))
+                .foregroundStyle(value == nil ? Theme.textSecondary.opacity(0.5)
+                                              : Theme.textPrimary)
+                .frame(width: 78, alignment: .trailing)
+        }
+        .padding(.vertical, 9)
+    }
+
+    private var kpiRowDateFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        f.setLocalizedDateFormatFromTemplate("EEE d.M.")
+        return f
     }
 
     private var kpiPickerSheet: some View {
@@ -2647,39 +2970,24 @@ struct DashboardView: View {
                 .fill(Theme.card)
                 .shadow(color: Theme.cardShadow, radius: 12, x: 0, y: 4)
         )
-        // Hidden in edit mode: the remove badge owns this corner there, and
-        // two controls a thumb apart would be a coin toss.
+        // A chart glyph rather than an "i": the sheet behind it carries a
+        // fortnight of history, and an info mark would promise only a
+        // definition. Hidden in edit mode, where the remove badge owns this
+        // corner and two controls a thumb apart would be a coin toss.
         .overlay(alignment: .topTrailing) {
             if !isEditingKPIs {
-                Button { kpiInfoShown = kpi } label: {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary.opacity(0.45))
-                        .padding(9)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.4))
+                    .padding(10)
             }
         }
-        .popover(isPresented: Binding(
-            get: { kpiInfoShown == kpi },
-            set: { if !$0 { kpiInfoShown = nil } }
-        )) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(kpi.title(language: language))
-                    .font(.poppins(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Text(kpi.explanation(language: language))
-                    .font(.poppins(size: 12, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-            .frame(width: 250)
-            // Without this a popover becomes a full sheet on iPhone, which is
-            // far too much ceremony for two sentences.
-            .presentationCompactAdaptation(.popover)
+        // The whole tile is the target, not just the glyph — a 40pt corner is
+        // a poor hit area for the one thing every tile can do.
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .onTapGesture {
+            guard !isEditingKPIs else { return }
+            kpiInfoShown = kpi
         }
     }
 
@@ -3522,6 +3830,45 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .burnPerWakingHour:    return de ? "kcal je Wachstunde" : "kcal per waking hour"
         case .neatPerThousandSteps: return de ? "kcal je 1.000 Schritte" : "kcal per 1,000 steps"
         case .kcalPerKg:            return de ? "kcal je kg Körpergewicht" : "kcal per kg body weight"
+        }
+    }
+
+    /// Unit shown beside each value in the history table.
+    ///
+    /// The three comparison tiles have no history of their own — a fortnight
+    /// of "% versus the day before" would be a column of second derivatives.
+    /// They show the day total they are derived from, so their unit is kcal.
+    func tableUnit(language: String) -> String {
+        switch self {
+        case .palFactor:
+            return ""
+        case .bmrShare, .activeShare, .neatShare, .eatShare, .tefShare,
+             .afterburnShareOfWorkout:
+            return "%"
+        default:
+            return "kcal"
+        }
+    }
+
+    /// Set only where the table shows something other than the tile itself.
+    func tableCaption(language: String) -> String? {
+        let de = language == "de"
+        switch self {
+        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage:
+            return de ? "Tagesverbrauch, aus dem der Vergleich entsteht"
+                      : "The daily burn the comparison is drawn from"
+        case .burnPerWakingHour:
+            return de ? "kcal je Stunde wach" : "kcal per hour awake"
+        default:
+            return nil
+        }
+    }
+
+    func formatted(_ value: Double) -> String {
+        switch self {
+        case .palFactor: return String(format: "%.2f", value)
+        case .kcalPerKg: return String(format: "%.1f", value)
+        default:         return String(format: "%.0f", value)
         }
     }
 

@@ -95,22 +95,49 @@ struct DayNarrativeCard: View {
             // Set apart from the body on purpose: this is the line worth
             // staying for, and it should not read as a third sentence.
             if !narrative.insight.isEmpty {
-                HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: "lightbulb.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(accentBlue)
-                        .padding(.top, 1)
-                    Text(narrative.insight)
-                        .font(.poppins(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.textPrimary.opacity(0.85))
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.top, 7)
+                insightBlock(narrative.insight)
+                    .padding(.top, 9)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// The insight, as its own small panel rather than a bulleted line.
+    ///
+    /// A lightbulb is the most worn-out symbol in software, and hanging one
+    /// beside a sentence still leaves it looking like part of the paragraph.
+    /// Giving the line its own surface, a hairline and a label does the work
+    /// the icon was failing to do: the eye lands here separately, and it is
+    /// obvious this is a find rather than a continuation.
+    private func insightBlock(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 8, weight: .bold))
+                Text(language == "de" ? "WUSSTEST DU?" : "DID YOU KNOW?")
+                    .font(.poppins(size: 8, weight: .bold))
+                    .kerning(1.2)
+            }
+            .foregroundStyle(aiGradient)
+
+            Text(text)
+                .font(.poppins(size: 11.5, weight: .medium))
+                .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                .lineSpacing(2.5)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(aiGradient.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(aiGradient.opacity(0.22), lineWidth: 0.8)
+                )
+        )
     }
 
     /// Three sweeping bars while the first text is on its way.
