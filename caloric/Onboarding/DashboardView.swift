@@ -2315,7 +2315,7 @@ struct DashboardView: View {
         .onTapGesture {
             showCalorieDetail = true
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 10)
     }
 
     private var activeKPITiles: [DashboardKPI] { DashboardKPI.decode(kpiTilesRaw) }
@@ -3501,10 +3501,10 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         switch self {
         case .dayEstimate:   return de ? "Schätzung für den kompletten Tag" : "Estimate for the full day"
         case .activeBurn:    return de ? "Aktiver Kalorienverbrauch" : "Active calorie burn"
-        case .neat:          return de ? "Alltagsbewegung (NEAT)" : "Everyday movement (NEAT)"
-        case .eat:           return de ? "Workout-Kalorien (EAT)" : "Workout calories (EAT)"
+        case .neat:          return de ? "NEAT" : "NEAT"
+        case .eat:           return de ? "EAT" : "EAT"
         case .bmr:           return de ? "Grundumsatz" : "Basal metabolic rate"
-        case .afterburn:     return de ? "Nachbrennen (EPOC)" : "Afterburn (EPOC)"
+        case .afterburn:     return de ? "EPOC" : "EPOC"
 
         case .vsYesterday:          return de ? "% vs. Gestern" : "% vs. yesterday"
         case .vsSevenDayAverage:    return de ? "% vs. Ø 7 Tage" : "% vs. 7-day avg"
@@ -3518,7 +3518,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .afterburnShareOfWorkout:
             return de ? "% Nachbrennen am Sport" : "% afterburn of workout"
 
-        case .palFactor:            return de ? "Aktivitätsfaktor (PAL)" : "Activity factor (PAL)"
+        case .palFactor:            return de ? "PAL" : "PAL"
         case .burnPerWakingHour:    return de ? "kcal je Wachstunde" : "kcal per waking hour"
         case .neatPerThousandSteps: return de ? "kcal je 1.000 Schritte" : "kcal per 1,000 steps"
         case .kcalPerKg:            return de ? "kcal je kg Körpergewicht" : "kcal per kg body weight"
@@ -3534,14 +3534,14 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         let de = language == "de"
         switch self {
         case .dayEstimate:
-            return de ? "Was du an diesem Tag voraussichtlich insgesamt verbrennst — Grundumsatz, Alltag, Sport und Verdauung zusammen."
-                      : "What you are on track to burn across the whole day — basal, everyday movement, workouts and digestion together."
+            return de ? "Was du an diesem Tag voraussichtlich insgesamt verbrennst. Inklusive Grundumsatz, Alltag, Sport und Verdauung zusammen."
+                      : "The total number of calories you're expected to burn that day. This includes your basal metabolic rate, daily activities, exercise, and digestion combined."
         case .activeBurn:
             return de ? "Alles, was durch Bewegung dazukam: Alltagsbewegung plus Training. Ohne Grundumsatz."
                       : "Everything movement added: everyday activity plus training. Basal burn excluded."
         case .neat:
-            return de ? "Alltagsbewegung außerhalb des Trainings — Gehen, Stehen, Treppen, Unruhe. Oft der größte Hebel im Tag."
-                      : "Everyday movement outside training — walking, standing, stairs, fidgeting. Often the biggest lever in a day."
+            return de ? "Alltagsbewegung außerhalb des Trainings. Inklusive Gehen, Stehen, Treppen, Unruhe. Oft der größte Hebel im Tag."
+                      : "Everyday physical activity outside of exercise. This includes walking, standing, climbing stairs, and moving around. Often the most effective way to stay active throughout the day."
         case .eat:
             return de ? "Was deine Trainingseinheiten gekostet haben, Nachbrennen eingerechnet."
                       : "What your sessions cost, afterburn included."
@@ -3566,8 +3566,8 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
             return de ? "Wie viel Prozent des Tages allein auf den Grundumsatz entfallen. Ein hoher Wert heißt: ruhiger Tag."
                       : "How much of the day was basal burn alone. A high figure means a quiet day."
         case .activeShare:
-            return de ? "Wie viel Prozent des Tages du dir durch Bewegung verdient hast — Alltag und Sport zusammen."
-                      : "How much of the day you earned through movement — everyday activity and training together."
+            return de ? "Wie viel Prozent des Tages du dir durch Bewegung verdient hast. Alltag und Sport zusammen."
+                      : "How much of the day you earned through movement. Everyday activity and training together."
         case .neatShare:
             return de ? "Der Anteil des Tages, der aus Alltagsbewegung kam."
                       : "The share of the day that came from everyday movement."
@@ -3582,17 +3582,17 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
                       : "How much of your training burn lands after the session rather than during it."
 
         case .palFactor:
-            return de ? "Dein Tagesverbrauch geteilt durch deinen Grundumsatz. Um 1,4 ist ein Schreibtischtag, ab etwa 1,8 ein richtig aktiver. Unabhängig von Größe und Gewicht — deshalb über Tage hinweg gut vergleichbar."
+            return de ? "Dein Tagesverbrauch geteilt durch deinen Grundumsatz. Um 1,4 ist ein Schreibtischtag, ab etwa 1,8 ein richtig aktiver. Unabhängig von Größe und Gewicht, deshalb über Tage hinweg gut vergleichbar."
                       : "Your day's burn divided by your basal rate. Around 1.4 is a desk day, from roughly 1.8 a properly active one. Independent of height and weight, so it compares well across days."
         case .burnPerWakingHour:
             return de ? "Dein durchschnittlicher Verbrauch pro Stunde, seit du wach bist."
                       : "Your average burn per hour since you woke."
         case .neatPerThousandSteps:
-            return de ? "Was tausend Schritte bei dir tatsächlich bringen. Hängt an Gewicht und Schrittlänge — die reine Schrittzahl sagt das nicht."
+            return de ? "Was tausend Schritte bei dir tatsächlich bringen. Hängt an Gewicht und Schrittlänge, die reine Schrittzahl sagt das nicht."
                       : "What a thousand steps are actually worth for you. Depends on weight and stride, which a raw step count never shows."
         case .kcalPerKg:
-            return de ? "Dein Tagesverbrauch je Kilo Körpergewicht — macht Tage über Gewichtsänderungen hinweg vergleichbar."
-                      : "Your daily burn per kilo of body weight — comparable across changes in weight."
+            return de ? "Dein Tagesverbrauch je Kilo Körpergewicht. Diese Kennzahl macht Tage über Gewichtsänderungen hinweg vergleichbar."
+                      : "Your daily intake per kilogram of body weight. This metric allows you to compare days across different weights."
         }
     }
 }
