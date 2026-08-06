@@ -1276,8 +1276,10 @@ struct DashboardView: View {
             .collapsingHeaderFade(progress: headerCollapseProgress)
             .refreshable {
                 await healthKit.fetchAll()
-                clockTick = Date()
-                runBurnAnimation()
+                await MainActor.run {
+                    clockTick = Date()
+                    runBurnAnimation()
+                }
                 // A deliberate reload should never leave yesterday's wording
                 // sitting above today's numbers.
                 await refreshNarrative(force: true)
@@ -1371,18 +1373,27 @@ struct DashboardView: View {
         // everything fresh and regenerate the note unconditionally.
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            clockTick = Date()
-            Task {
+            Task { @MainActor in
+                clockTick = Date()
                 await healthKit.fetchAll()
                 runBurnAnimation()
                 await refreshNarrative(force: true)
             }
         }
-        // Keeps a dashboard left open honest: the elapsed BMR, the "now" line
-        // and the partial-day comparisons all move with the clock.
+        // Keeps a dashboard left open honest: the elapsed BMR, the "now" line,
+        // the partial-day comparisons and the ring's own figure all move with
+        // the clock.
+        //
+        // Deliberately no narrative regeneration here. The fingerprint shifts
+        // every few minutes as the day accrues, so a request on every tick
+        // would mean a paid call every few minutes for an app merely left
+        // open — and a card quietly rewriting itself while being read. The
+        // note already regenerates on the three moments that matter: coming
+        // back to the app, pulling to refresh, and HealthKit delivering new
+        // data.
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { tick in
             clockTick = tick
-            Task { await refreshNarrative() }
+            syncBurnFigure()
         }
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
@@ -1405,6 +1416,22 @@ struct DashboardView: View {
                 nowFraction: nowFraction
             )
             .caloricAppearance()
+        }
+    }
+
+    /// Brings the ring to the current figure without replaying the count-up.
+    ///
+    /// animatedBurn is written only by runBurnAnimation, so a clock tick moved
+    /// the chart and the tiles but left the ring's headline number frozen at
+    /// whatever it was when the animation last ran — the one number on the
+    /// screen still going stale. Replaying the full count-up every minute
+    /// would be a distraction, so this just eases across.
+    @MainActor
+    private func syncBurnFigure() {
+        guard !isSelectedFuture else { return }
+        withAnimation(.easeOut(duration: 0.4)) {
+            animatedBurn = displayBurnedSoFar
+            ringProgress = displayBurnProgress
         }
     }
 
