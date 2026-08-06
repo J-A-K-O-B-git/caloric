@@ -2732,9 +2732,11 @@ struct DashboardView: View {
 
     // MARK: - Kachel-Detail
 
-    /// Explanation plus a fortnight of the same figure. No chart: fourteen
-    /// rows fit on one screen, read exactly, and a table cannot mislead about
-    /// a gap the way a smoothed line can.
+    /// Explanation plus a fortnight of the same figure as a column chart —
+    /// days along the x-axis, the value up the y-axis. Columns rather than a
+    /// line on purpose: each day is a separate measurement, not a sample of a
+    /// continuous curve, and a day with no data shows as an honest gap
+    /// instead of being interpolated over.
     private func kpiDetailSheet(_ kpi: DashboardKPI) -> some View {
         let calendar = Calendar.current
         let days: [(date: Date, value: Double?)] = (0..<14).compactMap { offset in
@@ -2743,9 +2745,6 @@ struct DashboardView: View {
             return (date, kpiNumericValue(kpi, on: date))
         }
         let known = days.compactMap(\.value)
-        // Bars are scaled from zero to the fortnight's peak. Scaling to the
-        // range instead would stretch a quiet fortnight into drama.
-        let peak = known.max() ?? 0
         let average = known.isEmpty ? nil : known.reduce(0, +) / Double(known.count)
         let unit = kpi.tableUnit(language: language)
 
@@ -2784,17 +2783,47 @@ struct DashboardView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
-                            VStack(spacing: 0) {
-                                ForEach(Array(days.enumerated()), id: \.offset) { index, row in
-                                    kpiHistoryRow(kpi, date: row.date, value: row.value,
-                                                  peak: peak, unit: unit)
-                                    if index < days.count - 1 {
-                                        Divider().overlay(Theme.divider)
+                            Chart {
+                                ForEach(Array(days.enumerated()), id: \.offset) { _, row in
+                                    if let value = row.value {
+                                        BarMark(
+                                            x: .value("Tag", row.date, unit: .day),
+                                            y: .value(unit.isEmpty ? "Wert" : unit, value)
+                                        )
+                                        .foregroundStyle(
+                                            calendar.isDate(row.date, inSameDayAs: selectedDate)
+                                                ? AnyShapeStyle(Theme.accentGradient)
+                                                : AnyShapeStyle(accentBlue.opacity(0.45))
+                                        )
+                                        .cornerRadius(3)
                                     }
                                 }
+
+                                if let average {
+                                    RuleMark(y: .value("Ø", average))
+                                        .foregroundStyle(Theme.textSecondary.opacity(0.45))
+                                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                                }
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 4)
+                            .frame(height: 200)
+                            .chartXAxis {
+                                AxisMarks(values: .stride(by: .day, count: 2)) { _ in
+                                    AxisValueLabel(format: .dateTime.day().month(.defaultDigits),
+                                                   centered: true)
+                                        .font(.poppins(size: 9, weight: .regular))
+                                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                                    AxisGridLine().foregroundStyle(.clear)
+                                }
+                            }
+                            .chartYAxis {
+                                AxisMarks(position: .leading) { _ in
+                                    AxisGridLine().foregroundStyle(Theme.divider)
+                                    AxisValueLabel()
+                                        .font(.poppins(size: 9, weight: .regular))
+                                        .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                                }
+                            }
+                            .padding(14)
                             .glassCard(16)
                         }
 
@@ -2817,46 +2846,6 @@ struct DashboardView: View {
         .caloricAppearance()
         .presentationDetents([.large])
         .presentationBackground(Theme.canvas)
-    }
-
-    private func kpiHistoryRow(_ kpi: DashboardKPI, date: Date,
-                               value: Double?, peak: Double, unit: String) -> some View {
-        let isToday = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let share = (peak > 0 && value != nil) ? min(1, max(0, value! / peak)) : 0
-        return HStack(spacing: 12) {
-            Text(kpiRowDateFormatter.string(from: date))
-                .font(.poppins(size: 12, weight: isToday ? .semibold : .regular))
-                .foregroundStyle(isToday ? Theme.textPrimary : Theme.textSecondary)
-                .frame(width: 74, alignment: .leading)
-
-            GeometryReader { geo in
-                Capsule()
-                    .fill(Theme.trackFill)
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(isToday ? accentBlue : accentBlue.opacity(0.45))
-                            .frame(width: geo.size.width * share)
-                    }
-                    .clipShape(Capsule())
-            }
-            .frame(height: 5)
-
-            // Days HealthKit never saw print an em dash. A zero would read as
-            // "you did nothing", which is a different claim entirely.
-            Text(value.map { kpi.formatted($0) + (unit.isEmpty ? "" : " " + unit) } ?? "—")
-                .font(.poppins(size: 12, weight: isToday ? .semibold : .regular))
-                .foregroundStyle(value == nil ? Theme.textSecondary.opacity(0.5)
-                                              : Theme.textPrimary)
-                .frame(width: 78, alignment: .trailing)
-        }
-        .padding(.vertical, 9)
-    }
-
-    private var kpiRowDateFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
-        f.setLocalizedDateFormatFromTemplate("EEE d.M.")
-        return f
     }
 
     private var kpiPickerSheet: some View {
