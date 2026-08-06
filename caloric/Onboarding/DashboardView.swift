@@ -56,6 +56,8 @@ struct DashboardView: View {
     @State private var showKPIPicker = false
     /// Which tile is currently explaining itself, if any.
     @State private var kpiInfoShown: DashboardKPI? = nil
+    /// Day picked in that tile's history chart, if the user is touching it.
+    @State private var kpiChartSelection: Date? = nil
     /// One-time move: PAL was pulled out of the day narrative and belongs on
     /// the dashboard instead. Changing the default alone would never reach a
     /// layout the user has already saved.
@@ -2640,7 +2642,9 @@ struct DashboardView: View {
         }
         .sensoryFeedback(.impact, trigger: isEditingKPIs)
         .sheet(isPresented: $showKPIPicker) { kpiPickerSheet }
-        .sheet(item: $kpiInfoShown) { kpiDetailSheet($0) }
+        .sheet(item: $kpiInfoShown, onDismiss: { kpiChartSelection = nil }) {
+            kpiDetailSheet($0)
+        }
     }
 
     /// Drag-to-reorder, but only while editing.
@@ -2831,8 +2835,55 @@ struct DashboardView: View {
                                         .foregroundStyle(Theme.textSecondary.opacity(0.45))
                                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
                                 }
+
+                                // Same bubble the day chart on the overview
+                                // uses, hung off an invisible rule so it
+                                // tracks the touched column.
+                                if let picked = kpiChartSelection,
+                                   let row = days.first(where: {
+                                       calendar.isDate($0.date, inSameDayAs: picked)
+                                   }) {
+                                    RuleMark(x: .value("Auswahl", row.date, unit: .day))
+                                        .foregroundStyle(.clear)
+                                        .annotation(
+                                            position: .top,
+                                            spacing: 6,
+                                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                                        ) {
+                                            kpiChartBubble(kpi, date: row.date,
+                                                           value: row.value, unit: unit)
+                                        }
+                                }
                             }
                             .frame(height: 200)
+                            .chartOverlay { proxy in
+                                GeometryReader { geo in
+                                    Rectangle().fill(.clear).contentShape(Rectangle())
+                                        .gesture(
+                                            DragGesture(minimumDistance: 0)
+                                                .onChanged { drag in
+                                                    let origin = geo[proxy.plotAreaFrame].origin
+                                                    let x = drag.location.x - origin.x
+                                                    guard let touched: Date = proxy.value(atX: x)
+                                                    else { return }
+                                                    // Nearest column, so a touch
+                                                    // between two bars still picks one.
+                                                    let nearest = days.min {
+                                                        abs($0.date.timeIntervalSince(touched))
+                                                            < abs($1.date.timeIntervalSince(touched))
+                                                    }
+                                                    withAnimation(.easeOut(duration: 0.08)) {
+                                                        kpiChartSelection = nearest?.date
+                                                    }
+                                                }
+                                                .onEnded { _ in
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        kpiChartSelection = nil
+                                                    }
+                                                }
+                                        )
+                                }
+                            }
                             .chartXAxis {
                                 AxisMarks(values: .stride(by: .day, count: 2)) { _ in
                                     AxisValueLabel(format: .dateTime.day().month(.defaultDigits),
@@ -2873,6 +2924,27 @@ struct DashboardView: View {
         .caloricAppearance()
         .presentationDetents([.large])
         .presentationBackground(Theme.canvas)
+    }
+
+    /// Reads exactly like the tooltip on the overview's day chart: one dark
+    /// capsule, white text, date and value separated by a middot.
+    private func kpiChartBubble(_ kpi: DashboardKPI, date: Date,
+                                value: Double?, unit: String) -> some View {
+        let reading = value.map { kpi.formatted($0) + (unit.isEmpty ? "" : " " + unit) }
+            ?? (language == "de" ? "keine Daten" : "no data")
+        return Text("\(kpiBubbleDateFormatter.string(from: date)) · \(reading)")
+            .font(.poppins(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(isDark ? Color(white: 0.22) : Color(white: 0.12)))
+    }
+
+    private var kpiBubbleDateFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        f.setLocalizedDateFormatFromTemplate("EEEEd.M.")
+        return f
     }
 
     private var kpiPickerSheet: some View {
