@@ -80,6 +80,77 @@ struct DailyJournalView: View {
     @State private var showCalendarPicker = false
     /// 0 = full header, 1 = collapsed to the pinned date bar.
     @State private var headerCollapseProgress: Double = 0
+
+    // MARK: - Check-in
+
+    /// Date key of the last finished check-in. An explicit marker rather than
+    /// "has anything been entered": answering no to every question is a
+    /// complete check-in, and is indistinguishable from an untouched day.
+    @AppStorage("journal.checkInCompletedFor") private var checkInCompletedFor = ""
+    @State private var checkInStep = 0
+    /// Single question opened from the summary, without walking the flow.
+    @State private var editingStep: CheckInStep? = nil
+
+    enum CheckInStep: String, CaseIterable, Identifiable {
+        case menstruation, sickness, caffeine, macros
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .menstruation: return "drop.fill"
+            case .sickness:     return "thermometer.medium"
+            case .caffeine:     return "cup.and.heat.waves.fill"
+            case .macros:       return "fork.knife"
+            }
+        }
+
+        func question(language: String) -> String {
+            let de = language == "de"
+            switch self {
+            case .menstruation: return de ? "Hast du deine Periode?" : "Are you on your period?"
+            case .sickness:     return de ? "Bist du krank?" : "Are you unwell?"
+            case .caffeine:     return de ? "Wie viel Koffein heute?" : "How much caffeine today?"
+            case .macros:       return de ? "Was hast du gegessen?" : "What did you eat?"
+            }
+        }
+
+        /// Why the question is asked. Every one of these costs a tap, and a
+        /// tap is easier to give when the reason is on the screen.
+        func reason(language: String) -> String {
+            let de = language == "de"
+            switch self {
+            case .menstruation:
+                return de ? "In der zweiten Zyklushälfte liegt dein Grundumsatz rund 5 % höher."
+                          : "Your basal rate runs about 5 % higher in the luteal phase."
+            case .sickness:
+                return de ? "Fieber treibt den Grundumsatz um 10 bis 18 % nach oben."
+                          : "A fever pushes basal burn up by 10 to 18 %."
+            case .caffeine:
+                return de ? "Koffein hebt den Umsatz leicht an — bis zu 60 kcal am Tag."
+                          : "Caffeine lifts expenditure slightly — up to 60 kcal a day."
+            case .macros:
+                return de ? "Die Verdauung ist nach Grundumsatz und Alltag der größte Posten des Tages."
+                          : "Digestion is the third largest part of your day."
+            }
+        }
+    }
+
+    /// Steps in order, menstruation only where it applies.
+    private var checkInSteps: [CheckInStep] {
+        selectedGender == femaleText
+            ? CheckInStep.allCases
+            : CheckInStep.allCases.filter { $0 != .menstruation }
+    }
+
+    private var checkInIsDone: Bool {
+        checkInCompletedFor == DateKey.string(from: selectedDate)
+    }
+
+    /// The flow runs for today only. A past day is something you correct, not
+    /// something you check in for, so those open straight into the summary.
+    private var showsCheckInFlow: Bool {
+        Calendar.current.isDateInToday(selectedDate) && !checkInIsDone && !isFutureDate
+    }
     
     @Environment(JournalStore.self) private var store
     @Environment(HealthKitImportService.self) private var healthKit
@@ -144,6 +215,51 @@ struct DailyJournalView: View {
         ZStack {
             CaloricBackground()
 
+            if showsCheckInFlow {
+                // A check-in is a focused task: no collapsing header, no page
+                // to scroll past, just the question in front of you.
+                checkInFlow
+                    .transition(.opacity)
+            } else {
+                journalOverview
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.28), value: showsCheckInFlow)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Attached here rather than to the overview: the flow edits the same
+        // values, and left below the switch nothing typed in a slide would
+        // ever reach the store.
+        .dataSyncObservers(
+            menstruationActive: $menstruationActive,
+            sickToggle: $sickToggle,
+            sickEnergyLevel: $sickEnergyLevel,
+            feverLevel: $feverLevel,
+            caffeineText: $caffeineText,
+            proteinByMeal: $proteinByMeal,
+            carbsByMeal: $carbsByMeal,
+            fatByMeal: $fatByMeal,
+            selectedDate: selectedDate,
+            store: store
+        )
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar { keyboardToolbar }
+        .onAppear { loadFromStore() }
+        .onChange(of: selectedDate) { _, _ in
+            loadFromStore()
+            checkInStep = 0
+        }
+        .sheet(item: $editingStep) { checkInEditSheet($0) }
+        .sheet(isPresented: $showCalendarPicker) {
+            calendarPickerSheet
+        }
+        .sheet(isPresented: $showSavedSummary) {
+            checkinSummarySheet
+        }
+    }
+
+    private var journalOverview: some View {
+        ZStack {
             // Header scrolls with the content instead of sitting above the
             // ScrollView, so the page simply runs top to bottom.
             ScrollView(showsIndicators: false) {
@@ -168,7 +284,7 @@ struct DailyJournalView: View {
                     .animation(.easeOut(duration: 0.12), value: headerCollapseProgress)
 
                     VStack(spacing: LayoutMetrics.cardSpacing) {
-                        cardsSection
+                        checkInSummary
 
                         Spacer().frame(height: 20)
                     }
@@ -186,18 +302,6 @@ struct DailyJournalView: View {
                 headerCollapseProgress = newValue
             }
             .collapsingHeaderFade(progress: headerCollapseProgress)
-            .dataSyncObservers(
-                menstruationActive: $menstruationActive,
-                sickToggle: $sickToggle,
-                sickEnergyLevel: $sickEnergyLevel,
-                feverLevel: $feverLevel,
-                caffeineText: $caffeineText,
-                proteinByMeal: $proteinByMeal,
-                carbsByMeal: $carbsByMeal,
-                fatByMeal: $fatByMeal,
-                selectedDate: selectedDate,
-                store: store
-            )
 
             pinnedHeaderRow
 
@@ -212,17 +316,6 @@ struct DailyJournalView: View {
             }
             .ignoresSafeArea(edges: .bottom)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { loadFromStore() }
-        .onChange(of: selectedDate) { _, _ in loadFromStore() }
-        .sheet(isPresented: $showCalendarPicker) {
-            calendarPickerSheet
-        }
-        .sheet(isPresented: $showSavedSummary) {
-            checkinSummarySheet
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar { keyboardToolbar }
     }
 
     @ToolbarContentBuilder
@@ -352,9 +445,16 @@ struct DailyJournalView: View {
 
     // MARK: - Cards Section
 
-    private var cardsSection: some View {
+    /// All four cards, or a single one when the check-in flow asks for one
+    /// question at a time.
+    ///
+    /// Filtered in place rather than split into four properties: every card
+    /// carries its own sheets and pickers, and moving those would have meant
+    /// re-attaching each one somewhere it could fire twice.
+    @ViewBuilder
+    private func cardsSection(only step: CheckInStep? = nil) -> some View {
         VStack(spacing: 16) {
-            if selectedGender == femaleText {
+            if step == nil || step == .menstruation, selectedGender == femaleText {
                 MenstruationCard(
                     language: language,
                     menstruationActive: $menstruationActive,
@@ -362,6 +462,7 @@ struct DailyJournalView: View {
                 )
             }
             
+            if step == nil || step == .sickness {
             SicknessCard(
                 language: language,
                 sickToggle: $sickToggle,
@@ -369,7 +470,9 @@ struct DailyJournalView: View {
                 feverLevel: $feverLevel,
                 accentBlue: accentBlue
             )
+            }
 
+            if step == nil || step == .caffeine {
             CaffeineCard(
                 accentBlue: accentBlue,
                 language: language,
@@ -382,7 +485,9 @@ struct DailyJournalView: View {
             .sheet(isPresented: $showAddDrinkSheet) {
                 addDrinkSheet
             }
-            
+            }
+
+            if step == nil || step == .macros {
             MacrosCard(
                 language: language,
                 accentBlue: accentBlue,
@@ -446,12 +551,267 @@ struct DailyJournalView: View {
                     }
                 )
             }
+            }
         }
 
         .padding(.horizontal, 20)
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isFutureDate)
+    }
+
+    // MARK: - Check-in Flow
+
+    /// One question per screen, swipeable, with a light tap of haptic feedback
+    /// each time a slide is left behind and a success tap at the end.
+    private var checkInFlow: some View {
+        let steps = checkInSteps
+        return VStack(spacing: 0) {
+            checkInHeader(steps: steps)
+
+            TabView(selection: $checkInStep) {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                    checkInSlide(step).tag(index)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            checkInFooter(steps: steps)
+        }
+        // Fires on every change of step, which is exactly once per slide left
+        // behind — forwards or backwards, swiped or tapped.
+        .sensoryFeedback(.impact(weight: .light), trigger: checkInStep)
+        .sensoryFeedback(.success, trigger: checkInCompletedFor)
+    }
+
+    private func checkInHeader(steps: [CheckInStep]) -> some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text(language == "de" ? "Dein Check-in" : "Your check-in")
+                    .font(.poppins(size: 20, weight: .heavy))
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer()
+                Text("\(min(checkInStep + 1, steps.count))/\(steps.count)")
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+            // A continuous bar rather than dots: it reads as "nearly there",
+            // which dots at this count do not.
+            GeometryReader { geo in
+                Capsule()
+                    .fill(Theme.trackFill)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(Theme.accentGradient)
+                            .frame(width: geo.size.width
+                                   * CGFloat(checkInStep + 1) / CGFloat(max(steps.count, 1)))
+                    }
+                    .clipShape(Capsule())
+            }
+            .frame(height: 5)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: checkInStep)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 18)
+        .padding(.bottom, 22)
+    }
+
+    private func checkInSlide(_ step: CheckInStep) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: step.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(accentBlue)
+                    .frame(width: 46, height: 46)
+                    .background(Circle().fill(accentBlue.opacity(0.13)))
+
+                Text(step.question(language: language))
+                    .font(.poppins(size: 24, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 16)
+
+                Text(step.reason(language: language))
+                    .font(.poppins(size: 13, weight: .regular))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
+
+                cardsSection(only: step)
+                    .padding(.top, 24)
+
+                Spacer(minLength: 24)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private func checkInFooter(steps: [CheckInStep]) -> some View {
+        let isLast = checkInStep >= steps.count - 1
+        return VStack(spacing: 10) {
+            Button {
+                if isLast {
+                    finishCheckIn()
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        checkInStep += 1
+                    }
+                }
+            } label: {
+                Text(isLast ? (language == "de" ? "Fertig" : "Done")
+                            : (language == "de" ? "Weiter" : "Continue"))
+                    .font(.poppins(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Capsule().fill(Theme.accentGradient))
+            }
+            .buttonStyle(.plain)
+
+            // Skipping is not failure: an unanswered question simply leaves
+            // that factor out, and pretending otherwise is what makes people
+            // abandon a check-in halfway.
+            Button {
+                if isLast { finishCheckIn() }
+                else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        checkInStep += 1
+                    }
+                }
+            } label: {
+                Text(language == "de" ? "Überspringen" : "Skip")
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .opacity(isLast ? 0 : 1)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 12)
+    }
+
+    private func finishCheckIn() {
+        withAnimation(.easeOut(duration: 0.25)) {
+            checkInCompletedFor = DateKey.string(from: selectedDate)
+        }
+        checkInStep = 0
+    }
+
+    // MARK: - Check-in Übersicht
+
+    /// What the day looks like once the flow is behind you. Each row opens its
+    /// own question, so correcting one value never means walking all of them.
+    private var checkInSummary: some View {
+        VStack(spacing: 10) {
+            ForEach(checkInSteps) { step in
+                Button {
+                    editingStep = step
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: step.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(accentBlue)
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(accentBlue.opacity(0.13)))
+
+                        Text(step.question(language: language))
+                            .font(.poppins(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.textPrimary)
+                            .multilineTextAlignment(.leading)
+
+                        Spacer(minLength: 8)
+
+                        Text(checkInAnswer(step))
+                            .font(.poppins(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.trailing)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.5))
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard(16)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if Calendar.current.isDateInToday(selectedDate) {
+                Button {
+                    checkInCompletedFor = ""
+                    checkInStep = 0
+                } label: {
+                    Text(language == "de" ? "Check-in wiederholen" : "Run check-in again")
+                        .font(.poppins(size: 13, weight: .medium))
+                        .foregroundStyle(accentBlue)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 20)
+        .disabled(isFutureDate)
+        .opacity(isFutureDate ? 0.45 : 1.0)
+    }
+
+    /// The short form of an answer for the summary row.
+    private func checkInAnswer(_ step: CheckInStep) -> String {
+        let de = language == "de"
+        let dash = de ? "offen" : "open"
+        switch step {
+        case .menstruation:
+            guard let active = menstruationActive else { return dash }
+            return active ? (de ? "Ja" : "Yes") : (de ? "Nein" : "No")
+        case .sickness:
+            guard sickToggle else { return de ? "Nein" : "No" }
+            switch feverLevel {
+            case .low:  return de ? "Krank, leichtes Fieber" : "Unwell, mild fever"
+            case .high: return de ? "Krank, hohes Fieber" : "Unwell, high fever"
+            default:    return de ? "Krank" : "Unwell"
+            }
+        case .caffeine:
+            let mg = Int(caffeineText) ?? 0
+            return mg == 0 ? dash : "\(mg) mg"
+        case .macros:
+            let p = macroTotal(proteinByMeal)
+            let c = macroTotal(carbsByMeal)
+            let f = macroTotal(fatByMeal)
+            guard p + c + f > 0 else { return dash }
+            return "\(Int(p))/\(Int(c))/\(Int(f)) g"
+        }
+    }
+
+    private func macroTotal(_ byMeal: [String: String]) -> Double {
+        byMeal.values.reduce(0) { $0 + (Double($1.replacingOccurrences(of: ",", with: ".")) ?? 0) }
+    }
+
+    /// Editing one question from the summary.
+    private func checkInEditSheet(_ step: CheckInStep) -> some View {
+        NavigationStack {
+            ZStack {
+                CaloricBackground()
+                ScrollView(showsIndicators: false) {
+                    cardsSection(only: step)
+                        .padding(.top, 12)
+                }
+            }
+            .navigationTitle(step.question(language: language))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(language == "de" ? "Fertig" : "Done") { editingStep = nil }
+                        .foregroundStyle(accentBlue)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .caloricAppearance()
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Theme.canvas)
     }
 
     private var addDrinkSheet: some View {
