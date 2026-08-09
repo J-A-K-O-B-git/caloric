@@ -2967,15 +2967,15 @@ struct DashboardView: View {
                                         .foregroundStyle(accentBlue)
                                         .frame(width: 38, height: 38)
                                         .background(Circle().fill(accentBlue.opacity(0.13)))
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(kpi.title(language: language))
-                                            .font(.poppins(size: 14, weight: .medium))
-                                            .foregroundStyle(Theme.textPrimary)
-                                            .multilineTextAlignment(.leading)
-                                        Text(kpiReading(kpi).value)
-                                            .font(.poppins(size: 12, weight: .regular))
-                                            .foregroundStyle(Theme.textSecondary)
-                                    }
+                                    // Name only. The live value underneath was
+                                    // noise here — this list is for choosing
+                                    // which tiles to keep, and today's reading
+                                    // says nothing about whether a tile is
+                                    // worth a place on the dashboard.
+                                    Text(kpi.title(language: language))
+                                        .font(.poppins(size: 14, weight: .medium))
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .multilineTextAlignment(.leading)
                                     Spacer()
                                     Image(systemName: "plus.circle.fill")
                                         .font(.system(size: 18))
