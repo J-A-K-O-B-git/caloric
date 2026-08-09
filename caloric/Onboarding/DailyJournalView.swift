@@ -458,13 +458,15 @@ struct DailyJournalView: View {
                 MenstruationCard(
                     language: language,
                     menstruationActive: $menstruationActive,
-                    accentBlue: accentBlue
+                    accentBlue: accentBlue,
+                    showsHeader: step == nil
                 )
             }
             
             if step == nil || step == .sickness {
             SicknessCard(
                 language: language,
+                showsHeader: step == nil,
                 sickToggle: $sickToggle,
                 sickEnergyLevel: $sickEnergyLevel,
                 feverLevel: $feverLevel,
@@ -618,34 +620,50 @@ struct DailyJournalView: View {
     }
 
     private func checkInSlide(_ step: CheckInStep) -> some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                Image(systemName: step.icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                    .frame(width: 46, height: 46)
-                    .background(Circle().fill(accentBlue.opacity(0.13)))
+        // Short questions sit centred in the space they are given; the macros
+        // slide is tall enough to scroll. Both from one layout: a minimum
+        // height of the viewport with centre alignment does the first, and
+        // anything taller simply pushes past it into the second.
+        GeometryReader { geo in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Image(systemName: step.icon)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .background(
+                            Circle()
+                                .fill(Theme.accentGradient)
+                                .shadow(color: accentBlue.opacity(0.28), radius: 10, y: 4)
+                        )
+                        .padding(.horizontal, 20)
 
-                Text(step.question(language: language))
-                    .font(.poppins(size: 24, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 16)
+                    Text(step.question(language: language))
+                        .font(.poppins(size: 26, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineSpacing(1)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
 
-                Text(step.reason(language: language))
-                    .font(.poppins(size: 13, weight: .regular))
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
+                    Text(step.reason(language: language))
+                        .font(.poppins(size: 13, weight: .regular))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
 
-                cardsSection(only: step)
-                    .padding(.top, 24)
-
-                Spacer(minLength: 24)
+                    // No horizontal padding of its own — cardsSection already
+                    // carries 20, the same inset the text above uses, so the
+                    // question and the card it belongs to share an edge.
+                    cardsSection(only: step)
+                        .padding(.top, 26)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 24)
+                .frame(minHeight: geo.size.height, alignment: .center)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
         }
     }
 
@@ -690,7 +708,9 @@ struct DailyJournalView: View {
             .opacity(isLast ? 0 : 1)
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, 12)
+        // Clears the floating tab bar, which the save button on the summary
+        // already allows 106 for. Without it "Überspringen" sat on top of it.
+        .padding(.bottom, 100)
     }
 
     private func finishCheckIn() {

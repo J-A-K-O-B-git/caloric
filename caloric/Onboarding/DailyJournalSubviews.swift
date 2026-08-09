@@ -10,20 +10,25 @@ struct MenstruationCard: View {
     let language: String
     @Binding var menstruationActive: Bool?
     let accentBlue: Color
+    /// False inside the check-in flow, where the slide already asks the
+    /// question in full size — the card repeating it read as a stutter.
+    var showsHeader: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Color.pink.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "drop.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.pink)
+            if showsHeader {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(Color.pink.opacity(0.15)).frame(width: 32, height: 32)
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.pink)
+                    }
+                    Text(language == "de" ? "Menstruation" : "Menstruation")
+                        .font(.poppins(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
                 }
-                Text(language == "de" ? "Menstruation" : "Menstruation")
-                    .font(.poppins(size: 16, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
             }
             HStack(spacing: 10) {
                 trackingToggle(label: language == "de" ? "Ja" : "Yes", isSelected: menstruationActive == true, tint: .pink) {
@@ -63,6 +68,7 @@ struct MenstruationCard: View {
 // MARK: - Sickness Card
 struct SicknessCard: View {
     let language: String
+    var showsHeader: Bool = true
     @Binding var sickToggle: Bool
     @Binding var sickEnergyLevel: TDEECalculationService.JournalInputs.SickEnergyLevel?
     @Binding var feverLevel: TDEECalculationService.JournalInputs.FeverLevel?
@@ -70,9 +76,11 @@ struct SicknessCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(language == "de" ? "Bist du heute krank?" : "Are you feeling sick today?")
-                .font(.poppins(size: 16, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
+            if showsHeader {
+                Text(language == "de" ? "Bist du heute krank?" : "Are you feeling sick today?")
+                    .font(.poppins(size: 16, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+            }
 
             HStack(spacing: 10) {
                 sickPill(label: language == "de" ? "Nein" : "No", isSelected: !sickToggle) {
