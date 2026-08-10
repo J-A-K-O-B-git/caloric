@@ -5,6 +5,132 @@
 
 import Foundation
 
+/// Turns a meal described in words into grams.
+///
+/// Logging every meal by weight is the one thing in this app nobody keeps up,
+/// and an unlogged day currently contributes a TEF of exactly zero — which
+/// understates it by 150 to 250 kcal. Picking a couple of words per meal gets
+/// within single-digit kcal of a properly weighed day, because TEF is linear
+/// in grams and therefore only cares about the day's totals.
+///
+/// The three axes are not a stylistic choice: TEF has exactly three inputs,
+/// so protein, carbohydrate and fat are a complete basis. A fourth tag —
+/// "fried", "sweet", "meat" — could not move the result in any way these
+/// three cannot already express, and would smuggle in an assumption the user
+/// cannot see.
+enum MealEstimator {
+
+    enum Level: String, Codable, CaseIterable {
+        case low, normal, high
+    }
+
+    enum Portion: String, Codable, CaseIterable {
+        case small, normal, large
+
+        var factor: Double {
+            switch self {
+            case .small:  return 0.7
+            case .normal: return 1.0
+            case .large:  return 1.4
+            }
+        }
+    }
+
+    enum Meal: String, Codable, CaseIterable {
+        case breakfast, lunch, dinner, snack
+
+        /// Conventional split of a day's energy. Only a starting point — the
+        /// portion control moves it, and the tags move it again.
+        var energyShare: Double {
+            switch self {
+            case .breakfast: return 0.25
+            case .lunch:     return 0.35
+            case .dinner:    return 0.30
+            case .snack:     return 0.10
+            }
+        }
+    }
+
+    struct Description: Codable, Equatable {
+        var portion: Portion = .normal
+        var protein: Level = .normal
+        var carbs: Level = .normal
+        var fat: Level = .normal
+
+        /// True while the meal says nothing beyond "normal" — nothing to
+        /// estimate from, and the caller should treat it as unanswered.
+        var isUntouched: Bool {
+            portion == .normal && protein == .normal && carbs == .normal && fat == .normal
+        }
+    }
+
+    struct Macros: Equatable {
+        let proteinG: Double
+        let carbsG: Double
+        let fatG: Double
+
+        var kcal: Double { proteinG * 4 + carbsG * 4 + fatG * 9 }
+    }
+
+    /// Baseline protein for an ordinary day, before any tag moves it.
+    private static let baseProteinPerKg = 1.3
+    /// Below this the diet stops covering essential fatty acids, so "low fat"
+    /// is not allowed to push past it however the arithmetic falls.
+    private static let fatFloorPerKg = 0.6
+
+    private static func proteinFactor(_ level: Level) -> Double {
+        switch level {
+        case .low:    return 0.65
+        case .normal: return 1.0
+        case .high:   return 1.55
+        }
+    }
+
+    private static func fatShare(_ level: Level) -> Double {
+        switch level {
+        case .low:    return 0.20
+        case .normal: return 0.30
+        case .high:   return 0.45
+        }
+    }
+
+    /// Grams for one meal.
+    ///
+    /// Protein is anchored to body weight rather than to a percentage — which
+    /// is the whole point of asking in words. "High protein" has to mean
+    /// something different for 60 kg than for 95 kg, and a percentage of
+    /// intake would give both the same answer.
+    ///
+    /// Carbohydrate is the remainder, so the three tags can never contradict
+    /// each other: "low carb" simply raises fat, "high carb" lowers it, and no
+    /// combination can produce a split that fails to add up.
+    static func macros(
+        for description: Description,
+        meal: Meal,
+        dailyEnergyKcal: Double,
+        weightKg: Double
+    ) -> Macros {
+        guard dailyEnergyKcal > 0, weightKg > 0 else {
+            return Macros(proteinG: 0, carbsG: 0, fatG: 0)
+        }
+
+        var fat = description.fat
+        if fat == .normal {
+            if description.carbs == .low  { fat = .high }
+            if description.carbs == .high { fat = .low }
+        }
+
+        let scale = meal.energyShare * description.portion.factor
+        let kcal  = dailyEnergyKcal * scale
+
+        let proteinG = baseProteinPerKg * weightKg * scale * proteinFactor(description.protein)
+        let fatG     = max(kcal * fatShare(fat) / 9, fatFloorPerKg * weightKg * scale)
+        let carbsG   = max(0, (kcal - proteinG * 4 - fatG * 9) / 4)
+
+        return Macros(proteinG: proteinG, carbsG: carbsG, fatG: fatG)
+    }
+}
+
 struct TDEECalculationService {
 
     // MARK: - Input
