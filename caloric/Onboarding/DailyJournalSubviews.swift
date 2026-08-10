@@ -417,6 +417,128 @@ struct CaffeineCard: View {
     }
 }
 
+// MARK: - Meal Description Chips
+
+/// Describing a meal in words instead of grams.
+///
+/// Six chips over three axes, because that is exactly what the TEF formula
+/// takes. Each axis is a three-way choice shown as two chips: tapping "viel"
+/// and "wenig" are mutually exclusive, and neither tapped means normal — so
+/// the common case costs nothing at all.
+struct MealDescriptionPicker: View {
+    let language: String
+    let accentBlue: Color
+    let description: MealEstimator.Description
+    let estimate: MealEstimator.Macros
+    let onChange: (MealEstimator.Description) -> Void
+
+    private var de: Bool { language == "de" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            portionRow
+
+            axisRow(title: de ? "Protein" : "Protein",
+                    level: description.protein) { level in
+                var d = description; d.protein = level; onChange(d)
+            }
+            axisRow(title: de ? "Kohlenhydrate" : "Carbs",
+                    level: description.carbs) { level in
+                var d = description; d.carbs = level; onChange(d)
+            }
+            axisRow(title: de ? "Fett" : "Fat",
+                    level: description.fat) { level in
+                var d = description; d.fat = level; onChange(d)
+            }
+
+            // The grams the words produce, shown live. Without this the picker
+            // would be a black box asking for trust it has not earned.
+            HStack(spacing: 14) {
+                estimateChip(de ? "Protein" : "Protein", estimate.proteinG, Theme.segNEAT)
+                estimateChip(de ? "KH" : "Carbs", estimate.carbsG, Theme.segEAT)
+                estimateChip(de ? "Fett" : "Fat", estimate.fatG, Theme.segTEF)
+                Spacer()
+                Text("\(Int(estimate.kcal.rounded())) kcal")
+                    .font(.poppins(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private var portionRow: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(de ? "Portion" : "Portion")
+                .font(.poppins(size: 12, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+            HStack(spacing: 8) {
+                ForEach(MealEstimator.Portion.allCases, id: \.rawValue) { portion in
+                    chip(label: portionLabel(portion),
+                         isOn: description.portion == portion) {
+                        var d = description; d.portion = portion; onChange(d)
+                    }
+                }
+            }
+        }
+    }
+
+    private func portionLabel(_ p: MealEstimator.Portion) -> String {
+        switch p {
+        case .small:  return de ? "klein" : "small"
+        case .normal: return de ? "normal" : "normal"
+        case .large:  return de ? "groß" : "large"
+        }
+    }
+
+    private func axisRow(title: String,
+                         level: MealEstimator.Level,
+                         set: @escaping (MealEstimator.Level) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.poppins(size: 12, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+            HStack(spacing: 8) {
+                chip(label: de ? "wenig" : "low", isOn: level == .low) {
+                    // Tapping the active chip clears it: the way back to
+                    // "normal" should not require hunting for a third button.
+                    set(level == .low ? .normal : .low)
+                }
+                chip(label: de ? "viel" : "high", isOn: level == .high) {
+                    set(level == .high ? .normal : .high)
+                }
+            }
+        }
+    }
+
+    private func chip(label: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.poppins(size: 13, weight: isOn ? .semibold : .medium))
+                .foregroundStyle(isOn ? .white : accentBlue)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule()
+                        .fill(isOn ? accentBlue : accentBlue.opacity(0.12))
+                        .overlay(Capsule().strokeBorder(
+                            accentBlue.opacity(isOn ? 0 : 0.2), lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: isOn)
+    }
+
+    private func estimateChip(_ label: String, _ grams: Double, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text("\(Int(grams.rounded())) g")
+                .font(.poppins(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+        }
+        .accessibilityLabel("\(label) \(Int(grams.rounded())) Gramm")
+    }
+}
+
 // MARK: - Macros Card
 struct MacrosCard: View {
     let language: String
@@ -436,11 +558,16 @@ struct MacrosCard: View {
     let stopRecording: () -> Void
     
     @FocusState.Binding var macroFocus: MacrosCardMacroField?
+    /// Supplied by the journal, which owns both the stored words and the body
+    /// figures needed to turn them into grams.
+    let mealDescription: (MealEstimator.Meal) -> MealEstimator.Description
+    let mealEstimate: (MealEstimator.Meal) -> MealEstimator.Macros
+    let setMealDescription: (MealEstimator.Description, MealEstimator.Meal) -> Void
 
     @State private var entryMode: MacrosEntryMode? = nil
 
     private enum MacrosEntryMode {
-        case text, photo, voice
+        case describe, text, photo, voice
     }
 
     var body: some View {
@@ -498,6 +625,8 @@ struct MacrosCard: View {
 
             // Entry Mode Selector
             HStack(spacing: 12) {
+                entryModeButton(mode: .describe, icon: "slider.horizontal.3",
+                                label: language == "de" ? "Beschreiben" : "Describe")
                 entryModeButton(mode: .text,  icon: "keyboard", label: language == "de" ? "Tippen" : "Type")
                 entryModeButton(mode: .photo, icon: "camera.fill", label: language == "de" ? "Foto" : "Photo")
                 entryModeButton(mode: .voice, icon: "mic.fill", label: language == "de" ? "Sprechen" : "Voice")
@@ -505,7 +634,18 @@ struct MacrosCard: View {
             .padding(.vertical, 4)
 
             // AI Input Area (Conditional)
-            if let mode = entryMode, mode != .photo {
+            if entryMode == .describe, let meal = MealEstimator.Meal(rawValue: selectedMeal ?? "") {
+                MealDescriptionPicker(
+                    language: language,
+                    accentBlue: accentBlue,
+                    description: mealDescription(meal),
+                    estimate: mealEstimate(meal),
+                    onChange: { setMealDescription($0, meal) }
+                )
+                .padding(.top, 2)
+            }
+
+            if let mode = entryMode, mode != .photo, mode != .describe {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
                         Button {

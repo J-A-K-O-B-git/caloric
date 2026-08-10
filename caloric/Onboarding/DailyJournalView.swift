@@ -23,6 +23,14 @@ struct DailyJournalView: View {
     let language: String
     let selectedGender: String?
     let femaleText: String
+    /// Needed to turn a described meal into grams — "high protein" has to
+    /// mean something different at 60 kg than at 95 kg.
+    let weightText: String
+    let weightUnit: String
+    /// Energy the estimate is anchored to. A weight-stable person eats roughly
+    /// what they burn, so their own daily total is the honest starting point;
+    /// the portion control is what moves a meal off that anchor.
+    let estimatedDailyEnergy: Double
     @Binding var selectedDate: Date
 
     // MARK: - State
@@ -207,6 +215,73 @@ struct DailyJournalView: View {
 
     private var isFutureDate: Bool {
         selectedDate > Calendar.current.startOfDay(for: Date())
+    }
+
+    // MARK: - Mahlzeiten in Worten
+
+    private var weightKg: Double {
+        MeasurementParsing.weightKg(text: weightText, unit: weightUnit)
+    }
+
+    /// Descriptions per meal for the selected day, persisted as JSON so the
+    /// chips still show what was picked after a relaunch. Keyed by date: the
+    /// grams they produce are stored separately and would otherwise be
+    /// impossible to trace back to the words that made them.
+    @AppStorage("journal.mealDescriptions") private var mealDescriptionsRaw = "{}"
+
+    private func mealDescriptions() -> [String: MealEstimator.Description] {
+        guard let data = mealDescriptionsRaw.data(using: .utf8),
+              let all = try? JSONDecoder().decode(
+                  [String: [String: MealEstimator.Description]].self, from: data)
+        else { return [:] }
+        return all[DateKey.string(from: selectedDate)] ?? [:]
+    }
+
+    func mealDescription(_ meal: MealEstimator.Meal) -> MealEstimator.Description {
+        mealDescriptions()[meal.rawValue] ?? MealEstimator.Description()
+    }
+
+    /// Writes the description and immediately the grams it implies, so the
+    /// rest of the app keeps reading macros from the one place it always has.
+    func setMealDescription(_ description: MealEstimator.Description,
+                            for meal: MealEstimator.Meal) {
+        var all: [String: [String: MealEstimator.Description]] = [:]
+        if let data = mealDescriptionsRaw.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode(
+               [String: [String: MealEstimator.Description]].self, from: data) {
+            all = decoded
+        }
+        let key = DateKey.string(from: selectedDate)
+        var day = all[key] ?? [:]
+        day[meal.rawValue] = description
+        all[key] = day
+
+        // Thirty days is as far back as anything else in the app looks.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30,
+                                           to: Calendar.current.startOfDay(for: Date()))
+        if let cutoff {
+            all = all.filter { (DateKey.date(from: $0.key) ?? .distantPast) >= cutoff }
+        }
+        if let data = try? JSONEncoder().encode(all),
+           let json = String(data: data, encoding: .utf8) {
+            mealDescriptionsRaw = json
+        }
+
+        applyEstimate(description, to: meal)
+    }
+
+    private func applyEstimate(_ description: MealEstimator.Description,
+                               to meal: MealEstimator.Meal) {
+        guard !description.isUntouched else { return }
+        let m = MealEstimator.macros(
+            for: description,
+            meal: meal,
+            dailyEnergyKcal: estimatedDailyEnergy,
+            weightKg: weightKg
+        )
+        proteinByMeal[meal.rawValue] = "\(Int(m.proteinG.rounded()))"
+        carbsByMeal[meal.rawValue]   = "\(Int(m.carbsG.rounded()))"
+        fatByMeal[meal.rawValue]     = "\(Int(m.fatG.rounded()))"
     }
 
     // MARK: - Body
@@ -506,7 +581,14 @@ struct DailyJournalView: View {
                 isRecording: isRecording,
                 startRecording: { startRecording() },
                 stopRecording: { stopRecording() },
-                macroFocus: $macroFocus
+                macroFocus: $macroFocus,
+                mealDescription: { mealDescription($0) },
+                mealEstimate: { meal in
+                    MealEstimator.macros(for: mealDescription(meal), meal: meal,
+                                         dailyEnergyKcal: estimatedDailyEnergy,
+                                         weightKg: weightKg)
+                },
+                setMealDescription: { setMealDescription($0, for: $1) }
             )
             .confirmationDialog(
                 language == "de" ? "Mahlzeit fotografieren" : "Photograph meal",

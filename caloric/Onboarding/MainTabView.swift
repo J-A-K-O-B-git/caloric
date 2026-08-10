@@ -34,6 +34,24 @@ struct MainTabView: View {
     @State private var healthKit = HealthKitImportService()
     @Environment(\.modelContext) private var modelContext
 
+    /// Rough daily energy for the journal's meal estimates.
+    ///
+    /// Computed here rather than in the journal because every input already
+    /// passes through this view, and handing down one number beats handing
+    /// down five to rebuild it. A PAL of 1.45 stands for an ordinary day —
+    /// the dashboard's measured figure is more accurate, but the estimate
+    /// only needs an anchor, and the portion control does the rest.
+    private var estimatedDailyEnergy: Double {
+        let bmr = BMRCalculationService.finalBMR(
+            weightKg: MeasurementParsing.weightKg(text: weightText, unit: weightUnit),
+            bodyFatPercent: MeasurementParsing.percent(bodyFatText),
+            age: userAge,
+            metabolismFactor: metabolismFactor,
+            sleepHours: sleepHours
+        )
+        return bmr * 1.45
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             DashboardView(
@@ -92,6 +110,9 @@ struct MainTabView: View {
                 language: language,
                 selectedGender: selectedGender,
                 femaleText: femaleText,
+                weightText: weightText,
+                weightUnit: weightUnit,
+                estimatedDailyEnergy: estimatedDailyEnergy,
                 selectedDate: $selectedDate
             )
             .tag(2)
