@@ -13,6 +13,9 @@ struct MenstruationCard: View {
     /// False inside the check-in flow, where the slide already asks the
     /// question in full size — the card repeating it read as a stutter.
     var showsHeader: Bool = true
+    /// Called when the answer is complete and nothing follows from it, so the
+    /// check-in can move on without asking for a second tap on "Weiter".
+    var onAnswered: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -32,14 +35,18 @@ struct MenstruationCard: View {
             }
             HStack(spacing: 10) {
                 trackingToggle(label: language == "de" ? "Ja" : "Yes", isSelected: menstruationActive == true, tint: .pink) {
+                    let answered = menstruationActive != true
                     withAnimation(.easeInOut(duration: 0.18)) {
-                        menstruationActive = menstruationActive == true ? nil : true
+                        menstruationActive = answered ? true : nil
                     }
+                    if answered { onAnswered?() }
                 }
                 trackingToggle(label: language == "de" ? "Nein" : "No", isSelected: menstruationActive == false, tint: accentBlue) {
+                    let answered = menstruationActive != false
                     withAnimation(.easeInOut(duration: 0.18)) {
-                        menstruationActive = menstruationActive == false ? nil : false
+                        menstruationActive = answered ? false : nil
                     }
+                    if answered { onAnswered?() }
                 }
             }
         }
@@ -69,6 +76,9 @@ struct MenstruationCard: View {
 struct SicknessCard: View {
     let language: String
     var showsHeader: Bool = true
+    /// Only fired for "no". Answering "yes" opens the energy and fever
+    /// questions on the same slide, and advancing would skip them.
+    var onAnswered: (() -> Void)? = nil
     @Binding var sickToggle: Bool
     @Binding var sickEnergyLevel: TDEECalculationService.JournalInputs.SickEnergyLevel?
     @Binding var feverLevel: TDEECalculationService.JournalInputs.FeverLevel?
@@ -84,6 +94,7 @@ struct SicknessCard: View {
 
             HStack(spacing: 10) {
                 sickPill(label: language == "de" ? "Nein" : "No", isSelected: !sickToggle) {
+                    onAnswered?()
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
                         sickToggle = false
                         sickEnergyLevel = nil
@@ -565,9 +576,13 @@ struct MacrosCard: View {
     let setMealDescription: (MealEstimator.Description, MealEstimator.Meal) -> Void
 
     @State private var entryMode: MacrosEntryMode? = nil
+    /// Whether the precise routes are unfolded. Closed by default: the words
+    /// above already produce an answer, and a row of buttons offered before
+    /// anything has been said reads as four ways to do work.
+    @State private var preciseOpen = false
 
     private enum MacrosEntryMode {
-        case describe, text, photo, voice
+        case text, photo, voice
     }
 
     var body: some View {
@@ -586,8 +601,8 @@ struct MacrosCard: View {
                         .font(.poppins(size: 16, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(language == "de"
-                         ? "Beschreib oder fotografier, was du gegessen hast – die KI schätzt Protein, Kohlenhydrate und Fett"
-                         : "Describe or photograph what you ate – AI estimates protein, carbs and fat")
+                         ? "Beschreib die Mahlzeit in Stichworten – genauer geht auch"
+                         : "Describe the meal in a word or two – precise entry is there too")
                         .font(.poppins(size: 11, weight: .regular))
                         .foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -623,18 +638,10 @@ struct MacrosCard: View {
             .background(Theme.fieldFill)
             .clipShape(Capsule())
 
-            // Entry Mode Selector
-            HStack(spacing: 12) {
-                entryModeButton(mode: .describe, icon: "slider.horizontal.3",
-                                label: language == "de" ? "Beschreiben" : "Describe")
-                entryModeButton(mode: .text,  icon: "keyboard", label: language == "de" ? "Tippen" : "Type")
-                entryModeButton(mode: .photo, icon: "camera.fill", label: language == "de" ? "Foto" : "Photo")
-                entryModeButton(mode: .voice, icon: "mic.fill", label: language == "de" ? "Sprechen" : "Voice")
-            }
-            .padding(.vertical, 4)
-
-            // AI Input Area (Conditional)
-            if entryMode == .describe, let meal = MealEstimator.Meal(rawValue: selectedMeal ?? "") {
+            // Describing the meal is the way in. The AI routes are a step you
+            // take when the words are not enough, not a menu you pick from
+            // before you have said anything at all.
+            if let meal = MealEstimator.Meal(rawValue: selectedMeal ?? "") {
                 MealDescriptionPicker(
                     language: language,
                     accentBlue: accentBlue,
@@ -642,10 +649,41 @@ struct MacrosCard: View {
                     estimate: mealEstimate(meal),
                     onChange: { setMealDescription($0, meal) }
                 )
-                .padding(.top, 2)
             }
 
-            if let mode = entryMode, mode != .photo, mode != .describe {
+            Divider().overlay(Theme.divider)
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    preciseOpen.toggle()
+                    if !preciseOpen { entryMode = nil }
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(language == "de" ? "Genauer erfassen" : "Log it precisely")
+                        .font(.poppins(size: 13, weight: .medium))
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(preciseOpen ? 180 : 0))
+                }
+                .foregroundStyle(accentBlue)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if preciseOpen {
+                HStack(spacing: 12) {
+                    entryModeButton(mode: .text,  icon: "keyboard", label: language == "de" ? "Tippen" : "Type")
+                    entryModeButton(mode: .photo, icon: "camera.fill", label: language == "de" ? "Foto" : "Photo")
+                    entryModeButton(mode: .voice, icon: "mic.fill", label: language == "de" ? "Sprechen" : "Voice")
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            if let mode = entryMode, mode != .photo {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 10) {
                         Button {

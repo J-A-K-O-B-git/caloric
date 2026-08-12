@@ -534,7 +534,8 @@ struct DailyJournalView: View {
                     language: language,
                     menstruationActive: $menstruationActive,
                     accentBlue: accentBlue,
-                    showsHeader: step == nil
+                    showsHeader: step == nil,
+                    onAnswered: step == nil ? nil : { advanceCheckIn() }
                 )
             }
             
@@ -542,6 +543,7 @@ struct DailyJournalView: View {
             SicknessCard(
                 language: language,
                 showsHeader: step == nil,
+                onAnswered: step == nil ? nil : { advanceCheckIn() },
                 sickToggle: $sickToggle,
                 sickEnergyLevel: $sickEnergyLevel,
                 feverLevel: $feverLevel,
@@ -793,6 +795,22 @@ struct DailyJournalView: View {
         // Clears the floating tab bar, which the save button on the summary
         // already allows 106 for. Without it "Überspringen" sat on top of it.
         .padding(.bottom, 100)
+    }
+
+    /// Moves to the next slide, or ends the check-in on the last one.
+    ///
+    /// A question answered with one tap should not then ask for a second on
+    /// "Weiter". Slides that open follow-ups when answered — "yes, I am ill" —
+    /// deliberately do not call this.
+    private func advanceCheckIn() {
+        let steps = checkInSteps
+        guard checkInStep < steps.count - 1 else {
+            finishCheckIn()
+            return
+        }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            checkInStep += 1
+        }
     }
 
     private func finishCheckIn() {
