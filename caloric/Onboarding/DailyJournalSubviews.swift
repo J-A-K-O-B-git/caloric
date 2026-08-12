@@ -588,46 +588,9 @@ struct MacrosCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // Header
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    Circle().fill(Theme.segTEF.opacity(0.15)).frame(width: 32, height: 32)
-                    Image(systemName: "fork.knife")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.segTEF)
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(language == "de" ? "Makros heute" : "Today's Macros")
-                        .font(.poppins(size: 16, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(language == "de"
-                         ? "Beschreib die Mahlzeit in Stichworten – genauer geht auch"
-                         : "Describe the meal in a word or two – precise entry is there too")
-                        .font(.poppins(size: 11, weight: .regular))
-                        .foregroundStyle(Theme.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-
-                if selectedMeal == "breakfast" {
-                    Button(action: copyYesterdayBreakfast) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.counterclockwise")
-                            Text(language == "de" ? "Vom Vortag" : "Yesterday")
-                        }
-                        .font(.poppins(size: 11, weight: .medium))
-                        .foregroundStyle(accentBlue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(accentBlue.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-            }
-
-            // Meal tabs
+            // No header. The slide already asks "Was hast du gegessen?", the
+            // subtitle described a card that no longer starts with photos, and
+            // the icon repeated the slide's own. Straight to the meals.
             HStack(spacing: 0) {
                 mealTab(key: "breakfast", name: language == "de" ? "Frühstück"  : "Breakfast")
                 mealTab(key: "lunch",     name: language == "de" ? "Mittagessen" : "Lunch")
@@ -637,6 +600,21 @@ struct MacrosCard: View {
             .padding(4)
             .background(Theme.fieldFill)
             .clipShape(Capsule())
+
+            // Kept, but moved down with the meal it copies into — it was only
+            // ever in the header because that is where there was room.
+            if selectedMeal == "breakfast" {
+                Button(action: copyYesterdayBreakfast) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text(language == "de" ? "Vom Vortag übernehmen" : "Copy yesterday")
+                    }
+                    .font(.poppins(size: 12, weight: .medium))
+                    .foregroundStyle(accentBlue)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
 
             // Describing the meal is the way in. The AI routes are a step you
             // take when the words are not enough, not a menu you pick from
