@@ -150,6 +150,22 @@ struct DailyJournalView: View {
             : CheckInStep.allCases.filter { $0 != .menstruation }
     }
 
+    /// Whether the current slide still needs "Weiter" and "Überspringen".
+    ///
+    /// A slide that advances on the answer needs neither — the tap is the
+    /// answer and the continuation at once. Illness is the one that changes
+    /// its mind: saying yes unfolds the energy and fever questions, and from
+    /// that moment there is something to confirm, so the footer returns.
+    private var currentStepNeedsFooter: Bool {
+        let steps = checkInSteps
+        guard checkInStep >= 0, checkInStep < steps.count else { return true }
+        switch steps[checkInStep] {
+        case .menstruation:      return false
+        case .sickness:          return sickToggle
+        case .caffeine, .macros: return true
+        }
+    }
+
     private var checkInIsDone: Bool {
         checkInCompletedFor == DateKey.string(from: selectedDate)
     }
@@ -662,8 +678,12 @@ struct DailyJournalView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            checkInFooter(steps: steps)
+            if currentStepNeedsFooter {
+                checkInFooter(steps: steps)
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: currentStepNeedsFooter)
         // Fires on every change of step, which is exactly once per slide left
         // behind — forwards or backwards, swiped or tapped.
         .sensoryFeedback(.impact(weight: .light), trigger: checkInStep)
@@ -745,8 +765,13 @@ struct DailyJournalView: View {
                         .padding(.top, 26)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 24)
-                .frame(minHeight: geo.size.height, alignment: .center)
+                .padding(.top, 24)
+                // Without a footer the answer takes its place: bottom-aligned
+                // with the same clearance the buttons had, so the thumb lands
+                // where it already expects to.
+                .padding(.bottom, currentStepNeedsFooter ? 24 : 78)
+                .frame(minHeight: geo.size.height,
+                       alignment: currentStepNeedsFooter ? .center : .bottom)
             }
         }
     }
@@ -792,9 +817,9 @@ struct DailyJournalView: View {
             .opacity(isLast ? 0 : 1)
         }
         .padding(.horizontal, 24)
-        // Clears the floating tab bar, which the save button on the summary
-        // already allows 106 for. Without it "Überspringen" sat on top of it.
-        .padding(.bottom, 100)
+        // Enough to clear the floating tab bar and no more — at 100 the
+        // buttons floated well above it with a band of empty canvas beneath.
+        .padding(.bottom, 70)
     }
 
     /// Moves to the next slide, or ends the check-in on the last one.
