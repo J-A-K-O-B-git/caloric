@@ -136,34 +136,6 @@ struct SicknessCard: View {
                             feverButton(label: language == "de" ? "Hoch" : "High", sublabel: "> 38.5 °C", level: .high, tint: .red)
                         }
                     }
-
-                    if feverLevel == .low || feverLevel == .high {
-                        let isFeverHigh = feverLevel == .high
-                        let tint: Color = isFeverHigh ? .red : .orange
-                        let delta = isFeverHigh ? "+18 %" : "+10 %"
-                        HStack(spacing: 8) {
-                            Image(systemName: "info.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(tint)
-                            Text(language == "de" ? "Temporärer BMR-Faktor: \(delta)" : "Temporary BMR factor: \(delta)")
-                                .font(.poppins(size: 12, weight: .regular))
-                                .foregroundStyle(Theme.textPrimary.opacity(0.85))
-                            Spacer()
-                            Text(isFeverHigh ? "×1.18" : "×1.10")
-                                .font(.poppins(size: 13, weight: .semibold))
-                                .foregroundStyle(tint)
-                        }
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(tint.opacity(0.12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(tint.opacity(0.25), lineWidth: 1)
-                                )
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .leading)))
-                    }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
