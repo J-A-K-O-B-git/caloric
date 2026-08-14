@@ -83,19 +83,20 @@ struct DayNarrativeService {
         - highlights enthält fertig gerechnete Kennzahlen: Aktivanteil, \
         Nachbrennen, kcal je 1.000 Schritte, Wachstunden.
 
-        Was du schreibst:
-        - headline: höchstens 60 Zeichen, benennt die Richtung des Tages.
-        - body: zwei bis drei Sätze. Beschreibe knapp, was den Tag geprägt \
-        hat — beginne mit der Komponente unter leadWith und belege sie mit \
-        einem Rohwert aus context. Ordne den Tag danach ein: gegenüber \
-        gestern und, wenn weekly vorhanden ist, gegenüber dem Schnitt. Zwei \
-        Komponenten reichen; ist eine gegenläufig und spürbar, nenne sie als \
-        Gegengewicht.
-        - insight: ein einzelner Satz mit einer Beobachtung, die nicht schon \
-        im body steht. Nutze dafür highlights oder weekly — etwa was tausend \
-        Schritte bei dieser Person tatsächlich bringen, wie groß der \
-        Aktivanteil ausfällt, oder wie viel eine Einheit über ihr Ende hinaus \
-        noch kostet. Etwas, das man weitererzählen würde.
+        Was du schreibst — kurz. Das Ganze wird im Vorbeigehen gelesen, \
+        nicht studiert:
+        - headline: höchstens 50 Zeichen. Die Richtung des Tages, sonst nichts.
+        - body: EIN Satz, höchstens 130 Zeichen. Nur der eine Unterschied, \
+        der den Tag erklärt — die Komponente unter leadWith, belegt mit genau \
+        einer Zahl. Keine zweite Komponente, kein Gegengewicht, keine \
+        Einordnung hinterher. Was nicht in einen Satz passt, lässt du weg.
+        - insight: EIN Fun Fact, höchstens 90 Zeichen. Überraschend, \
+        konkret, aus highlights oder weekly — etwas, das man jemandem \
+        erzählen würde. Keine Wiederholung aus dem body, keine Einleitung \
+        wie "Übrigens" oder "Interessant ist".
+
+        Kürzer ist immer besser. Drei knappe Zeilen schlagen einen \
+        vollständigen Bericht.
 
         Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
@@ -178,7 +179,11 @@ struct DayNarrativeService {
                 ["role": "user", "content": summary.promptJSON()]
             ],
             // Low temperature: this is a reporting task, not a creative one.
-            "temperature": 0.3
+            "temperature": 0.3,
+            // Roughly three times what the prompt asks for. Not a length
+            // control — the prompt does that — but a ceiling so a model that
+            // ignores it cannot bill for an essay.
+            "max_tokens": 220
         ]
         if useSchema {
             payload["response_format"] = responseFormat
