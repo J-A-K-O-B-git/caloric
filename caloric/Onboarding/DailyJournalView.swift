@@ -84,7 +84,6 @@ struct DailyJournalView: View {
 
     @FocusState private var macroFocus: MacrosCardMacroField?
 
-    @State private var showSavedSummary = false
     @State private var showCalendarPicker = false
     /// 0 = full header, 1 = collapsed to the pinned date bar.
     @State private var headerCollapseProgress: Double = 0
@@ -370,9 +369,6 @@ struct DailyJournalView: View {
         .sheet(isPresented: $showCalendarPicker) {
             calendarPickerSheet
         }
-        .sheet(isPresented: $showSavedSummary) {
-            checkinSummarySheet
-        }
     }
 
     private var journalOverview: some View {
@@ -421,17 +417,6 @@ struct DailyJournalView: View {
             .collapsingHeaderFade(progress: headerCollapseProgress)
 
             pinnedHeaderRow
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    saveButton
-                }
-                .padding(.trailing, 24)
-                .padding(.bottom, 106)
-            }
-            .ignoresSafeArea(edges: .bottom)
         }
     }
 
@@ -453,50 +438,6 @@ struct DailyJournalView: View {
         }
     }
 
-    private var checkinSummarySheet: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(accentBlue.opacity(0.12))
-                        .frame(width: 80, height: 80)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(accentBlue)
-                }
-                
-                Text(language == "de" ? "Check-in gespeichert" : "Check-in saved")
-                    .font(.poppins(size: 22, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-            }
-            .padding(.top, 20)
-
-            VStack(spacing: 12) {
-                zustandSummary
-                macrosSummary
-            }
-            
-            Button {
-                showSavedSummary = false
-            } label: {
-                Text(language == "de" ? "Super" : "Great")
-                    .font(.poppins(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(accentBlue)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, 20)
-        }
-        .padding(24)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.canvas)
-    }
-
-    @ViewBuilder
     private var zustandSummary: some View {
         if sickToggle {
             modalRow(icon: "bandage.fill", label: language == "de" ? "Krank" : "Sick today", tint: .orange)
@@ -1371,36 +1312,6 @@ struct DailyJournalView: View {
 
     // MARK: - Save Button (Floating FAB)
 
-    private var saveButton: some View {
-        Button {
-            macroFocus = nil
-            caffeineFocused = false
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
-                showSavedSummary = true
-            }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(colors: [Theme.accentSky, accentBlue],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .frame(width: 62, height: 62)
-                    .shadow(color: accentBlue.opacity(0.35), radius: 10, x: 0, y: 6)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(isFutureDate)
-        .opacity(isFutureDate ? 0.45 : 1.0)
-    }
-
-    
     // MARK: - KI-Netzwerk-Logik
 
     @MainActor
