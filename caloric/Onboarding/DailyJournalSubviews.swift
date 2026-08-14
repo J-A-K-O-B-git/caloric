@@ -579,11 +579,6 @@ struct MacrosCard: View {
                 )
             }
 
-            // The one place the numbers appear. They come from the same
-            // fields the precise entry writes to, so the estimate and a typed
-            // correction can never disagree.
-            mealTotalsRow
-
             Divider().overlay(Theme.divider)
 
             Button {
@@ -719,32 +714,6 @@ struct MacrosCard: View {
         }
         .padding(16)
         .glassCard(20)
-    }
-
-    private var mealTotalsRow: some View {
-        let meal = selectedMeal ?? "breakfast"
-        func grams(_ dict: [String: String]) -> Double {
-            Double((dict[meal] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 0
-        }
-        let p = grams(proteinByMeal), c = grams(carbsByMeal), f = grams(fatByMeal)
-        return HStack(spacing: 14) {
-            totalPill(Theme.segNEAT, p)
-            totalPill(Theme.segEAT,  c)
-            totalPill(Theme.segTEF,  f)
-            Spacer()
-            Text("\(Int((p*4 + c*4 + f*9).rounded())) kcal")
-                .font(.poppins(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textSecondary)
-        }
-    }
-
-    private func totalPill(_ color: Color, _ grams: Double) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text("\(Int(grams.rounded())) g")
-                .font(.poppins(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
-        }
     }
 
     private func macroInputField(label: String, placeholder: String,
