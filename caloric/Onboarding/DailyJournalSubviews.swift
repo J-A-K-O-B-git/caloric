@@ -76,8 +76,10 @@ struct MenstruationCard: View {
 struct SicknessCard: View {
     let language: String
     var showsHeader: Bool = true
-    /// Only fired for "no". Answering "yes" opens the energy and fever
-    /// questions on the same slide, and advancing would skip them.
+    /// False until the user has actually tapped something. Without it "Nein"
+    /// reads as pre-selected simply because the underlying flag starts false,
+    /// and a pre-filled answer is one nobody looks at twice.
+    var hasAnswer: Bool = true
     var onAnswered: (() -> Void)? = nil
     @Binding var sickToggle: Bool
     @Binding var sickEnergyLevel: TDEECalculationService.JournalInputs.SickEnergyLevel?
@@ -93,7 +95,8 @@ struct SicknessCard: View {
             }
 
             HStack(spacing: 10) {
-                sickPill(label: language == "de" ? "Nein" : "No", isSelected: !sickToggle) {
+                sickPill(label: language == "de" ? "Nein" : "No",
+                         isSelected: hasAnswer && !sickToggle) {
                     onAnswered?()
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
                         sickToggle = false
@@ -101,7 +104,8 @@ struct SicknessCard: View {
                         feverLevel = nil
                     }
                 }
-                sickPill(label: language == "de" ? "Ja" : "Yes", isSelected: sickToggle) {
+                sickPill(label: language == "de" ? "Ja" : "Yes",
+                         isSelected: hasAnswer && sickToggle) {
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
                         sickToggle = true
                     }
@@ -436,7 +440,6 @@ struct MealDescriptionPicker: View {
     let language: String
     let accentBlue: Color
     let description: MealEstimator.Description
-    let estimate: MealEstimator.Macros
     let onChange: (MealEstimator.Description) -> Void
 
     private var de: Bool { language == "de" }
@@ -458,18 +461,6 @@ struct MealDescriptionPicker: View {
                 var d = description; d.fat = level; onChange(d)
             }
 
-            // The grams the words produce, shown live. Without this the picker
-            // would be a black box asking for trust it has not earned.
-            HStack(spacing: 14) {
-                estimateChip(de ? "Protein" : "Protein", estimate.proteinG, Theme.segNEAT)
-                estimateChip(de ? "KH" : "Carbs", estimate.carbsG, Theme.segEAT)
-                estimateChip(de ? "Fett" : "Fat", estimate.fatG, Theme.segTEF)
-                Spacer()
-                Text("\(Int(estimate.kcal.rounded())) kcal")
-                    .font(.poppins(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            .padding(.top, 2)
         }
     }
 
@@ -504,15 +495,13 @@ struct MealDescriptionPicker: View {
             Text(title)
                 .font(.poppins(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
+            // Three chips, not two. "Normal" used to be what you got by
+            // tapping nothing — correct, but invisible, so there was no way to
+            // say "average" on purpose or to see that you already had.
             HStack(spacing: 8) {
-                chip(label: de ? "wenig" : "low", isOn: level == .low) {
-                    // Tapping the active chip clears it: the way back to
-                    // "normal" should not require hunting for a third button.
-                    set(level == .low ? .normal : .low)
-                }
-                chip(label: de ? "viel" : "high", isOn: level == .high) {
-                    set(level == .high ? .normal : .high)
-                }
+                chip(label: de ? "wenig" : "low",    isOn: level == .low)    { set(.low) }
+                chip(label: de ? "mittel" : "medium", isOn: level == .normal) { set(.normal) }
+                chip(label: de ? "viel" : "high",    isOn: level == .high)   { set(.high) }
             }
         }
     }
@@ -535,15 +524,6 @@ struct MealDescriptionPicker: View {
         .animation(.easeOut(duration: 0.15), value: isOn)
     }
 
-    private func estimateChip(_ label: String, _ grams: Double, _ color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text("\(Int(grams.rounded())) g")
-                .font(.poppins(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
-        }
-        .accessibilityLabel("\(label) \(Int(grams.rounded())) Gramm")
-    }
 }
 
 // MARK: - Macros Card
@@ -568,7 +548,6 @@ struct MacrosCard: View {
     /// Supplied by the journal, which owns both the stored words and the body
     /// figures needed to turn them into grams.
     let mealDescription: (MealEstimator.Meal) -> MealEstimator.Description
-    let mealEstimate: (MealEstimator.Meal) -> MealEstimator.Macros
     let setMealDescription: (MealEstimator.Description, MealEstimator.Meal) -> Void
 
     @State private var entryMode: MacrosEntryMode? = nil
@@ -620,10 +599,14 @@ struct MacrosCard: View {
                     language: language,
                     accentBlue: accentBlue,
                     description: mealDescription(meal),
-                    estimate: mealEstimate(meal),
                     onChange: { setMealDescription($0, meal) }
                 )
             }
+
+            // The one place the numbers appear. They come from the same
+            // fields the precise entry writes to, so the estimate and a typed
+            // correction can never disagree.
+            mealTotalsRow
 
             Divider().overlay(Theme.divider)
 
@@ -760,6 +743,32 @@ struct MacrosCard: View {
         }
         .padding(16)
         .glassCard(20)
+    }
+
+    private var mealTotalsRow: some View {
+        let meal = selectedMeal ?? "breakfast"
+        func grams(_ dict: [String: String]) -> Double {
+            Double((dict[meal] ?? "").replacingOccurrences(of: ",", with: ".")) ?? 0
+        }
+        let p = grams(proteinByMeal), c = grams(carbsByMeal), f = grams(fatByMeal)
+        return HStack(spacing: 14) {
+            totalPill(Theme.segNEAT, p)
+            totalPill(Theme.segEAT,  c)
+            totalPill(Theme.segTEF,  f)
+            Spacer()
+            Text("\(Int((p*4 + c*4 + f*9).rounded())) kcal")
+                .font(.poppins(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    private func totalPill(_ color: Color, _ grams: Double) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text("\(Int(grams.rounded())) g")
+                .font(.poppins(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+        }
     }
 
     private func macroInputField(label: String, placeholder: String,

@@ -98,6 +98,13 @@ struct DailyJournalView: View {
     @State private var checkInStep = 0
     /// Single question opened from the summary, without walking the flow.
     @State private var editingStep: CheckInStep? = nil
+    /// Whether the illness question has been touched at all. Until it has,
+    /// neither pill is filled — a pre-selected "Nein" reads as an answer
+    /// already given and stops anyone from reading the question.
+    @State private var sicknessTouched = false
+    /// The flow waits behind a start screen rather than beginning the moment
+    /// the tab opens.
+    @State private var checkInStarted = false
 
     enum CheckInStep: String, CaseIterable, Identifiable {
         case menstruation, sickness, caffeine, macros
@@ -119,6 +126,15 @@ struct DailyJournalView: View {
             case .sickness:     return de ? "Bist du krank?" : "Are you unwell?"
             case .caffeine:     return de ? "Wie viel Koffein heute?" : "How much caffeine today?"
             case .macros:       return de ? "Was hast du gegessen?" : "What did you eat?"
+            }
+        }
+
+        /// Whether the card is tall enough that it should scroll on its own
+        /// rather than taking the heading with it.
+        var scrollsCardOnly: Bool {
+            switch self {
+            case .caffeine, .macros:      return true
+            case .menstruation, .sickness: return false
             }
         }
 
@@ -161,7 +177,9 @@ struct DailyJournalView: View {
         guard checkInStep >= 0, checkInStep < steps.count else { return true }
         switch steps[checkInStep] {
         case .menstruation:      return false
-        case .sickness:          return sickToggle
+        // Confirmed rather than auto-advanced: illness is the answer people
+        // most often tap by accident on the way past.
+        case .sickness:          return true
         case .caffeine, .macros: return true
         }
     }
@@ -309,14 +327,18 @@ struct DailyJournalView: View {
             if showsCheckInFlow {
                 // A check-in is a focused task: no collapsing header, no page
                 // to scroll past, just the question in front of you.
-                checkInFlow
-                    .transition(.opacity)
+                if checkInStarted {
+                    checkInFlow.transition(.opacity)
+                } else {
+                    checkInStart.transition(.opacity)
+                }
             } else {
                 journalOverview
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.28), value: showsCheckInFlow)
+        .animation(.easeInOut(duration: 0.28), value: checkInStarted)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Attached here rather than to the overview: the flow edits the same
         // values, and left below the switch nothing typed in a slide would
@@ -339,6 +361,10 @@ struct DailyJournalView: View {
         .onChange(of: selectedDate) { _, _ in
             loadFromStore()
             checkInStep = 0
+            // Otherwise stepping to another day would drop straight into
+            // question one, having skipped the doorstep the gate exists for.
+            checkInStarted = false
+            sicknessTouched = false
         }
         .sheet(item: $editingStep) { checkInEditSheet($0) }
         .sheet(isPresented: $showCalendarPicker) {
@@ -559,7 +585,8 @@ struct DailyJournalView: View {
             SicknessCard(
                 language: language,
                 showsHeader: step == nil,
-                onAnswered: step == nil ? nil : { advanceCheckIn() },
+                hasAnswer: step == nil || sicknessTouched,
+                onAnswered: step == nil ? nil : { sicknessTouched = true },
                 sickToggle: $sickToggle,
                 sickEnergyLevel: $sickEnergyLevel,
                 feverLevel: $feverLevel,
@@ -601,11 +628,6 @@ struct DailyJournalView: View {
                 stopRecording: { stopRecording() },
                 macroFocus: $macroFocus,
                 mealDescription: { mealDescription($0) },
-                mealEstimate: { meal in
-                    MealEstimator.macros(for: mealDescription(meal), meal: meal,
-                                         dailyEnergyKcal: estimatedDailyEnergy,
-                                         weightKg: weightKg)
-                },
                 setMealDescription: { setMealDescription($0, for: $1) }
             )
             .confirmationDialog(
@@ -660,6 +682,115 @@ struct DailyJournalView: View {
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isFutureDate)
+    }
+
+    // MARK: - Check-in Start
+
+    /// The doorstep. Opening a tab straight into question one leaves no moment
+    /// to decide whether now is the time — and a check-in you were pushed into
+    /// is one you abandon on slide two.
+    private var checkInStart: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(Theme.accentGradient.opacity(0.14))
+                    .frame(width: 108, height: 108)
+                Image(systemName: "checklist")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(Theme.accentGradient)
+            }
+
+            Text(language == "de" ? "Dein Check-in" : "Your check-in")
+                .font(.poppins(size: 28, weight: .heavy))
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.top, 26)
+
+            Text(checkInStartDateLine)
+                .font(.poppins(size: 13, weight: .medium))
+                .foregroundStyle(accentBlue)
+                .padding(.top, 4)
+
+            Text(language == "de"
+                 ? "\(checkInSteps.count) kurze Fragen. Danach weiß Caloric, was deinen Tag über die Bewegung hinaus geprägt hat."
+                 : "\(checkInSteps.count) short questions. Then Caloric knows what shaped your day beyond movement.")
+                .font(.poppins(size: 14, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 34)
+                .padding(.top, 12)
+
+            // What is coming, so the commitment is visible before it is made.
+            HStack(spacing: 10) {
+                ForEach(checkInSteps) { step in
+                    VStack(spacing: 7) {
+                        Image(systemName: step.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(accentBlue)
+                            .frame(width: 42, height: 42)
+                            .background(Circle().fill(accentBlue.opacity(0.12)))
+                        Text(checkInStartLabel(step))
+                            .font(.poppins(size: 10, weight: .medium))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+            }
+            .padding(.top, 28)
+
+            Spacer()
+
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    checkInStep = 0
+                    checkInStarted = true
+                }
+            } label: {
+                Text(language == "de" ? "Loslegen" : "Get started")
+                    .font(.poppins(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        Capsule()
+                            .fill(Theme.accentGradient)
+                            .shadow(color: accentBlue.opacity(0.3), radius: 12, y: 5)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 24)
+
+            Button {
+                checkInCompletedFor = DateKey.string(from: selectedDate)
+            } label: {
+                Text(language == "de" ? "Heute nicht" : "Not today")
+                    .font(.poppins(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 14)
+            .padding(.bottom, 46)
+        }
+        .sensoryFeedback(.impact(weight: .medium), trigger: checkInStarted)
+    }
+
+    private var checkInStartDateLine: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: language == "de" ? "de_DE" : "en_US")
+        f.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
+        return f.string(from: selectedDate)
+    }
+
+    private func checkInStartLabel(_ step: CheckInStep) -> String {
+        let de = language == "de"
+        switch step {
+        case .menstruation: return de ? "Zyklus" : "Cycle"
+        case .sickness:     return de ? "Befinden" : "Health"
+        case .caffeine:     return de ? "Koffein" : "Caffeine"
+        case .macros:       return de ? "Essen" : "Food"
+        }
     }
 
     // MARK: - Check-in Flow
@@ -724,56 +855,66 @@ struct DailyJournalView: View {
     }
 
     private func checkInSlide(_ step: CheckInStep) -> some View {
-        // Short questions sit centred in the space they are given; the macros
-        // slide is tall enough to scroll. Both from one layout: a minimum
-        // height of the viewport with centre alignment does the first, and
-        // anything taller simply pushes past it into the second.
         GeometryReader { geo in
-            ScrollView(showsIndicators: false) {
+            if step.scrollsCardOnly {
+                // Question and icon stay put; the card scrolls inside itself.
+                // Scrolling the whole slide dragged the heading off the top,
+                // and a form you scroll away from is one you lose your place in.
                 VStack(alignment: .leading, spacing: 0) {
-                    Image(systemName: step.icon)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
-                        .background(
-                            Circle()
-                                .fill(Theme.accentGradient)
-                                .shadow(color: accentBlue.opacity(0.28), radius: 10, y: 4)
-                        )
-                        .padding(.horizontal, 20)
-
-                    Text(step.question(language: language))
-                        .font(.poppins(size: 26, weight: .bold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineSpacing(1)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-
-                    Text(step.reason(language: language))
-                        .font(.poppins(size: 13, weight: .regular))
-                        .foregroundStyle(Theme.textSecondary)
-                        .lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-
-                    // No horizontal padding of its own — cardsSection already
-                    // carries 20, the same inset the text above uses, so the
-                    // question and the card it belongs to share an edge.
-                    cardsSection(only: step)
-                        .padding(.top, 26)
+                    slideHeading(step)
+                    ScrollView(showsIndicators: false) {
+                        cardsSection(only: step)
+                            .padding(.top, 20)
+                            .padding(.bottom, 8)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 24)
-                // Without a footer the answer takes its place: bottom-aligned
-                // with the same clearance the buttons had, so the thumb lands
-                // where it already expects to.
-                .padding(.bottom, currentStepNeedsFooter ? 24 : 78)
-                .frame(minHeight: geo.size.height,
-                       alignment: currentStepNeedsFooter ? .center : .bottom)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        slideHeading(step)
+                        cardsSection(only: step)
+                            .padding(.top, 26)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
+                    .frame(minHeight: geo.size.height, alignment: .center)
+                }
             }
         }
+    }
+
+    /// Icon, question and reason — the part of a slide that never scrolls.
+    private func slideHeading(_ step: CheckInStep) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(systemName: step.icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(
+                    Circle()
+                        .fill(Theme.accentGradient)
+                        .shadow(color: accentBlue.opacity(0.28), radius: 10, y: 4)
+                )
+
+            Text(step.question(language: language))
+                .font(.poppins(size: 26, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+                .lineSpacing(1)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 18)
+
+            Text(step.reason(language: language))
+                .font(.poppins(size: 13, weight: .regular))
+                .foregroundStyle(Theme.textSecondary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Matches the 20 cardsSection carries, so heading and card share an edge.
+        .padding(.horizontal, 20)
     }
 
     private func checkInFooter(steps: [CheckInStep]) -> some View {
@@ -817,9 +958,8 @@ struct DailyJournalView: View {
             .opacity(isLast ? 0 : 1)
         }
         .padding(.horizontal, 24)
-        // Enough to clear the floating tab bar and no more — at 100 the
-        // buttons floated well above it with a band of empty canvas beneath.
-        .padding(.bottom, 70)
+        // Just clear of the floating tab bar.
+        .padding(.bottom, 46)
     }
 
     /// Moves to the next slide, or ends the check-in on the last one.
@@ -843,6 +983,7 @@ struct DailyJournalView: View {
             checkInCompletedFor = DateKey.string(from: selectedDate)
         }
         checkInStep = 0
+        checkInStarted = false
     }
 
     // MARK: - Check-in Übersicht
