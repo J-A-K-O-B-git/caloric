@@ -442,29 +442,29 @@ struct DataInsightView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 profileCard(
                     field: .geschlecht,
-                    label: language == "de" ? "GESCHLECHT" : "GENDER",
+                    label: language == "de" ? "Geschlecht" : "Gender",
                     value: selectedGender ?? (language == "de" ? "Nicht gesetzt" : "Not set"))
                 profileCard(
                     field: .alter,
-                    label: language == "de" ? "ALTER" : "AGE",
+                    label: language == "de" ? "Alter" : "Age",
                     value: "\(userAge) \(language == "de" ? "Jahre" : "yrs")")
                 profileCard(
                     field: .groesse,
-                    label: language == "de" ? "GRÖSSE" : "HEIGHT",
+                    label: language == "de" ? "Größe" : "Height",
                     value: heightText.isEmpty ? "–" : "\(heightText) \(heightUnit)")
                 profileCard(
                     field: .gewicht,
-                    label: language == "de" ? "GEWICHT" : "WEIGHT",
+                    label: language == "de" ? "Gewicht" : "Weight",
                     value: weightText.isEmpty ? "–" : "\(weightText) \(weightUnit)")
                 profileCard(
                     field: .koerperfett,
-                    label: language == "de" ? "KÖRPERFETT" : "BODY FAT",
+                    label: language == "de" ? "Körperfett" : "Body fat",
                     value: bodyFatText.isEmpty
                         ? (language == "de" ? "Nicht gesetzt" : "Not set")
                         : "\(bodyFatText) %")
                 profileCard(
                     field: .besonderheiten,
-                    label: language == "de" ? "BESONDERHEITEN" : "CONDITIONS",
+                    label: language == "de" ? "Besonderheiten" : "Conditions",
                     value: besonderheitenSummary)
             }
             .padding(.horizontal, 20)
@@ -650,10 +650,6 @@ private struct HistoryDetailSheet: View {
                 HStack {
                     Text(type.title(language: language))
                         .font(.poppins(size: 22, weight: .bold))
-                    Spacer()
-                    Text(language == "de" ? "Verlauf" : "History")
-                        .font(.poppins(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
                 }
                 
                 if let sel = selectedPoint {

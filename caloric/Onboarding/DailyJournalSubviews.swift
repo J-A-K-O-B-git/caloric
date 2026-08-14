@@ -265,10 +265,6 @@ struct CaffeineCard: View {
                 }
             } label: {
                 HStack {
-                    Text(language == "de" ? "Koffein heute" : "Caffeine today")
-                        .font(.poppins(size: 16, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(accentBlue.opacity(0.6))

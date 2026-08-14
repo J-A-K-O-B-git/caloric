@@ -258,8 +258,7 @@ struct CalorieDetailView: View {
                      kcal: afterburnKcal)
 
             Text(language == "de"
-                 ? "Die Wachphase enthält den Ruheumsatz dieser Stunden plus Alltagsbewegung, Verdauung und Koffein. Das Nachbrennen ist ein Modellwert: Wir schätzen, wie viel eine Einheit über ihr Ende hinaus kostet, und verteilen ihn abklingend über die folgenden Stunden — gemessen ist er nicht."
-                 : "Awake covers the resting burn of those hours plus everyday movement, digestion and caffeine. Afterburn is modelled, not measured: we estimate what a session costs beyond its end and let that decay over the hours after it.")
+                 ? "Die Wachphase enthält den Ruheumsatz dieser Stunden plus Alltagsbewegung, Verdauung und Koffein. Das Nachbrennen ist ein Modellwert: Wir schätzen, wie viele Kalorien nach einem Workout zusätzlich verbannt werden, und verteilen sie gleichmäßig auf die nächsten Stunden auf.": "The awake phase includes the resting metabolic rate for these hours plus everyday activities, digestion, and  caffeine consumption. The afterburn is a model value: we estimate how many calories are burned additionally  after a workout and distribute them evenly over the next few hours.")
                 .font(.poppins(size: 10, weight: .regular))
                 .foregroundStyle(Theme.textSecondary.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
