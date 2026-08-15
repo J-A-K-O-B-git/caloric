@@ -86,17 +86,20 @@ struct DayNarrativeService {
         Was du schreibst — kurz. Das Ganze wird im Vorbeigehen gelesen, \
         nicht studiert:
         - headline: höchstens 50 Zeichen. Die Richtung des Tages, sonst nichts.
-        - body: EIN Satz, höchstens 130 Zeichen. Nur der eine Unterschied, \
-        der den Tag erklärt — die Komponente unter leadWith, belegt mit genau \
-        einer Zahl. Keine zweite Komponente, kein Gegengewicht, keine \
-        Einordnung hinterher. Was nicht in einen Satz passt, lässt du weg.
+        - body: höchstens zwei Sätze, zusammen höchstens 200 Zeichen. Der \
+        erste nennt den Unterschied, der den Tag erklärt — die Komponente \
+        unter leadWith, belegt mit einer Zahl. Der zweite ist optional und \
+        nur dann da, wenn er wirklich etwas hinzufügt: eine zweite Komponente, \
+        die spürbar gegenläuft, oder wie der Tag gegenüber dem Schnitt steht. \
+        Hat er nichts zu sagen, lässt du ihn weg — ein Satz ist eine \
+        vollständige Antwort.
         - insight: EIN Fun Fact, höchstens 90 Zeichen. Überraschend, \
         konkret, aus highlights oder weekly — etwas, das man jemandem \
         erzählen würde. Keine Wiederholung aus dem body, keine Einleitung \
         wie "Übrigens" oder "Interessant ist".
 
-        Kürzer ist immer besser. Drei knappe Zeilen schlagen einen \
-        vollständigen Bericht.
+        Im Zweifel kürzer. Ein zweiter Satz muss sich verdienen, dass er \
+        da steht.
 
         Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
