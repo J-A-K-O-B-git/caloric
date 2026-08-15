@@ -1834,7 +1834,7 @@ struct DashboardView: View {
         return ZStack {
             Circle()
                 .trim(from: 0, to: sweep)
-                .stroke(Theme.trackFill, style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                .stroke(Theme.trackFill, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                 .rotationEffect(.degrees(start))
 
             ForEach(arcs, id: \.seg.id) { arc in
@@ -1844,7 +1844,7 @@ struct DashboardView: View {
                     .stroke(
                         LinearGradient(colors: [arc.seg.color.opacity(0.85), arc.seg.color],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
-                        style: StrokeStyle(lineWidth: picked ? 28 : 22, lineCap: .butt)
+                        style: StrokeStyle(lineWidth: picked ? 19 : 14, lineCap: .butt)
                     )
                     .rotationEffect(.degrees(start))
                     .shadow(color: arc.seg.color.opacity(picked ? 0.45 : 0.2), radius: picked ? 8 : 3)
@@ -1853,6 +1853,9 @@ struct DashboardView: View {
                     .contentShape(
                         Circle()
                             .trim(from: arc.from * sweep, to: arc.to * sweep)
+                            // Wider than the stroke on purpose: a 14pt arc is
+                            // thinner than a fingertip, so the target keeps the
+                            // reach the old thicker ring had.
                             .stroke(style: StrokeStyle(lineWidth: 34))
                             .rotation(.degrees(start))
                     )
@@ -1867,7 +1870,7 @@ struct DashboardView: View {
             VStack(spacing: 2) {
                 let shown = segs.first(where: { $0.type == expandedSegmentType })
                 Text("\(Int((shown?.kcal ?? total).rounded()))")
-                    .font(.poppins(size: 30, weight: .bold))
+                    .font(.poppins(size: 38, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                     .contentTransition(.numericText())
                 Text(shown?.short ?? "kcal")
@@ -1877,7 +1880,7 @@ struct DashboardView: View {
             .offset(y: -6)
             .animation(.easeOut(duration: 0.2), value: expandedSegmentType)
         }
-        .frame(height: LayoutMetrics.ringSize * 1.05)
+        .frame(height: LayoutMetrics.ringSize * 1.35)
         .padding(.top, 4)
     }
     private func infoSheet(for type: EnergySegmentType) -> some View {
@@ -1986,14 +1989,9 @@ struct DashboardView: View {
 
                     // Hero — total + stacked micro-chart
                     VStack(spacing: 14) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text("\(Int(displayBurnedSoFar))")
-                                .font(.poppins(size: 42, weight: .semibold))
-                                .foregroundStyle(Theme.textPrimary)
-                            Text("kcal")
-                                .font(.poppins(size: 15, weight: .regular))
-                                .foregroundStyle(Theme.textSecondary)
-                        }
+                        // No figure above the ring: it already carries the
+                        // same number in its centre, and two of them a
+                        // centimetre apart read as two different totals.
                         energyRing(segs, total: total)
                         // Legend
                         HStack(spacing: 14) {
