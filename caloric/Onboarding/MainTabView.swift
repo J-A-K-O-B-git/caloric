@@ -72,7 +72,8 @@ struct MainTabView: View {
                 sleepHours: $sleepHours,
                 selectedConditions: $selectedConditions,
                 metabolismFactor: $metabolismFactor,
-                selectedDate: $selectedDate
+                selectedDate: $selectedDate,
+                selectedTab: $selectedTab
             )
             .tag(0)
             .tabItem {

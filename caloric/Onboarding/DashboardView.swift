@@ -31,6 +31,9 @@ struct DashboardView: View {
     @Binding var selectedConditions: Set<String>
     @Binding var metabolismFactor: Double
     @Binding var selectedDate: Date
+    /// Lets the info sheet hand off to Meine Daten, where the same sources are
+    /// listed in full.
+    @Binding var selectedTab: Int
     
     @State private var editingField: String? = nil
     @State private var showProfileSidebar = false
@@ -1010,7 +1013,8 @@ struct DashboardView: View {
         sleepHours: Binding<Double>,
         selectedConditions: Binding<Set<String>>,
         metabolismFactor: Binding<Double>,
-        selectedDate: Binding<Date>
+        selectedDate: Binding<Date>,
+        selectedTab: Binding<Int>
     ) {
         self.accentBlue = accentBlue
         self.language = language
@@ -1030,6 +1034,7 @@ struct DashboardView: View {
         self._selectedConditions = selectedConditions
         self._metabolismFactor = metabolismFactor
         self._selectedDate = selectedDate
+        self._selectedTab = selectedTab
     }
     
     private var dateNavigationRow: some View {
@@ -1481,11 +1486,6 @@ struct DashboardView: View {
         let kcal: Double
     }
 
-    private struct InfoComponent {
-        let icon: String
-        let label: String
-    }
-
     /// Ordered energy-expenditure components — for today shows burned so far, for past/future shows full day.
     private var energySegments: [EnergySegment] {
         let neat = healthKit.isAuthorized ? activityResult.neatKcal : 0
@@ -1700,7 +1700,9 @@ struct DashboardView: View {
             HStack(spacing: compact ? 3 : 5) {
                 Image(systemName: isUp ? "arrow.up.right" : "arrow.down.right")
                     .font(.system(size: compact ? 8 : 11, weight: .bold))
-                Text(String(format: "%+.1f%%", percent))
+                // No decimal: these are day-over-day comparisons of estimates,
+                // and a tenth of a percent claims a precision they do not have.
+                Text(String(format: "%+.0f%%", percent))
                     .font(.poppins(size: compact ? 11 : 13, weight: .semibold))
                 if let suffix {
                     Text(suffix)
@@ -1809,112 +1811,78 @@ struct DashboardView: View {
         }
     }
 
-    private func energyStackedBar(_ segs: [EnergySegment], total: Double) -> some View {
-        VStack(spacing: 6) {
-            GeometryReader { geo in
-                let width = geo.size.width
-                HStack(spacing: 1.5) {
-                    ForEach(segs) { s in
-                        let w = max(s.kcal > 0 ? 2 : 0, width * (s.kcal / total))
-                        Rectangle()
-                            .fill(
-                                LinearGradient(colors: [s.color.opacity(0.8), s.color],
-                                               startPoint: .top, endPoint: .bottom)
-                            )
-                            .frame(width: w)
-                            .shadow(color: s.color.opacity(0.3), radius: 2)
-                    }
-                }
-            }
-            .frame(height: 12)
-            .clipShape(Capsule())
-            .background(
-                Capsule()
-                    .fill(Theme.trackFill)
-                    .overlay(Capsule().stroke(Theme.cardStroke, lineWidth: 0.5))
-            )
-            
-            // Faint scale below
-            HStack(spacing: 0) {
-                ForEach(0...10, id: \.self) { i in
-                    Rectangle()
-                        .fill(Theme.ink.opacity(0.08))
-                        .frame(width: 1, height: 3)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.horizontal, 2)
+    /// The day's split as a ring rather than a bar, matching the dashboard's
+    /// calorie ring: same 270° sweep, same start angle, same round caps.
+    ///
+    /// Each arc is its own tap target. A bar of five segments on a phone gives
+    /// the smallest of them a few points of width — as arcs they are large
+    /// enough to hit, and the one you picked lifts out of the ring.
+    private func energyRing(_ segs: [EnergySegment], total: Double) -> some View {
+        // Same geometry as calorieRingWidget so the two read as one family.
+        let sweep = 0.75
+        let start = 135.0
+
+        // Running offsets, so each arc knows where the ones before it ended.
+        var cursor = 0.0
+        var arcs: [(seg: EnergySegment, from: Double, to: Double)] = []
+        for seg in segs {
+            let share = total > 0 ? seg.kcal / total : 0
+            arcs.append((seg, cursor, cursor + share))
+            cursor += share
         }
-    }
 
-        private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
-        let pct = total > 0 ? s.kcal / total : 0
-        let isExpanded = expandedSegmentType == s.type
+        return ZStack {
+            Circle()
+                .trim(from: 0, to: sweep)
+                .stroke(Theme.trackFill, style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                .rotationEffect(.degrees(start))
 
-        return VStack(spacing: 9) {
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
-                }
-            } label: {
-                HStack(spacing: 13) {
-                    Image(systemName: s.icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(s.color)
-                        .frame(width: 42, height: 42)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(s.color.opacity(0.16))
-                                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .strokeBorder(s.color.opacity(0.30), lineWidth: 1))
-                        )
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(s.title)
-                            .font(.poppins(size: 15, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                        if let subtitle = s.subtitle {
-                            Text(subtitle)
-                                .font(.poppins(size: 11, weight: .regular))
-                                .foregroundStyle(Theme.textSecondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
+            ForEach(arcs, id: \.seg.id) { arc in
+                let picked = expandedSegmentType == arc.seg.type
+                Circle()
+                    .trim(from: arc.from * sweep, to: arc.to * sweep)
+                    .stroke(
+                        LinearGradient(colors: [arc.seg.color.opacity(0.85), arc.seg.color],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        style: StrokeStyle(lineWidth: picked ? 28 : 22, lineCap: .butt)
+                    )
+                    .rotationEffect(.degrees(start))
+                    .shadow(color: arc.seg.color.opacity(picked ? 0.45 : 0.2), radius: picked ? 8 : 3)
+                    // contentShape on the same trim: without it the tap target
+                    // would be the full circle and every arc would overlap.
+                    .contentShape(
+                        Circle()
+                            .trim(from: arc.from * sweep, to: arc.to * sweep)
+                            .stroke(style: StrokeStyle(lineWidth: 34))
+                            .rotation(.degrees(start))
+                    )
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                            expandedSegmentType = picked ? nil : arc.seg.type
                         }
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 1) {
-                        HStack(alignment: .firstTextBaseline, spacing: 3) {
-                            Text("\(Int(s.kcal))")
-                                .font(.poppins(size: 17, weight: .semibold))
-                                .foregroundStyle(Theme.textPrimary)
-                            Text("kcal")
-                                .font(.poppins(size: 11, weight: .regular))
-                                .foregroundStyle(Theme.textSecondary)
-                        }
-                        Text(String(format: "%.0f%%", pct * 100))
-                            .font(.poppins(size: 11, weight: .medium))
-                            .foregroundStyle(s.color)
-                    }
-                }
             }
-            .buttonStyle(.plain)
 
-            InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
-                .frame(height: 10)
-
-            if isExpanded {
-                expandedContent(for: s.type, currentKcal: s.kcal)
-                    .transition(.opacity)
+            // The picked slice, or the day, in the middle.
+            VStack(spacing: 2) {
+                let shown = segs.first(where: { $0.type == expandedSegmentType })
+                Text("\(Int((shown?.kcal ?? total).rounded()))")
+                    .font(.poppins(size: 30, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .contentTransition(.numericText())
+                Text(shown?.short ?? "kcal")
+                    .font(.poppins(size: 12, weight: .medium))
+                    .foregroundStyle(shown?.color ?? Theme.textSecondary)
             }
+            .offset(y: -6)
+            .animation(.easeOut(duration: 0.2), value: expandedSegmentType)
         }
-        .padding(12)
-        .glassCard(16)
+        .frame(height: LayoutMetrics.ringSize * 1.05)
+        .padding(.top, 4)
     }
-
-
     private func infoSheet(for type: EnergySegmentType) -> some View {
         let seg = energySegments.first(where: { $0.type == type })
         let segColor = seg?.color ?? accentBlue
-        let components = infoComponents(for: type)
         return VStack(spacing: 20) {
             HStack(spacing: 14) {
                 Image(systemName: seg?.icon ?? "info.circle")
@@ -1950,16 +1918,19 @@ struct DashboardView: View {
                 .padding(.horizontal, 24)
 
             VStack(alignment: .leading, spacing: 10) {
-                Text(language == "de" ? "Einflussfaktoren" : "Factors")
+                Text(language == "de" ? "Speist sich aus" : "Fed by")
                     .font(.poppins(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
 
-                HStack(spacing: 8) {
-                    ForEach(components, id: \.label) { comp in
+                // Wraps: five sources do not fit one row on a narrow phone,
+                // and an HStack would have squeezed them instead of breaking.
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)],
+                          alignment: .leading, spacing: 8) {
+                    ForEach(LiveSource.feeding(type), id: \.de) { source in
                         HStack(spacing: 5) {
-                            Image(systemName: comp.icon)
+                            Image(systemName: source.icon)
                                 .font(.system(size: 11, weight: .medium))
-                            Text(comp.label)
+                            Text(source.label(language: language))
                                 .font(.poppins(size: 12, weight: .medium))
                         }
                         .foregroundStyle(segColor)
@@ -1968,14 +1939,29 @@ struct DashboardView: View {
                         .background(segColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
-                    Spacer()
                 }
+
+                Button {
+                    infoSegmentType = nil
+                    showActivityBreakdown = false
+                    selectedTab = 1
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(language == "de" ? "Alle Live-Quellen ansehen" : "See all live sources")
+                            .font(.poppins(size: 12, weight: .medium))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundStyle(accentBlue)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
             .padding(.horizontal, 24)
 
             Spacer()
         }
-        .presentationDetents([.height(340)])
+        .presentationDetents([.height(380)])
         .presentationDragIndicator(.visible)
     }
 
@@ -1989,43 +1975,6 @@ struct DashboardView: View {
         }
     }
 
-    private func infoComponents(for type: EnergySegmentType) -> [InfoComponent] {
-        switch type {
-        case .bmr:
-            return [
-                InfoComponent(icon: "person.fill",        label: language == "de" ? "Körpermasse"  : "Body Mass"),
-                InfoComponent(icon: "moon.fill",           label: language == "de" ? "Schlaf"       : "Sleep"),
-                InfoComponent(icon: "calendar",            label: language == "de" ? "Alter"         : "Age"),
-                InfoComponent(icon: "slider.horizontal.3", label: language == "de" ? "Stoffwechsel" : "Metabolism")
-            ]
-        case .neat:
-            return [
-                InfoComponent(icon: "figure.walk",  label: language == "de" ? "Schritte"     : "Steps"),
-                InfoComponent(icon: "figure.stand", label: language == "de" ? "Stehzeit"     : "Stand Time"),
-                InfoComponent(icon: "heart.fill",   label: language == "de" ? "Herzfrequenz" : "Heart Rate")
-            ]
-        case .eat:
-            return [
-                InfoComponent(icon: "dumbbell.fill",     label: language == "de" ? "Workouts" : "Workouts"),
-                InfoComponent(icon: "pencil.circle.fill", label: language == "de" ? "Manuell"  : "Manual")
-            ]
-        case .tef:
-            return [
-                InfoComponent(icon: "flame.fill", label: "Protein"),
-                InfoComponent(icon: "leaf.fill",  label: language == "de" ? "Kohlenhydrate" : "Carbs"),
-                InfoComponent(icon: "drop.fill",  label: language == "de" ? "Fett"          : "Fat")
-            ]
-        case .caffeine:
-            return [
-                InfoComponent(icon: "cup.and.heat.waves.fill", label: language == "de" ? "Koffein (mg)" : "Caffeine (mg)"),
-                InfoComponent(icon: "thermometer.medium",       label: language == "de" ? "Thermogenese" : "Thermogenesis")
-            ]
-        }
-    }
-
-    /// No navigation bar here on purpose — this sheet is one screen with
-    /// nothing to navigate to, so a title bar was just dead space above the
-    /// content. "Fertig" floats over the scroll content instead.
     private var activityBreakdownSheet: some View {
         let segs = energySegments
         let total = max(segs.reduce(0) { $0 + $1.kcal }, 1)
@@ -2045,7 +1994,7 @@ struct DashboardView: View {
                                 .font(.poppins(size: 15, weight: .regular))
                                 .foregroundStyle(Theme.textSecondary)
                         }
-                        energyStackedBar(segs, total: total)
+                        energyRing(segs, total: total)
                         // Legend
                         HStack(spacing: 14) {
                             ForEach(segs) { s in
@@ -4029,5 +3978,41 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
             return de ? "Dein Tagesverbrauch je Kilo Körpergewicht. Diese Kennzahl macht Tage über Gewichtsänderungen hinweg vergleichbar."
                       : "Your daily intake per kilogram of body weight. This metric allows you to compare days across different weights."
         }
+    }
+}
+
+
+// MARK: - Live-Quellen
+
+/// The data sources behind each energy component, mirroring the cards under
+/// "Live-Quellen" in Meine Daten.
+///
+/// The info sheet used to list hand-written "factors" — Körpermasse, Alter,
+/// Stoffwechsel — which described the *model* rather than anything the app
+/// actually reads. These are the real inputs, named the same way they are
+/// named on the screen that shows them live.
+struct LiveSource {
+    let icon: String
+    let de: String
+    let en: String
+    let segments: Set<EnergySegmentType>
+
+    func label(language: String) -> String { language == "de" ? de : en }
+
+    static let all: [LiveSource] = [
+        LiveSource(icon: "figure.run",         de: "Workouts",         en: "Workouts",       segments: [.eat]),
+        LiveSource(icon: "figure.walk",        de: "Schritte",         en: "Steps",          segments: [.neat]),
+        LiveSource(icon: "map.fill",           de: "Gehstrecke",       en: "Distance",       segments: [.neat]),
+        LiveSource(icon: "waveform.path.ecg",  de: "Herzfrequenz",     en: "Heart Rate",     segments: [.neat, .eat]),
+        LiveSource(icon: "heart.fill",         de: "Ruhepuls",         en: "Resting HR",     segments: [.neat, .eat]),
+        LiveSource(icon: "figure.stand",       de: "Stehzeit",         en: "Stand Time",     segments: [.neat]),
+        LiveSource(icon: "moon.zzz.fill",      de: "Schlafanalyse",    en: "Sleep",          segments: [.bmr]),
+        LiveSource(icon: "lungs.fill",         de: "VO₂max",           en: "VO₂max",         segments: [.eat]),
+        LiveSource(icon: "fork.knife",         de: "Makros",           en: "Macros",         segments: [.tef]),
+        LiveSource(icon: "cup.and.heat.waves.fill", de: "Koffein",     en: "Caffeine",       segments: [.caffeine])
+    ]
+
+    static func feeding(_ type: EnergySegmentType) -> [LiveSource] {
+        all.filter { $0.segments.contains(type) }
     }
 }
