@@ -438,6 +438,7 @@ struct DailyJournalView: View {
         }
     }
 
+    @ViewBuilder
     private var zustandSummary: some View {
         if sickToggle {
             modalRow(icon: "bandage.fill", label: language == "de" ? "Krank" : "Sick today", tint: .orange)
