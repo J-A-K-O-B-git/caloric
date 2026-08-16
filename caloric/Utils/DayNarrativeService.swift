@@ -33,6 +33,16 @@ struct DayNarrativeService {
         let insight: String
     }
 
+    /// The long form behind the dashboard's "Dein Tag im Vergleich" button.
+    ///
+    /// Deliberately not generated with the card above it: this one costs
+    /// several times as many tokens and most days nobody opens it. It is
+    /// requested when the button is pressed and never before.
+    struct DeepDive: Codable, Equatable {
+        /// Two to four short paragraphs. Inline `**…**` marks the figures.
+        let paragraphs: [String]
+    }
+
     enum NarrativeError: LocalizedError {
         case requestFailed(status: Int, body: String)
         case unreadableResult
@@ -123,6 +133,75 @@ struct DayNarrativeService {
         """
     }
 
+    /// The deep dive's voice.
+    ///
+    /// Written to read like a person who looked at the numbers and has
+    /// something to say about them — a verdict first, then the reason, then
+    /// the one thing worth taking away. The card above the button is a
+    /// glance; this is the version you actually read, so it is allowed the
+    /// space the card is not.
+    private static func deepDivePrompt(language: String, name: String) -> String {
+        let address = name.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "Sprich die Person direkt an, ohne Namen."
+            : "Sprich die Person mit ihrem Vornamen an: \(name). Der Name steht "
+              + "im ersten Satz, danach nicht mehr."
+        let localeRule = language == "de"
+            ? "Schreibe auf Deutsch und duze die Person."
+            : "Write in English and address the person directly by name."
+
+        return """
+        Du schreibst in der App Caloric den ausführlichen Tagesvergleich. Die \
+        Person hat dafür bewusst auf einen Button getippt — sie will mehr als \
+        die zwei Sätze, die oben schon stehen.
+
+        \(address)
+
+        Aufbau — zwei bis vier Absätze, jeder zwei bis vier Sätze:
+        1. Das Urteil über den Tag, sofort im ersten Satz, mit der Zahl, die \
+        es trägt. Kein Aufwärmen, kein "Schauen wir mal".
+        2. Warum der Tag so ausfiel: die Komponente unter leadWith, belegt mit \
+        Zahlen, und wo möglich mit dem Rohwert dahinter (Schritte, \
+        Workout-Minuten, Stehminuten) statt nur mit kcal.
+        3. Die Einordnung: wie der Tag gegen den Schnitt der letzten Tage \
+        steht, oder was gegenläuft. Wenn es einen Haken gibt, nennst du ihn \
+        hier offen.
+        4. Optional ein letzter Absatz mit dem, was jemand mitnimmt — eine \
+        Beobachtung aus highlights, die überrascht.
+
+        Ton: warm, direkt, respektvoll. Wie jemand, der sich ehrlich freut, \
+        wenn etwas gut lief, und es genauso ruhig sagt, wenn nicht. Kein \
+        Coach-Geschrei, keine Ausrufezeichen-Ketten, keine Floskeln, keine \
+        Überschriften und keine Aufzählungszeichen.
+
+        Formatierung: Setze die Zahlen, auf die es ankommt, in **doppelte \
+        Sternchen** — aber höchstens drei pro Absatz, sonst ist der Text \
+        gesprenkelt statt betont. Ein einzelnes passendes Emoji darf im \
+        ersten Absatz stehen, danach keins mehr.
+
+        Harte Regeln:
+        - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
+        leite nichts ab, schätze nichts dazu. Eine erfundene Zahl ist der \
+        einzige Fehler, den dieser Text nicht machen darf.
+        - Erwähne den Grundumsatz (bmr) nur, wenn bmrFactorsChanged true ist. \
+        Sonst ist seine Differenz reines Modellrauschen.
+        - Wenn isPartialDay true ist, zählen für heute nur die bisherigen \
+        Stunden, für den Vortag der ganze Tag. Beschreibe den Stand dann als \
+        Zwischenstand und deute die Differenz nicht als Rückgang.
+        - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute die \
+        tef-Differenz nicht — dann fehlen die Einträge. Sag das lieber.
+        - Fehlt weekly, vergleiche nur mit gestern und erfinde keinen Schnitt.
+        - Keine medizinischen Ratschläge, keine Diät- oder Trainingspläne, \
+        keine moralische Bewertung. Du darfst am Ende einen leichten, \
+        konkreten Anstoß geben, der sich direkt aus den Zahlen ergibt \
+        (etwa der Abstand zum Schnitt) — mehr nicht.
+        - Ein schwacher Tag wird nicht schöngeredet, aber auch nicht \
+        kleingemacht. Zeig, was trotzdem gut lief.
+        - Komponentennamen: bmr = Grundumsatz, neat = Alltagsbewegung, \
+        eat = Workouts, tef = Verdauung, caffeine = Koffein.
+        \(localeRule)
+        """
+    }
+
     /// OpenAI-style strict json_schema: every property required, no extras —
     /// that combination is what "strict" mode demands.
     private static let responseFormat: [String: Any] = [
@@ -143,6 +222,25 @@ struct DayNarrativeService {
         ]
     ]
 
+    private static let deepDiveResponseFormat: [String: Any] = [
+        "type": "json_schema",
+        "json_schema": [
+            "name": "day_deep_dive",
+            "strict": true,
+            "schema": [
+                "type": "object",
+                "properties": [
+                    "paragraphs": [
+                        "type": "array",
+                        "items": ["type": "string"]
+                    ]
+                ],
+                "required": ["paragraphs"],
+                "additionalProperties": false
+            ]
+        ]
+    ]
+
     // MARK: - Public API
 
     /// An open-weight model on OpenRouter is served by a dozen different
@@ -153,25 +251,78 @@ struct DayNarrativeService {
     /// why it is the second choice — but an explanation parsed out of text
     /// beats an empty card.
     static func explain(_ summary: DayDeltaSummary, language: String) async throws -> Narrative {
+        try await request(
+            Narrative.self,
+            prompt: systemPrompt(language: language),
+            userContent: summary.promptJSON(),
+            schema: responseFormat,
+            fallbackShape: #"{"headline": "…", "body": "…", "insight": "…"}"#,
+            temperature: 0.3,
+            maxTokens: 220
+        )
+    }
+
+    /// The long form, requested only when the user opens it.
+    ///
+    /// Same data as the card, a different brief: several paragraphs instead of
+    /// two sentences, so the ceiling is correspondingly higher.
+    static func deepDive(
+        _ summary: DayDeltaSummary,
+        language: String,
+        name: String
+    ) async throws -> DeepDive {
+        try await request(
+            DeepDive.self,
+            prompt: deepDivePrompt(language: language, name: name),
+            userContent: summary.promptJSON(),
+            schema: deepDiveResponseFormat,
+            fallbackShape: #"{"paragraphs": ["…", "…", "…"]}"#,
+            // A shade warmer than the card. This one is read as a text rather
+            // than scanned as a figure, and at 0.3 every day sounds alike.
+            temperature: 0.5,
+            maxTokens: 700
+        )
+    }
+
+    private static func request<T: Decodable>(
+        _ type: T.Type,
+        prompt: String,
+        userContent: String,
+        schema: [String: Any],
+        fallbackShape: String,
+        temperature: Double,
+        maxTokens: Int
+    ) async throws -> T {
         do {
-            return try await send(summary, language: language, useSchema: true)
+            return try await send(type, prompt: prompt, userContent: userContent,
+                                  schema: schema, fallbackShape: fallbackShape,
+                                  temperature: temperature, maxTokens: maxTokens,
+                                  useSchema: true)
         } catch NarrativeError.requestFailed(let status, _)
                     where [400, 404, 422].contains(status) {
-            return try await send(summary, language: language, useSchema: false)
+            return try await send(type, prompt: prompt, userContent: userContent,
+                                  schema: schema, fallbackShape: fallbackShape,
+                                  temperature: temperature, maxTokens: maxTokens,
+                                  useSchema: false)
         }
     }
 
-    private static func send(
-        _ summary: DayDeltaSummary,
-        language: String,
+    private static func send<T: Decodable>(
+        _ type: T.Type,
+        prompt basePrompt: String,
+        userContent: String,
+        schema: [String: Any],
+        fallbackShape: String,
+        temperature: Double,
+        maxTokens: Int,
         useSchema: Bool
-    ) async throws -> Narrative {
-        var prompt = systemPrompt(language: language)
+    ) async throws -> T {
+        var prompt = basePrompt
         if !useSchema {
             prompt += """
             \n\nAntworte ausschließlich mit einem JSON-Objekt der Form \
-            {"headline": "…", "body": "…", "insight": "…"} — ohne Markdown, \
-            ohne Codeblock und ohne Text davor oder dahinter.
+            \(fallbackShape) — ohne Markdown-Codeblock und ohne Text davor \
+            oder dahinter.
             """
         }
 
@@ -179,17 +330,17 @@ struct DayNarrativeService {
             "model": model,
             "messages": [
                 ["role": "system", "content": prompt],
-                ["role": "user", "content": summary.promptJSON()]
+                ["role": "user", "content": userContent]
             ],
             // Low temperature: this is a reporting task, not a creative one.
-            "temperature": 0.3,
+            "temperature": temperature,
             // Roughly three times what the prompt asks for. Not a length
             // control — the prompt does that — but a ceiling so a model that
             // ignores it cannot bill for an essay.
-            "max_tokens": 220
+            "max_tokens": maxTokens
         ]
         if useSchema {
-            payload["response_format"] = responseFormat
+            payload["response_format"] = schema
             // Skip providers that would silently ignore response_format and
             // hand back prose the strict path cannot read.
             payload["provider"] = ["require_parameters": true]
@@ -221,7 +372,7 @@ struct DayNarrativeService {
               let jsonData = Self.jsonObject(in: content) else {
             throw NarrativeError.unreadableResult
         }
-        return try JSONDecoder().decode(Narrative.self, from: jsonData)
+        return try JSONDecoder().decode(T.self, from: jsonData)
     }
 
     /// The outermost `{…}` of a reply. Without the schema models like to wrap

@@ -96,6 +96,18 @@ struct DashboardView: View {
     /// when the day has moved on since.
     @State private var narrativeFingerprint: String? = nil
     @State private var lastNarrativeRequestAt: Date? = nil
+
+    // Ausführlicher Tagesvergleich — nur auf Knopfdruck
+    @State private var showDeepDive = false
+    @State private var deepDive: DayNarrativeService.DeepDive? = nil
+    @State private var deepDiveIsLoading = false
+    @State private var deepDiveError: String? = nil
+    /// Day the shown text belongs to. Kept per day rather than per
+    /// fingerprint: the numbers move all afternoon, and re-billing a long
+    /// generation every time the sheet is reopened is exactly what the button
+    /// exists to avoid. Asking again is one tap away.
+    @State private var deepDiveDateKey: String? = nil
+
     @State private var showCalorieDetail = false
     @Query private var profiles: [UserProfile]
     @Environment(JournalStore.self)           private var store
@@ -573,7 +585,39 @@ struct DashboardView: View {
         narrative = nil
         narrativeFingerprint = nil
         narrativeError = nil
+        deepDive = nil
+        deepDiveDateKey = nil
+        deepDiveError = nil
         await refreshNarrative()
+    }
+
+    /// Generates the long comparison. Called when the sheet opens without a
+    /// text for this day, and again whenever the user asks for a fresh one.
+    @MainActor
+    private func loadDeepDive(force: Bool = false) async {
+        let key = HealthKitImportService.dateKey(selectedDate)
+        if !force, deepDive != nil, deepDiveDateKey == key { return }
+        if deepDiveIsLoading { return }
+
+        deepDiveIsLoading = true
+        deepDiveError = nil
+        if force { deepDive = nil }
+        defer { deepDiveIsLoading = false }
+
+        do {
+            let result = try await DayNarrativeService.deepDive(
+                dayDeltaSummary,
+                language: language,
+                name: accountUsername
+            )
+            withAnimation(.easeInOut(duration: 0.25)) {
+                deepDive = result
+            }
+            deepDiveDateKey = key
+        } catch {
+            print("DayDeepDive failed: \(error.localizedDescription)")
+            deepDiveError = error.localizedDescription
+        }
     }
 
     private var burnProgress: Double {
@@ -1256,6 +1300,13 @@ struct DashboardView: View {
                                 onRegenerate: { Task { await refreshNarrative(force: true) } }
                             )
                             .padding(.horizontal, 20)
+
+                            DayDeepDiveButton(
+                                language: language,
+                                accentBlue: accentBlue,
+                                action: { showDeepDive = true }
+                            )
+                            .padding(.horizontal, 20)
                         }
 
                         kpiRow
@@ -1413,6 +1464,21 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showActivityBreakdown) {
             activityBreakdownSheet
+        }
+        .sheet(isPresented: $showDeepDive) {
+            DayDeepDiveSheet(
+                language: language,
+                accentBlue: accentBlue,
+                deepDive: deepDive,
+                isLoading: deepDiveIsLoading,
+                errorMessage: deepDiveError,
+                onRegenerate: { Task { await loadDeepDive(force: true) } }
+            )
+            // The request starts here and nowhere else: that is what keeps a
+            // day nobody opens free.
+            .task { await loadDeepDive() }
+            .presentationDetents([.medium, .large])
+            .presentationBackground(Theme.canvas)
         }
         .fullScreenCover(isPresented: $showCalorieDetail) {
             CalorieDetailView(
