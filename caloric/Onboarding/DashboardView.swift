@@ -406,10 +406,14 @@ struct DashboardView: View {
     private var dayDeltaSummary: DayDeltaSummary {
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
 
-        // Same decomposition the KPI tile compares, so the component deltas add
-        // up exactly to the difference behind the percentage on screen.
-        let today = dayComponents(for: selectedDate)
+        // The day as it stands right now, against the previous day in full.
+        let today = componentsSoFar(for: selectedDate)
         let prev  = dayComponents(for: prevDate)
+        // Derived from exactly these two figures rather than taken from the
+        // KPI tile: that one projects both days to midnight, and a percentage
+        // computed on one basis next to totals from another is the kind of
+        // mismatch the text would faithfully repeat.
+        let percent = prev.total > 0 ? (today.total - prev.total) / prev.total * 100 : 0
 
         let components: [DayDeltaSummary.ComponentDelta] = [
             .init(key: "bmr",      todayKcal: today.bmr,      previousKcal: prev.bmr),
@@ -443,7 +447,7 @@ struct DashboardView: View {
 
         return DayDeltaSummary(
             dateKey: HealthKitImportService.dateKey(selectedDate),
-            percentVsPreviousDay: vsSelectedDayPercent,
+            percentVsPreviousDay: percent,
             todayTotalKcal: today.total,
             previousTotalKcal: prev.total,
             isPartialDay: isSelectedToday,
@@ -482,7 +486,7 @@ struct DashboardView: View {
     /// Derived figures the narrative may quote. Computed here so the model
     /// never has to divide anything itself.
     private var narrativeHighlights: DayDeltaSummary.Highlights {
-        let parts = dayComponents(for: selectedDate)
+        let parts = componentsSoFar(for: selectedDate)
         let steps = selectedActivity.steps
         return DayDeltaSummary.Highlights(
             activeSharePercent: parts.total > 0 ? (parts.neat + parts.eat) / parts.total * 100 : 0,
@@ -833,6 +837,30 @@ struct DashboardView: View {
             eat:      active.eatKcal,
             tef:      tdee.tefKcal,
             caffeine: tdee.koffeinBonus
+        )
+    }
+
+    /// A day as far as it has actually come, not as it will end up.
+    ///
+    /// `dayComponents` returns the day's full BMR, TEF and caffeine — right
+    /// for the tiles, which project to midnight, wrong for a text that sits
+    /// next to the ring: it put the running day several hundred kcal above the
+    /// figure in the middle of the ring. NEAT and EAT need no adjustment, they
+    /// only ever cover the hours already measured.
+    private func componentsSoFar(for date: Date) -> DayComponents {
+        let full = dayComponents(for: date)
+        // bmrBurnedSoFar reads the selected day's slots, so this only holds
+        // when the day asked about is the one on screen and that day is today.
+        guard isSelectedToday,
+              Calendar.current.isDate(date, inSameDayAs: selectedDate) else { return full }
+
+        let share = min(max(nowFraction / 24.0, 0), 1)
+        return DayComponents(
+            bmr:      bmrBurnedSoFar,
+            neat:     full.neat,
+            eat:      full.eat,
+            tef:      full.tef * share,
+            caffeine: full.caffeine * share
         )
     }
 

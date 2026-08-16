@@ -19,8 +19,10 @@
 //
 //  Model choice is deliberately not the cheapest available. The "invent
 //  nothing not in the JSON" rule is exactly the kind of instruction small
-//  models drift on, so a mid-size model buys reliability back for a small
-//  part of the savings.
+//  models drift on, so a capable model buys reliability back for a small
+//  part of the savings — and it stays on open weights, because this runs on
+//  every user who taps the button and per-token price is the lever that
+//  matters at that volume.
 
 import Foundation
 
@@ -32,7 +34,8 @@ struct DayNarrativeService {
     /// and most days nobody opens it. It is requested when the button is
     /// pressed and never before.
     struct DeepDive: Codable, Equatable {
-        /// Two to four short paragraphs. Inline `**…**` marks the figures.
+        /// One to four paragraphs — as many as the day actually warrants.
+        /// Inline `**…**` marks the figures.
         let paragraphs: [String]
     }
 
@@ -52,7 +55,22 @@ struct DayNarrativeService {
 
     // MARK: - Configuration
 
-    private static let model = "meta-llama/llama-3.3-70b-instruct"
+    /// Open weights, in preference order. OpenRouter takes the first entry as
+    /// the model and falls through the rest when one is unavailable, retired
+    /// or refusing the request — so a slug going away degrades the text
+    /// instead of emptying the sheet.
+    ///
+    /// Kimi K2 leads because this prompt is almost entirely instruction, not
+    /// reasoning: no field names in the prose, a length that follows the data,
+    /// never a number that is not in the JSON. Llama 3.3 broke all three,
+    /// which is what moved it to the back of the list rather than off it —
+    /// its German prose was never the problem.
+    private static let models = [
+        "moonshotai/kimi-k2-0905",
+        "moonshotai/kimi-k2",
+        "qwen/qwen-2.5-72b-instruct",
+        "meta-llama/llama-3.3-70b-instruct"
+    ]
 
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
@@ -63,10 +81,14 @@ struct DayNarrativeService {
     /// the one thing worth taking away. Someone tapped to get here, so it is
     /// allowed the space a glanceable card would not be.
     private static func deepDivePrompt(language: String, name: String) -> String {
-        let address = name.trimmingCharacters(in: .whitespaces).isEmpty
+        // A single letter is a placeholder, not a name, and "j, dein Tag …"
+        // reads worse than no greeting at all.
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstName = trimmed.split(separator: " ").first.map(String.init) ?? ""
+        let address = firstName.count < 2
             ? "Sprich die Person direkt an, ohne Namen."
-            : "Sprich die Person mit ihrem Vornamen an: \(name). Der Name steht "
-              + "im ersten Satz, danach nicht mehr."
+            : "Sprich die Person mit ihrem Vornamen an: \(firstName.prefix(1).uppercased())"
+              + "\(firstName.dropFirst()). Der Name steht im ersten Satz, danach nicht mehr."
         let localeRule = language == "de"
             ? "Schreibe auf Deutsch und duze die Person."
             : "Write in English and address the person directly by name."
@@ -74,51 +96,65 @@ struct DayNarrativeService {
         return """
         Du schreibst in der App Caloric den Tagesvergleich. Die Person hat \
         dafür bewusst auf einen Button getippt — sie will wissen, wie ihr Tag \
-        gelaufen ist und woran das lag.
+        gerade läuft und woran das liegt.
 
         \(address)
 
-        Aufbau — zwei bis vier Absätze, jeder zwei bis vier Sätze:
-        1. Das Urteil über den Tag, sofort im ersten Satz, mit der Zahl, die \
-        es trägt. Kein Aufwärmen, kein "Schauen wir mal".
-        2. Warum der Tag so ausfiel: die Komponente unter leadWith, belegt mit \
-        Zahlen, und wo möglich mit dem Rohwert dahinter (Schritte, \
-        Workout-Minuten, Stehminuten) statt nur mit kcal.
-        3. Die Einordnung: wie der Tag gegen den Schnitt der letzten Tage \
-        steht, oder was gegenläuft. Wenn es einen Haken gibt, nennst du ihn \
-        hier offen.
-        4. Optional ein letzter Absatz mit dem, was jemand mitnimmt — eine \
-        Beobachtung aus highlights, die überrascht.
+        Länge: so lang, wie die Daten es hergeben, und keine Zeile länger. \
+        Ein Tag, an dem sich kaum etwas bewegt hat, ist mit einem einzigen \
+        Absatz vollständig erklärt. Ein Tag mit Workout, auffälliger \
+        Alltagsbewegung und klarem Abstand zum Schnitt darf drei bis vier. \
+        Jeder Absatz zwei bis drei Sätze. Absätze, die nur wiederholen, was \
+        schon dasteht, lässt du weg — Vollständigkeit ist kein Ziel.
 
-        Ton: warm, direkt, respektvoll. Wie jemand, der sich ehrlich freut, \
-        wenn etwas gut lief, und es genauso ruhig sagt, wenn nicht. Kein \
-        Coach-Geschrei, keine Ausrufezeichen-Ketten, keine Floskeln, keine \
-        Überschriften und keine Aufzählungszeichen.
+        Wenn Absätze da sind, dann in dieser Reihenfolge:
+        1. Wo der Tag gerade steht, im ersten Satz, mit der Zahl dahinter.
+        2. Woran das liegt: der Teil des Tages, der den Unterschied macht \
+        (leadWith), belegt mit Zahlen — und wo möglich mit dem, was dahinter \
+        steckt (Schritte, Workout-Minuten, Stehminuten) statt nur mit kcal.
+        3. Die Einordnung gegenüber gestern oder dem Schnitt, oder was \
+        dagegen läuft. Gibt es einen Haken, nennst du ihn hier offen.
+        4. Eine Beobachtung aus highlights, die überrascht — nur wenn sie \
+        wirklich überrascht.
+
+        Ton: warm, direkt, respektvoll. Wie jemand, der die Zahlen gelesen \
+        hat und sich ehrlich freut, wenn etwas gut lief, und es genauso ruhig \
+        sagt, wenn nicht. Kein Coach-Geschrei, keine Ausrufezeichen-Ketten, \
+        keine Floskeln, keine Überschriften, keine Aufzählungszeichen.
+
+        Sprache: durchgehend normales Deutsch. Die Bezeichnungen aus den \
+        Daten — bmr, neat, eat, tef, caffeine, isPartialDay, leadWith, \
+        highlights, weekly und so weiter — tauchen im Text NIE auf, weder \
+        einzeln noch in Wörtern wie "eat-Komponente". Du schreibst \
+        Grundumsatz, Alltagsbewegung, Workouts, Verdauung, Koffein. Statt \
+        "isPartialDay ist true" schreibst du, dass der Tag noch läuft. Wer \
+        den Text liest, darf nicht merken, dass dahinter Datenfelder stehen.
 
         Formatierung: Setze die Zahlen, auf die es ankommt, in **doppelte \
-        Sternchen** — aber höchstens drei pro Absatz, sonst ist der Text \
+        Sternchen** — höchstens drei pro Absatz, sonst ist der Text \
         gesprenkelt statt betont. Keine Emojis, an keiner Stelle.
 
         Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
         leite nichts ab, schätze nichts dazu. Eine erfundene Zahl ist der \
         einzige Fehler, den dieser Text nicht machen darf.
-        - Erwähne den Grundumsatz (bmr) nur, wenn bmrFactorsChanged true ist. \
-        Sonst ist seine Differenz reines Modellrauschen.
-        - Wenn isPartialDay true ist, zählen für heute nur die bisherigen \
-        Stunden, für den Vortag der ganze Tag. Beschreibe den Stand dann als \
-        Zwischenstand und deute die Differenz nicht als Rückgang.
-        - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute die \
-        tef-Differenz nicht — dann fehlen die Einträge. Sag das lieber.
+        - todayTotal ist der Stand in diesem Moment, nicht der fertige Tag. \
+        Wenn isPartialDay true ist, ist das der Zwischenstand nach den \
+        bisherigen Stunden, während der Vortag komplett ist. Sag das in \
+        eigenen Worten und lies die Differenz nicht als Rückgang. Der \
+        Wochenschnitt besteht ebenfalls aus vollen Tagen.
+        - Ist eine Komponente heute null oder kaum verändert, lass sie weg. \
+        Ein früher Vormittag hat wenig zu erzählen, und das ist in Ordnung.
+        - Erwähne den Grundumsatz nur, wenn bmrFactorsChanged true ist. Sonst \
+        ist seine Differenz reines Modellrauschen.
+        - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute \
+        die Verdauung nicht — dann fehlen die Einträge. Sag das lieber.
         - Fehlt weekly, vergleiche nur mit gestern und erfinde keinen Schnitt.
         - Keine medizinischen Ratschläge, keine Diät- oder Trainingspläne, \
-        keine moralische Bewertung. Du darfst am Ende einen leichten, \
-        konkreten Anstoß geben, der sich direkt aus den Zahlen ergibt \
-        (etwa der Abstand zum Schnitt) — mehr nicht.
+        keine moralische Bewertung. Ein leichter, konkreter Anstoß am Ende \
+        ist erlaubt, wenn er direkt aus den Zahlen folgt — mehr nicht.
         - Ein schwacher Tag wird nicht schöngeredet, aber auch nicht \
         kleingemacht. Zeig, was trotzdem gut lief.
-        - Komponentennamen: bmr = Grundumsatz, neat = Alltagsbewegung, \
-        eat = Workouts, tef = Verdauung, caffeine = Koffein.
         \(localeRule)
         """
     }
@@ -214,7 +250,8 @@ struct DayNarrativeService {
         }
 
         var payload: [String: Any] = [
-            "model": model,
+            "model": models[0],
+            "models": models,
             "messages": [
                 ["role": "system", "content": prompt],
                 ["role": "user", "content": userContent]
