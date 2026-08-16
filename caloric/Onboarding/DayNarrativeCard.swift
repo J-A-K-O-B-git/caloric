@@ -177,7 +177,7 @@ struct DayDeepDiveSheet: View {
                     .padding(.top, 10)
                 }
             }
-            .navigationTitle(language == "de" ? "Dein Tag im Vergleich" : "Your day in context")
+            .navigationTitle(language == "de" ? "Dein Tag erklärt" : "Your day explained")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -204,8 +204,8 @@ struct DayDeepDiveSheet: View {
         HStack(spacing: 7) {
             Image(systemName: "sparkles")
                 .font(.system(size: 10, weight: .bold))
-            Text(language == "de" ? "VON DER KI GESCHRIEBEN" : "WRITTEN BY AI")
-                .font(.poppins(size: 9, weight: .bold))
+            Text(language == "de" ? "Von KI analyisert" : "Analyzed by AI")
+                .font(.poppins(size: 12, weight: .bold))
                 .kerning(1.2)
         }
         .foregroundStyle(aiGradient)
