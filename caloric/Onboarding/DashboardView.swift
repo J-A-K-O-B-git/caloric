@@ -1987,76 +1987,71 @@ struct DashboardView: View {
     private var activityBreakdownSheet: some View {
         let segs = energySegments
         let total = max(segs.reduce(0) { $0 + $1.kcal }, 1)
-        return ZStack(alignment: .top) {
-            CaloricBackground()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 10) {
-                    Spacer().frame(height: 38)
-
-                    // Hero — total + stacked micro-chart. No card behind it:
-                    // the ring floats on the sheet itself, which keeps the
-                    // one number on the page from sitting in a frame.
-                    VStack(spacing: 14) {
-                        // No figure above the ring: it already carries the
-                        // same number in its centre, and two of them a
-                        // centimetre apart read as two different totals.
-                        energyRing(segs, total: total)
-                        // Legend
-                        HStack(spacing: 14) {
-                            ForEach(segs) { s in
-                                HStack(spacing: 5) {
-                                    Circle().fill(s.color).frame(width: 7, height: 7)
-                                    Text(s.short)
-                                        .font(.poppins(size: 10, weight: .regular))
-                                        .foregroundStyle(Theme.textSecondary)
+        return NavigationStack {
+            ZStack(alignment: .top) {
+                CaloricBackground()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        // Hero — total + stacked micro-chart. No card behind it:
+                        // the ring floats on the sheet itself, which keeps the
+                        // one number on the page from sitting in a frame.
+                        VStack(spacing: 14) {
+                            // No figure above the ring: it already carries the
+                            // same number in its centre, and two of them a
+                            // centimetre apart read as two different totals.
+                            energyRing(segs, total: total)
+                            // Legend
+                            HStack(spacing: 14) {
+                                ForEach(segs) { s in
+                                    HStack(spacing: 5) {
+                                        Circle().fill(s.color).frame(width: 7, height: 7)
+                                        Text(s.short)
+                                            .font(.poppins(size: 10, weight: .regular))
+                                            .foregroundStyle(Theme.textSecondary)
+                                    }
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, 18)
+                        .padding(.horizontal, 18)
 
-                    // Per-component rows with progress bars
-                    VStack(spacing: 8) {
-                        ForEach(segs) { s in
-                            energySegmentRow(s, total: total)
+                        // Per-component rows with progress bars
+                        VStack(spacing: 8) {
+                            ForEach(segs) { s in
+                                energySegmentRow(s, total: total)
+                            }
                         }
-                    }
-                    .padding(.horizontal, 18)
+                        .padding(.horizontal, 18)
 
-                    if !healthKit.isAuthorized {
-                        HStack(spacing: 8) {
-                            Image(systemName: "heart.text.square.fill")
-                                .font(.system(size: 13))
-                                .foregroundStyle(accentBlue)
-                            Text(language == "de"
-                                 ? "Verbinde Apple Health für NEAT & EAT Daten."
-                                 : "Connect Apple Health for NEAT & EAT data.")
-                                .font(.poppins(size: 12, weight: .regular))
-                                .foregroundStyle(Theme.textSecondary)
+                        if !healthKit.isAuthorized {
+                            HStack(spacing: 8) {
+                                Image(systemName: "heart.text.square.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(accentBlue)
+                                Text(language == "de"
+                                     ? "Verbinde Apple Health für NEAT & EAT Daten."
+                                     : "Connect Apple Health for NEAT & EAT data.")
+                                    .font(.poppins(size: 12, weight: .regular))
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                            .padding(.horizontal, 30)
+                            .padding(.top, 4)
                         }
-                        .padding(.horizontal, 30)
-                        .padding(.top, 4)
-                    }
 
-                    Spacer().frame(height: 14)
+                        Spacer().frame(height: 14)
+                    }
+                    .padding(.top, 8)
                 }
             }
-
-            HStack {
-                Text(language == "de" ? "Aufschlüsselung" : "Breakdown")
-                    .font(.poppins(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Button(t.done) { showActivityBreakdown = false }
-                    .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(Theme.card))
+            .navigationTitle(language == "de" ? "Aufschlüsselung" : "Breakdown")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(t.done) { showActivityBreakdown = false }
+                        .foregroundStyle(accentBlue)
+                        .fontWeight(.semibold)
+                }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
         }
         .sheet(item: Binding(
             get: { infoSegmentType.map { InfoSegment(type: $0) } },
