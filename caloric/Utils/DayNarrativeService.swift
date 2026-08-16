@@ -41,14 +41,17 @@ struct DayNarrativeService {
 
     enum NarrativeError: LocalizedError {
         case requestFailed(status: Int, body: String)
-        case unreadableResult
+        /// Carries what actually came back. A bare "could not be read" gave no
+        /// way to tell a truncated reply from a refusal from a model that
+        /// answered in prose — all three look identical from the sheet.
+        case unreadableResult(body: String)
 
         var errorDescription: String? {
             switch self {
             case .requestFailed(let status, let body):
                 return "Erklärung fehlgeschlagen (HTTP \(status)): \(body)"
-            case .unreadableResult:
-                return "Die Antwort konnte nicht gelesen werden."
+            case .unreadableResult(let body):
+                return "Antwort unlesbar: \(body)"
             }
         }
     }
@@ -209,7 +212,11 @@ struct DayNarrativeService {
             // A shade warmer than the card. This one is read as a text rather
             // than scanned as a figure, and at 0.3 every day sounds alike.
             temperature: 0.5,
-            maxTokens: 700
+            // Generous, because the ceiling covers thinking tokens too on a
+            // model that reasons before it answers. At 700 the budget ran out
+            // mid-thought and the reply came back empty — a 200 with nothing
+            // in it, which is the worst failure of the three.
+            maxTokens: 2000
         )
     }
 
@@ -226,13 +233,16 @@ struct DayNarrativeService {
             return try await send(type, prompt: prompt, userContent: userContent,
                                   schema: schema, fallbackShape: fallbackShape,
                                   temperature: temperature, maxTokens: maxTokens,
-                                  useSchema: true)
+                                  strict: true)
         } catch NarrativeError.requestFailed(let status, _)
                     where [400, 404, 422].contains(status) {
+            // The retry drops both optional parameters at once. Either could
+            // be what the provider rejected, and trying them separately would
+            // cost a third round-trip to learn which.
             return try await send(type, prompt: prompt, userContent: userContent,
                                   schema: schema, fallbackShape: fallbackShape,
                                   temperature: temperature, maxTokens: maxTokens,
-                                  useSchema: false)
+                                  strict: false)
         }
     }
 
@@ -244,10 +254,10 @@ struct DayNarrativeService {
         fallbackShape: String,
         temperature: Double,
         maxTokens: Int,
-        useSchema: Bool
+        strict: Bool
     ) async throws -> T {
         var prompt = basePrompt
-        if !useSchema {
+        if !strict {
             prompt += """
             \n\nAntworte ausschließlich mit einem JSON-Objekt der Form \
             \(fallbackShape) — ohne Markdown-Codeblock und ohne Text davor \
@@ -269,11 +279,16 @@ struct DayNarrativeService {
             // ignores it cannot bill for an essay.
             "max_tokens": maxTokens
         ]
-        if useSchema {
+        if strict {
             payload["response_format"] = schema
             // Skip providers that would silently ignore response_format and
             // hand back prose the strict path cannot read.
             payload["provider"] = ["require_parameters": true]
+            // Nothing here needs deliberation: the numbers arrive finished and
+            // the task is to phrase them. Thinking tokens would only compete
+            // with the answer for the same budget, and OpenRouter normalises
+            // this away for models that cannot reason anyway.
+            payload["reasoning"] = ["enabled": false]
         }
 
         var request = URLRequest(url: endpoint)
@@ -290,17 +305,23 @@ struct DayNarrativeService {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let http = response as? HTTPURLResponse else {
-            throw NarrativeError.unreadableResult
+            throw NarrativeError.unreadableResult(body: "keine HTTP-Antwort")
         }
         guard http.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? "–"
             throw NarrativeError.requestFailed(status: http.statusCode, body: body)
         }
 
-        let envelope = try JSONDecoder().decode(OpenRouterEnvelope.self, from: data)
-        guard let content = envelope.choices.first?.message.content,
+        let raw = String(data: data, encoding: .utf8) ?? "–"
+        // A 200 is not a success here. A model that spends its budget thinking
+        // returns an empty content field with finish_reason "length", and one
+        // that declines returns a refusal — both arrive as 200 and both used
+        // to surface as the same blank "could not be read".
+        guard let envelope = try? JSONDecoder().decode(OpenRouterEnvelope.self, from: data),
+              let content = envelope.choices.first?.message.content,
+              !content.isEmpty,
               let jsonData = Self.jsonObject(in: content) else {
-            throw NarrativeError.unreadableResult
+            throw NarrativeError.unreadableResult(body: String(raw.prefix(400)))
         }
         return try JSONDecoder().decode(T.self, from: jsonData)
     }
@@ -319,7 +340,9 @@ struct DayNarrativeService {
 
     private struct OpenRouterEnvelope: Codable {
         struct Choice: Codable {
-            struct Message: Codable { let content: String }
+            // Optional: a refusal or a reply cut short leaves it null, and a
+            // failed decode of the whole envelope would hide why.
+            struct Message: Codable { let content: String? }
             let message: Message
         }
         let choices: [Choice]
