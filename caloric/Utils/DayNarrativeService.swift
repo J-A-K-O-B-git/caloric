@@ -73,7 +73,7 @@ struct DayNarrativeService {
     /// Three entries, not four: OpenRouter rejects a longer list outright
     /// ("'models' array must have 3 items or fewer").
     private static let models = [
-        "google/gemini-3-flash",
+        "google/gemini-3.7-flash",
         "google/gemini-2.5-flash",
         "moonshotai/kimi-k2-0905"
     ]
