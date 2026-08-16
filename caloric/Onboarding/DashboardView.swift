@@ -2044,6 +2044,9 @@ struct DashboardView: View {
             }
 
             HStack {
+                Text(language == "de" ? "Aufschlüsselung" : "Breakdown")
+                    .font(.poppins(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
                 Button(t.done) { showActivityBreakdown = false }
                     .font(.poppins(size: 15, weight: .semibold))
