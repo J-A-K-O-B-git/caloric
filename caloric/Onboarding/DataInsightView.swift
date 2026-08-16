@@ -647,10 +647,8 @@ private struct HistoryDetailSheet: View {
         VStack(spacing: 0) {
             // Header Section
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(type.title(language: language))
-                        .font(.poppins(size: 22, weight: .bold))
-                }
+                Text(type.title(language: language))
+                    .font(.poppins(size: 22, weight: .bold))
                 
                 if let sel = selectedPoint {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -683,6 +681,10 @@ private struct HistoryDetailSheet: View {
                         .frame(height: 50)
                 }
             }
+            // Without this the block only spans its widest line, and the whole
+            // header sits centred — so the title looked indented while the
+            // placeholder under it looked centred.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
             .padding(.top, 36)
             .padding(.bottom, 28)
