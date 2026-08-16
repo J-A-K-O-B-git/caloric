@@ -63,13 +63,18 @@ struct DayNarrativeService {
     /// Kimi K2 leads because this prompt is almost entirely instruction, not
     /// reasoning: no field names in the prose, a length that follows the data,
     /// never a number that is not in the JSON. Llama 3.3 broke all three,
-    /// which is what moved it to the back of the list rather than off it —
-    /// its German prose was never the problem.
+    /// which is why it is no longer in the list at all — its German prose was
+    /// never the problem.
+    ///
+    /// Three entries, not four: OpenRouter rejects a longer list outright
+    /// ("'models' array must have 3 items or fewer"). Both Kimi slugs are kept
+    /// over a third family — if the dated one is retired the undated one still
+    /// lands on the same model, and Qwen only has to catch the case where
+    /// Moonshot is unreachable entirely.
     private static let models = [
         "moonshotai/kimi-k2-0905",
         "moonshotai/kimi-k2",
-        "qwen/qwen-2.5-72b-instruct",
-        "meta-llama/llama-3.3-70b-instruct"
+        "qwen/qwen-2.5-72b-instruct"
     ]
 
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
