@@ -1466,10 +1466,6 @@ struct DashboardView: View {
     @State private var expandedSegmentType: EnergySegmentType? = nil
     @State private var infoSegmentType: EnergySegmentType? = nil
 
-    private enum EnergySegmentType: Hashable {
-        case bmr, neat, eat, tef, caffeine
-    }
-
     private struct InfoSegment: Identifiable {
         let id = UUID()
         let type: EnergySegmentType
@@ -1834,7 +1830,7 @@ struct DashboardView: View {
         return ZStack {
             Circle()
                 .trim(from: 0, to: sweep)
-                .stroke(Theme.trackFill, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                .stroke(Theme.trackFill, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .rotationEffect(.degrees(start))
 
             ForEach(arcs, id: \.seg.id) { arc in
@@ -1844,7 +1840,7 @@ struct DashboardView: View {
                     .stroke(
                         LinearGradient(colors: [arc.seg.color.opacity(0.85), arc.seg.color],
                                        startPoint: .topLeading, endPoint: .bottomTrailing),
-                        style: StrokeStyle(lineWidth: picked ? 19 : 14, lineCap: .butt)
+                        style: StrokeStyle(lineWidth: picked ? 17 : 12, lineCap: .butt)
                     )
                     .rotationEffect(.degrees(start))
                     .shadow(color: arc.seg.color.opacity(picked ? 0.45 : 0.2), radius: picked ? 8 : 3)
@@ -1866,22 +1862,23 @@ struct DashboardView: View {
                     }
             }
 
-            // The picked slice, or the day, in the middle.
+            // The picked slice, or the day, in the middle — same type as the
+            // dashboard ring so the two read as one instrument.
             VStack(spacing: 2) {
                 let shown = segs.first(where: { $0.type == expandedSegmentType })
                 Text("\(Int((shown?.kcal ?? total).rounded()))")
-                    .font(.poppins(size: 38, weight: .bold))
+                    .font(.poppins(size: 42, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .contentTransition(.numericText())
                 Text(shown?.short ?? "kcal")
-                    .font(.poppins(size: 12, weight: .medium))
+                    .font(.poppins(size: 14, weight: .regular))
                     .foregroundStyle(shown?.color ?? Theme.textSecondary)
             }
-            .offset(y: -6)
+            .offset(y: -4)
             .animation(.easeOut(duration: 0.2), value: expandedSegmentType)
         }
-        .frame(height: LayoutMetrics.ringSize * 1.35)
-        .padding(.top, 4)
+        .frame(width: LayoutMetrics.ringSize * 1.15, height: LayoutMetrics.ringSize * 1.15)
+        .padding(.top, 20)
     }
     private func infoSheet(for type: EnergySegmentType) -> some View {
         let seg = energySegments.first(where: { $0.type == type })
@@ -1927,18 +1924,27 @@ struct DashboardView: View {
 
                 // Wraps: five sources do not fit one row on a narrow phone,
                 // and an HStack would have squeezed them instead of breaking.
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)],
+                // Fixed two columns rather than adaptive: the adaptive grid
+                // stretched "Herzfrequenz" across a full-width cell and let it
+                // wrap mid-word while its neighbours stayed one line.
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8),
+                                    GridItem(.flexible(), spacing: 8)],
                           alignment: .leading, spacing: 8) {
                     ForEach(LiveSource.feeding(type), id: \.de) { source in
-                        HStack(spacing: 5) {
+                        HStack(spacing: 6) {
                             Image(systemName: source.icon)
                                 .font(.system(size: 11, weight: .medium))
+                                .frame(width: 14)
                             Text(source.label(language: language))
                                 .font(.poppins(size: 12, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Spacer(minLength: 0)
                         }
                         .foregroundStyle(segColor)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(segColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
@@ -1987,7 +1993,9 @@ struct DashboardView: View {
                 VStack(spacing: 10) {
                     Spacer().frame(height: 38)
 
-                    // Hero — total + stacked micro-chart
+                    // Hero — total + stacked micro-chart. No card behind it:
+                    // the ring floats on the sheet itself, which keeps the
+                    // one number on the page from sitting in a frame.
                     VStack(spacing: 14) {
                         // No figure above the ring: it already carries the
                         // same number in its centre, and two of them a
@@ -2006,8 +2014,6 @@ struct DashboardView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(16)
-                    .glassCard(22, tint: accentBlue, tintStrength: 0.04)
                     .padding(.horizontal, 18)
 
                     // Per-component rows with progress bars
@@ -2059,6 +2065,69 @@ struct DashboardView: View {
         .caloricAppearance()
         .presentationDetents([.fraction(0.62), .large])
         .presentationBackground(Theme.canvas)
+    }
+
+    private func energySegmentRow(_ s: EnergySegment, total: Double) -> some View {
+        let pct = total > 0 ? s.kcal / total : 0
+        let isExpanded = expandedSegmentType == s.type
+
+        return VStack(spacing: 9) {
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    expandedSegmentType = (expandedSegmentType == s.type) ? nil : s.type
+                }
+            } label: {
+                HStack(spacing: 13) {
+                    Image(systemName: s.icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(s.color)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(s.color.opacity(0.16))
+                                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(s.color.opacity(0.30), lineWidth: 1))
+                        )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(s.title)
+                            .font(.poppins(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                        if let subtitle = s.subtitle {
+                            Text(subtitle)
+                                .font(.poppins(size: 11, weight: .regular))
+                                .foregroundStyle(Theme.textSecondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 1) {
+                        HStack(alignment: .firstTextBaseline, spacing: 3) {
+                            Text("\(Int(s.kcal))")
+                                .font(.poppins(size: 17, weight: .semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text("kcal")
+                                .font(.poppins(size: 11, weight: .regular))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Text(String(format: "%.0f%%", pct * 100))
+                            .font(.poppins(size: 11, weight: .medium))
+                            .foregroundStyle(s.color)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            InstrumentProgressBar(progress: pct, color: s.color, height: 4, showScale: true)
+                .frame(height: 10)
+
+            if isExpanded {
+                expandedContent(for: s.type, currentKcal: s.kcal)
+                    .transition(.opacity)
+            }
+        }
+        .padding(12)
+        .glassCard(16)
     }
 
     // MARK: - Berechnungsmethoden View
@@ -4013,4 +4082,8 @@ struct LiveSource {
     static func feeding(_ type: EnergySegmentType) -> [LiveSource] {
         all.filter { $0.segments.contains(type) }
     }
+}
+
+enum EnergySegmentType: Hashable {
+    case bmr, neat, eat, tef, caffeine
 }

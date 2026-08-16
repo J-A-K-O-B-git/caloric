@@ -58,14 +58,15 @@ struct MenstruationCard: View {
         Button(action: action) {
             Text(label)
                 .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : tint)
+                .foregroundStyle(isSelected ? .white : Theme.textPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
+                .frame(height: 48)
                 .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? tint : tint.opacity(0.12))
-                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isSelected ? tint : Theme.fieldFill)
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(isSelected ? tint.opacity(0.35) : Theme.cardStroke, lineWidth: 1))
+                        .shadow(color: isSelected ? tint.opacity(0.3) : .clear, radius: 8, y: 3)
                 )
         }
         .buttonStyle(.plain)
@@ -148,14 +149,15 @@ struct SicknessCard: View {
         Button(action: action) {
             Text(label)
                 .font(.poppins(size: 15, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : accentBlue)
+                .foregroundStyle(isSelected ? .white : Theme.textPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .fill(isSelected ? accentBlue : Theme.fieldFill)
                         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1))
+                            .strokeBorder(isSelected ? accentBlue.opacity(0.35) : Theme.cardStroke, lineWidth: 1))
+                        .shadow(color: isSelected ? accentBlue.opacity(0.3) : .clear, radius: 8, y: 3)
                 )
         }
         .buttonStyle(.plain)
@@ -173,14 +175,14 @@ struct SicknessCard: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
-                .foregroundStyle(isSelected ? .white : accentBlue)
+                .foregroundStyle(isSelected ? .white : Theme.textPrimary)
                 .padding(.horizontal, 14)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? accentBlue : accentBlue.opacity(0.12))
+                        .fill(isSelected ? accentBlue : Theme.fieldFill)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(accentBlue.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                                .strokeBorder(isSelected ? accentBlue.opacity(0.35) : Theme.cardStroke, lineWidth: 1)
                         )
                 )
         }
@@ -205,13 +207,13 @@ struct SicknessCard: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 44)
-            .foregroundStyle(isSelected ? .white : tint)
+            .foregroundStyle(isSelected ? .white : Theme.textPrimary)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? tint : tint.opacity(0.12))
+                    .fill(isSelected ? tint : Theme.fieldFill)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(tint.opacity(isSelected ? 0 : 0.2), lineWidth: 1)
+                            .strokeBorder(isSelected ? tint.opacity(0.35) : Theme.cardStroke, lineWidth: 1)
                     )
             )
         }
@@ -234,34 +236,12 @@ struct CaffeineCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // Header: title + expand chevron
-            Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    caffeineInfoExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(accentBlue.opacity(0.6))
-                        .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
-                }
-            }
-            .buttonStyle(.plain)
-
             // Large -/value/+ display
             HStack {
-                Button {
+                stepperButton(icon: "minus") {
                     let v = max(0, (Int(caffeineText) ?? 0) - 10)
                     caffeineText = "\(v)"
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 18, weight: .bold))
-                        .frame(width: 48, height: 48)
-                        .foregroundStyle(accentBlue)
-                        .background(Circle().fill(accentBlue.opacity(0.12)))
                 }
-                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -282,17 +262,10 @@ struct CaffeineCard: View {
 
                 Spacer()
 
-                Button {
+                stepperButton(icon: "plus") {
                     let v = (Int(caffeineText) ?? 0) + 10
                     caffeineText = "\(v)"
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                        .frame(width: 48, height: 48)
-                        .foregroundStyle(accentBlue)
-                        .background(Circle().fill(accentBlue.opacity(0.12)))
                 }
-                .buttonStyle(.plain)
             }
 
             // Preset pills
@@ -304,15 +277,43 @@ struct CaffeineCard: View {
                     } label: {
                         Text(mg == 0 ? (language == "de" ? "Keins" : "None") : "\(mg)")
                             .font(.poppins(size: 13, weight: .medium))
-                            .foregroundStyle(isSelected ? .white : accentBlue)
+                            .foregroundStyle(isSelected ? .white : Theme.textPrimary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
-                            .background(Capsule().fill(isSelected ? accentBlue : accentBlue.opacity(0.10)))
+                            .background(
+                                Capsule()
+                                    .fill(isSelected ? accentBlue : Theme.fieldFill)
+                                    .overlay(Capsule().strokeBorder(
+                                        isSelected ? accentBlue.opacity(0.35) : Theme.cardStroke,
+                                        lineWidth: 1))
+                            )
                     }
                     .buttonStyle(.plain)
                 }
                 Spacer()
             }
+
+            // The drinks grid hides behind a labelled row — a bare chevron at
+            // the top of the card said nothing about what it would open.
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    caffeineInfoExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "cup.and.heat.waves.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(language == "de" ? "Getränk hinzufügen" : "Add a drink")
+                        .font(.poppins(size: 13, weight: .medium))
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(caffeineInfoExpanded ? 180 : 0))
+                }
+                .foregroundStyle(accentBlue)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
             // Expandable: full drinks grid
             if caffeineInfoExpanded {
@@ -355,6 +356,21 @@ struct CaffeineCard: View {
         }
         .padding(16)
         .glassCard(20)
+    }
+
+    private func stepperButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 46, height: 46)
+                .foregroundStyle(accentBlue)
+                .background(
+                    Circle()
+                        .fill(Theme.fieldFill)
+                        .overlay(Circle().strokeBorder(Theme.cardStroke, lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func caffeineQuickAdd(label: String, mg: Int, isCustom: Bool = false, id: UUID? = nil) -> some View {

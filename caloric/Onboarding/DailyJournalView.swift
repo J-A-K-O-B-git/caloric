@@ -635,19 +635,23 @@ struct DailyJournalView: View {
         VStack(spacing: 0) {
             Spacer()
 
+            // Halo + glyph, one calm focal point instead of a badge wall.
             ZStack {
                 Circle()
-                    .fill(Theme.accentGradient.opacity(0.14))
-                    .frame(width: 108, height: 108)
+                    .fill(Theme.accentGradient.opacity(0.10))
+                    .frame(width: 132, height: 132)
+                Circle()
+                    .fill(Theme.accentGradient.opacity(0.16))
+                    .frame(width: 96, height: 96)
                 Image(systemName: "checklist")
-                    .font(.system(size: 40, weight: .semibold))
+                    .font(.system(size: 34, weight: .semibold))
                     .foregroundStyle(Theme.accentGradient)
             }
 
             Text(language == "de" ? "Dein Check-in" : "Your check-in")
                 .font(.poppins(size: 28, weight: .heavy))
                 .foregroundStyle(Theme.textPrimary)
-                .padding(.top, 26)
+                .padding(.top, 24)
 
             Text(checkInStartDateLine)
                 .font(.poppins(size: 13, weight: .medium))
@@ -665,22 +669,36 @@ struct DailyJournalView: View {
                 .padding(.horizontal, 34)
                 .padding(.top, 12)
 
-            // What is coming, so the commitment is visible before it is made.
-            HStack(spacing: 10) {
-                ForEach(checkInSteps) { step in
-                    VStack(spacing: 7) {
+            // What is coming, as a single card rather than loose bubbles —
+            // the commitment reads as one list, not four separate asks.
+            VStack(spacing: 0) {
+                ForEach(Array(checkInSteps.enumerated()), id: \.element.id) { index, step in
+                    HStack(spacing: 12) {
                         Image(systemName: step.icon)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(accentBlue)
-                            .frame(width: 42, height: 42)
+                            .frame(width: 30, height: 30)
                             .background(Circle().fill(accentBlue.opacity(0.12)))
-                        Text(checkInStartLabel(step))
-                            .font(.poppins(size: 10, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
+                        Text(step.question(language: language))
+                            .font(.poppins(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        Spacer()
+                        Text("\(index + 1)")
+                            .font(.poppins(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    if index < checkInSteps.count - 1 {
+                        Divider().overlay(Theme.divider).padding(.leading, 56)
                     }
                 }
             }
-            .padding(.top, 28)
+            .background(GlassCardBackground(cornerRadius: 18))
+            .padding(.horizontal, 24)
+            .padding(.top, 26)
 
             Spacer()
 
@@ -764,14 +782,17 @@ struct DailyJournalView: View {
     }
 
     private func checkInHeader(steps: [CheckInStep]) -> some View {
-        VStack(spacing: 14) {
-            HStack {
+        VStack(spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(language == "de" ? "Dein Check-in" : "Your check-in")
-                    .font(.poppins(size: 20, weight: .heavy))
+                    .font(.poppins(size: 17, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                Text("\(min(checkInStep + 1, steps.count))/\(steps.count)")
-                    .font(.poppins(size: 13, weight: .medium))
+                // "Schritt 2 von 4" reads calmer than a bare "2/4".
+                Text(language == "de"
+                     ? "Schritt \(min(checkInStep + 1, steps.count)) von \(steps.count)"
+                     : "Step \(min(checkInStep + 1, steps.count)) of \(steps.count)")
+                    .font(.poppins(size: 12, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
             }
 
@@ -788,12 +809,12 @@ struct DailyJournalView: View {
                     }
                     .clipShape(Capsule())
             }
-            .frame(height: 5)
+            .frame(height: 4)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: checkInStep)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 18)
-        .padding(.bottom, 22)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
     }
 
     private func checkInSlide(_ step: CheckInStep) -> some View {
@@ -830,29 +851,30 @@ struct DailyJournalView: View {
     /// Icon, question and reason — the part of a slide that never scrolls.
     private func slideHeading(_ step: CheckInStep) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Soft tinted tile instead of a filled gradient bubble: the icon
+            // supports the question, it does not compete with it.
             Image(systemName: step.icon)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(accentBlue)
+                .frame(width: 46, height: 46)
                 .background(
-                    Circle()
-                        .fill(Theme.accentGradient)
-                        .shadow(color: accentBlue.opacity(0.28), radius: 10, y: 4)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(accentBlue.opacity(0.12))
                 )
 
             Text(step.question(language: language))
-                .font(.poppins(size: 26, weight: .bold))
+                .font(.poppins(size: 24, weight: .bold))
                 .foregroundStyle(Theme.textPrimary)
                 .lineSpacing(1)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 18)
+                .padding(.top, 16)
 
             Text(step.reason(language: language))
                 .font(.poppins(size: 13, weight: .regular))
                 .foregroundStyle(Theme.textSecondary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
+                .padding(.top, 7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // Matches the 20 cardsSection carries, so heading and card share an edge.
@@ -876,8 +898,12 @@ struct DailyJournalView: View {
                     .font(.poppins(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Capsule().fill(Theme.accentGradient))
+                    .frame(height: 54)
+                    .background(
+                        Capsule()
+                            .fill(Theme.accentGradient)
+                            .shadow(color: accentBlue.opacity(0.28), radius: 10, y: 4)
+                    )
             }
             .buttonStyle(.plain)
 
@@ -933,57 +959,98 @@ struct DailyJournalView: View {
     /// What the day looks like once the flow is behind you. Each row opens its
     /// own question, so correcting one value never means walking all of them.
     private var checkInSummary: some View {
-        VStack(spacing: 10) {
-            ForEach(checkInSteps) { step in
-                Button {
-                    editingStep = step
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: step.icon)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(accentBlue)
-                            .frame(width: 34, height: 34)
-                            .background(Circle().fill(accentBlue.opacity(0.13)))
+        VStack(spacing: 14) {
+            // One grouped card instead of four loose ones — the answers belong
+            // to the same day, and a single list reads like the summary it is.
+            VStack(spacing: 0) {
+                ForEach(Array(checkInSteps.enumerated()), id: \.element.id) { index, step in
+                    Button {
+                        editingStep = step
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: step.icon)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(accentBlue)
+                                .frame(width: 30, height: 30)
+                                .background(Circle().fill(accentBlue.opacity(0.12)))
 
-                        Text(step.question(language: language))
-                            .font(.poppins(size: 13, weight: .medium))
-                            .foregroundStyle(Theme.textPrimary)
-                            .multilineTextAlignment(.leading)
+                            Text(step.question(language: language))
+                                .font(.poppins(size: 14, weight: .medium))
+                                .foregroundStyle(Theme.textPrimary)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.9)
 
-                        Spacer(minLength: 8)
+                            Spacer(minLength: 8)
 
-                        Text(checkInAnswer(step))
-                            .font(.poppins(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                            .multilineTextAlignment(.trailing)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Theme.textSecondary.opacity(0.5))
+                            checkInAnswerPill(step)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(16)
+                    .buttonStyle(.plain)
+
+                    if index < checkInSteps.count - 1 {
+                        Divider().overlay(Theme.divider).padding(.leading, 56)
+                    }
                 }
-                .buttonStyle(.plain)
             }
+            .background(GlassCardBackground(cornerRadius: 18))
 
             if Calendar.current.isDateInToday(selectedDate) {
                 Button {
                     checkInCompletedFor = ""
                     checkInStep = 0
                 } label: {
-                    Text(language == "de" ? "Check-in wiederholen" : "Run check-in again")
-                        .font(.poppins(size: 13, weight: .medium))
-                        .foregroundStyle(accentBlue)
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(language == "de" ? "Check-in wiederholen" : "Run check-in again")
+                            .font(.poppins(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(accentBlue)
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 4)
             }
         }
         .padding(.horizontal, 20)
         .disabled(isFutureDate)
         .opacity(isFutureDate ? 0.45 : 1.0)
+    }
+
+    /// The answer as a small capsule: tinted when the day has an answer,
+    /// neutral with a chevron while the question is still open — so the rows
+    /// that still need attention are the ones that invite the tap.
+    @ViewBuilder
+    private func checkInAnswerPill(_ step: CheckInStep) -> some View {
+        let answered = checkInStepAnswered(step)
+        HStack(spacing: 4) {
+            Text(checkInAnswer(step))
+                .font(.poppins(size: 12, weight: .semibold))
+                .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .opacity(answered ? 0.5 : 1)
+        }
+        .foregroundStyle(answered ? accentBlue : Theme.textSecondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule().fill(answered ? accentBlue.opacity(0.12) : Theme.fieldFill)
+        )
+    }
+
+    /// Whether a step has a real answer, matching what `checkInAnswer` shows.
+    private func checkInStepAnswered(_ step: CheckInStep) -> Bool {
+        switch step {
+        case .menstruation: return menstruationActive != nil
+        case .sickness:     return true   // "Nein" is the standing answer
+        case .caffeine:     return (Int(caffeineText) ?? 0) > 0
+        case .macros:
+            return macroTotal(proteinByMeal) + macroTotal(carbsByMeal) + macroTotal(fatByMeal) > 0
+        }
     }
 
     /// The short form of an answer for the summary row.
