@@ -2,16 +2,17 @@
 //  DayNarrativeStore.swift
 //  caloric
 //
-//  Caches generated day narratives in UserDefaults, pruned to the last 30 days
-//  like JournalStore.
+//  Caches the generated day comparisons in UserDefaults, pruned to the last 30
+//  days like JournalStore.
 //
-//  Entries are keyed by date *and* by a fingerprint of the numbers they
-//  describe. A day that is still running keeps changing, and a cached text
-//  that no longer matches its figures would be worse than none — so the
-//  fingerprint, not the date alone, decides whether a cached entry still
-//  applies.
+//  Keyed by date alone. An earlier version also matched a fingerprint of the
+//  numbers and threw the text away as soon as they moved — right for a card
+//  that regenerated itself for free, wrong here: this text is only written
+//  when someone asks for it, and re-billing a generation because the day
+//  ticked on another 40 kcal is exactly what the button exists to avoid.
+//  Asking for a fresh one is a tap away in the sheet.
 //
-//  Deliberately not a SwiftData model: one short string per day does not
+//  Deliberately not a SwiftData model: a handful of strings per day does not
 //  justify a schema version and a migration stage.
 //
 
@@ -22,16 +23,11 @@ import Foundation
 final class DayNarrativeStore {
 
     struct Entry: Codable, Equatable {
-        let headline: String
-        let body: String
-        /// Optional so entries written before insights existed still decode —
-        /// a failed decode would drop every cached narrative at once.
-        let insight: String?
-        let fingerprint: String
+        let paragraphs: [String]
         let createdAt: Date
     }
 
-    private static let storageKey = "dayNarrativeStore.entries.v1"
+    private static let storageKey = "dayNarrativeStore.entries.v2"
     private static let retentionDays = 30
 
     private var entries: [String: Entry] = [:]
@@ -40,22 +36,13 @@ final class DayNarrativeStore {
         load()
     }
 
-    /// Returns the cached narrative only if it still describes the current
-    /// numbers.
-    func narrative(for summary: DayDeltaSummary) -> Entry? {
-        guard let entry = entries[summary.dateKey],
-              entry.fingerprint == summary.fingerprint else { return nil }
-        return entry
+    func deepDive(for dateKey: String) -> DayNarrativeService.DeepDive? {
+        guard let entry = entries[dateKey], !entry.paragraphs.isEmpty else { return nil }
+        return DayNarrativeService.DeepDive(paragraphs: entry.paragraphs)
     }
 
-    func store(_ narrative: DayNarrativeService.Narrative, for summary: DayDeltaSummary) {
-        entries[summary.dateKey] = Entry(
-            headline: narrative.headline,
-            body: narrative.body,
-            insight: narrative.insight,
-            fingerprint: summary.fingerprint,
-            createdAt: Date()
-        )
+    func store(_ deepDive: DayNarrativeService.DeepDive, for dateKey: String) {
+        entries[dateKey] = Entry(paragraphs: deepDive.paragraphs, createdAt: Date())
         persist()
     }
 

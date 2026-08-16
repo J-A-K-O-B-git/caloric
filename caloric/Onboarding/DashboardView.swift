@@ -87,17 +87,8 @@ struct DashboardView: View {
     /// Drives every time-dependent figure — see `nowFraction`.
     @State private var clockTick = Date()
 
-    // Tageserklärung
-    @State private var narrativeStore = DayNarrativeStore()
-    @State private var narrative: DayNarrativeService.Narrative? = nil
-    @State private var narrativeIsLoading = false
-    @State private var narrativeError: String? = nil
-    /// Fingerprint the shown text was generated for — lets the card say so
-    /// when the day has moved on since.
-    @State private var narrativeFingerprint: String? = nil
-    @State private var lastNarrativeRequestAt: Date? = nil
-
-    // Ausführlicher Tagesvergleich — nur auf Knopfdruck
+    // Tagesvergleich — nur auf Knopfdruck
+    @State private var deepDiveStore = DayNarrativeStore()
     @State private var showDeepDive = false
     @State private var deepDive: DayNarrativeService.DeepDive? = nil
     @State private var deepDiveIsLoading = false
@@ -509,86 +500,12 @@ struct DashboardView: View {
         return byMeal.contains { $0.values.contains { $0 > 0 } }
     }
 
-    /// The shown text was generated for numbers that have since moved.
-    private var narrativeIsStale: Bool {
-        guard narrative != nil, let shown = narrativeFingerprint else { return false }
-        return shown != dayDeltaSummary.fingerprint
-    }
-
-    /// Shortest gap between two automatic requests. A running day keeps nudging
-    /// the numbers, and without this every HealthKit update would buy a new
-    /// generation; opening the app and pulling to refresh bypass it.
-    ///
-    /// Two minutes was too long: the numbers moved, the text did not, and the
-    /// card sat there flagged as stale — which is exactly the thing the flag
-    /// is supposed to warn about, not a state to park in. At a fraction of a
-    /// cent per generation, waiting is the more expensive option.
-    private static let narrativeAutoInterval: TimeInterval = 30
-
-    /// Single entry point: serves the cache when it still matches, otherwise
-    /// generates. Called on appear, on date change and when HealthKit reports
-    /// new data — so a text is simply there.
+    /// Switching days must not leave the previous day's comparison behind.
     @MainActor
-    private func refreshNarrative(force: Bool = false) async {
-        guard !isSelectedFuture else {
-            narrative = nil
-            narrativeFingerprint = nil
-            return
-        }
-
-        let summary = dayDeltaSummary
-
-        // Cached text for exactly these numbers — nothing to do.
-        if !force, let cached = narrativeStore.narrative(for: summary) {
-            narrative = DayNarrativeService.Narrative(
-                headline: cached.headline, body: cached.body, insight: cached.insight ?? ""
-            )
-            narrativeFingerprint = summary.fingerprint
-            narrativeError = nil
-            return
-        }
-
-        // Text already matches what is on screen.
-        if !force, narrative != nil, narrativeFingerprint == summary.fingerprint { return }
-
-        if !force, narrativeIsLoading { return }
-
-        if !force, let last = lastNarrativeRequestAt,
-           Date().timeIntervalSince(last) < Self.narrativeAutoInterval {
-            return   // keep the current text until the cooldown has passed
-        }
-
-        narrativeIsLoading = true
-        narrativeError = nil
-        lastNarrativeRequestAt = Date()
-        defer { narrativeIsLoading = false }
-
-        do {
-            let result = try await DayNarrativeService.explain(summary, language: language)
-            withAnimation(.easeInOut(duration: 0.25)) {
-                narrative = result
-            }
-            narrativeFingerprint = summary.fingerprint
-            narrativeStore.store(result, for: summary)
-        } catch {
-            // The card only ever shows a generic sentence — this is the one
-            // place the real HTTP status/body from OpenRouter surfaces.
-            print("DayNarrative failed: \(error.localizedDescription)")
-            narrativeError = error.localizedDescription
-        }
-    }
-
-    /// Switching days must not show the previous day's text while the new one
-    /// loads, so the visible state is reset before the refresh runs.
-    @MainActor
-    private func resetAndRefreshNarrative() async {
-        narrative = nil
-        narrativeFingerprint = nil
-        narrativeError = nil
+    private func resetDeepDive() {
         deepDive = nil
         deepDiveDateKey = nil
         deepDiveError = nil
-        await refreshNarrative()
     }
 
     /// Generates the long comparison. Called when the sheet opens without a
@@ -598,6 +515,15 @@ struct DashboardView: View {
         let key = HealthKitImportService.dateKey(selectedDate)
         if !force, deepDive != nil, deepDiveDateKey == key { return }
         if deepDiveIsLoading { return }
+
+        // Survives a restart, so yesterday's comparison is never paid for
+        // twice.
+        if !force, let cached = deepDiveStore.deepDive(for: key) {
+            deepDive = cached
+            deepDiveDateKey = key
+            deepDiveError = nil
+            return
+        }
 
         deepDiveIsLoading = true
         deepDiveError = nil
@@ -614,6 +540,7 @@ struct DashboardView: View {
                 deepDive = result
             }
             deepDiveDateKey = key
+            deepDiveStore.store(result, for: key)
         } catch {
             print("DayDeepDive failed: \(error.localizedDescription)")
             deepDiveError = error.localizedDescription
@@ -1290,17 +1217,6 @@ struct DashboardView: View {
                             .padding(.horizontal, 20)
 
                         if !isSelectedFuture {
-                            DayNarrativeCard(
-                                language: language,
-                                accentBlue: accentBlue,
-                                narrative: narrative,
-                                isLoading: narrativeIsLoading,
-                                errorMessage: narrativeError,
-                                isStale: narrativeIsStale,
-                                onRegenerate: { Task { await refreshNarrative(force: true) } }
-                            )
-                            .padding(.horizontal, 20)
-
                             DayDeepDiveButton(
                                 language: language,
                                 accentBlue: accentBlue,
@@ -1338,9 +1254,6 @@ struct DashboardView: View {
                     clockTick = Date()
                     runBurnAnimation()
                 }
-                // A deliberate reload should never leave yesterday's wording
-                // sitting above today's numbers.
-                await refreshNarrative(force: true)
                 Task { @MainActor in
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
                         showRefreshBadge = true
@@ -1411,44 +1324,30 @@ struct DashboardView: View {
         .onAppear {
             migrateKPITilesForPAL()
             runBurnAnimation()
-            Task { await refreshNarrative() }
         }
         .onChange(of: selectedDate) { _, _ in
             runBurnAnimation()
-            Task { await resetAndRefreshNarrative() }
+            resetDeepDive()
         }
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
-        .onChange(of: healthKit.activity.fetchedAt) { _, _ in
-            runBurnAnimation()
-            Task { await refreshNarrative() }
-        }
+        .onChange(of: healthKit.activity.fetchedAt) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
         // History arrives after the first fetch, so the average would otherwise
         // stay empty until the next refresh and the ring stay neutral.
         .onChange(of: healthKit.history.count) { _, _ in updateTrailingAverage() }
         // Coming back to the app is the moment the numbers are most likely to
-        // be wrong — minutes or hours have passed with nothing running. Pull
-        // everything fresh and regenerate the note unconditionally.
+        // be wrong — minutes or hours have passed with nothing running.
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { @MainActor in
                 clockTick = Date()
                 await healthKit.fetchAll()
                 runBurnAnimation()
-                await refreshNarrative(force: true)
             }
         }
         // Keeps a dashboard left open honest: the elapsed BMR, the "now" line,
         // the partial-day comparisons and the ring's own figure all move with
         // the clock.
-        //
-        // Deliberately no narrative regeneration here. The fingerprint shifts
-        // every few minutes as the day accrues, so a request on every tick
-        // would mean a paid call every few minutes for an app merely left
-        // open — and a card quietly rewriting itself while being read. The
-        // note already regenerates on the three moments that matter: coming
-        // back to the app, pulling to refresh, and HealthKit delivering new
-        // data.
         .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { tick in
             clockTick = tick
             syncBurnFigure()

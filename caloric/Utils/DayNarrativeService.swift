@@ -2,7 +2,7 @@
 //  DayNarrativeService.swift
 //  caloric
 //
-//  Turns a DayDeltaSummary into one or two sentences of plain language.
+//  Turns a DayDeltaSummary into a few paragraphs of plain language.
 //
 //  The division of labour is deliberate: DayDeltaSummary computes, this
 //  service only formulates. The model receives finished, rounded numbers and
@@ -26,18 +26,11 @@ import Foundation
 
 struct DayNarrativeService {
 
-    struct Narrative: Codable, Equatable {
-        let headline: String
-        let body: String
-        /// One short, genuinely interesting observation about the day.
-        let insight: String
-    }
-
-    /// The long form behind the dashboard's "Dein Tag im Vergleich" button.
+    /// The text behind the dashboard's "Dein Tag im Vergleich" button.
     ///
-    /// Deliberately not generated with the card above it: this one costs
-    /// several times as many tokens and most days nobody opens it. It is
-    /// requested when the button is pressed and never before.
+    /// Nothing generates it in the background: it costs a few hundred tokens
+    /// and most days nobody opens it. It is requested when the button is
+    /// pressed and never before.
     struct DeepDive: Codable, Equatable {
         /// Two to four short paragraphs. Inline `**…**` marks the figures.
         let paragraphs: [String]
@@ -63,83 +56,12 @@ struct DayNarrativeService {
 
     private static let endpoint = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
 
-    private static func systemPrompt(language: String) -> String {
-        let localeRule = language == "de"
-            ? "Schreibe auf Deutsch und duze die Person."
-            : "Write in English and address the person directly."
-
-        return """
-        Du schreibst die Tagesnotiz in der App Caloric. Sie ist das Erste, was \
-        jemand nach dem Öffnen liest. Sie soll sich lohnen: erzähl der Person \
-        kurz, wie ihr Tag energetisch gelaufen ist, ordne ihn ein und gib ihr \
-        etwas mit, das sie vorher nicht wusste.
-
-        Ton: warm, zugewandt, auf Augenhöhe. Wie jemand, der die Zahlen \
-        gelesen hat und sich ehrlich freut, wenn etwas gut lief. Kein \
-        Coach-Geschrei, keine Ausrufezeichen-Ketten, keine leeren \
-        Motivationsfloskeln. Ein ruhiger, kluger Satz wirkt stärker als drei \
-        begeisterte.
-
-        Aufbau der Daten:
-        - percentToExplain ist die Kennzahl "% vs. Gestern", die auf dem \
-        Bildschirm steht. totalDelta ist die Differenz in kcal dahinter.
-        - components zerlegt totalDelta vollständig; shareOfTotalDeltaPercent \
-        sagt, wie viel Prozent davon auf eine Komponente entfallen.
-        - neatBreakdown zerlegt neat weiter.
-        - context liefert die Rohwerte: Schritte, Stehminuten, \
-        Workout-Minuten, jeweils auch für den Vortag.
-        - weekly vergleicht den Tag mit dem Schnitt der letzten Tage \
-        (daysCounted sagt, wie viele es sind).
-        - highlights enthält fertig gerechnete Kennzahlen: Aktivanteil, \
-        Nachbrennen, kcal je 1.000 Schritte, Wachstunden.
-
-        Was du schreibst — kurz. Das Ganze wird im Vorbeigehen gelesen, \
-        nicht studiert:
-        - headline: höchstens 50 Zeichen. Die Richtung des Tages, sonst nichts.
-        - body: höchstens zwei Sätze, zusammen höchstens 200 Zeichen. Der \
-        erste nennt den Unterschied, der den Tag erklärt — die Komponente \
-        unter leadWith, belegt mit einer Zahl. Der zweite ist optional und \
-        nur dann da, wenn er wirklich etwas hinzufügt: eine zweite Komponente, \
-        die spürbar gegenläuft, oder wie der Tag gegenüber dem Schnitt steht. \
-        Hat er nichts zu sagen, lässt du ihn weg — ein Satz ist eine \
-        vollständige Antwort.
-        - insight: EIN Fun Fact, höchstens 90 Zeichen. Überraschend, \
-        konkret, aus highlights oder weekly — etwas, das man jemandem \
-        erzählen würde. Keine Wiederholung aus dem body, keine Einleitung \
-        wie "Übrigens" oder "Interessant ist".
-
-        Im Zweifel kürzer. Ein zweiter Satz muss sich verdienen, dass er \
-        da steht.
-
-        Harte Regeln:
-        - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
-        leite nichts ab, schätze nichts dazu und runde nichts um. Eine \
-        erfundene Zahl ist der einzige Fehler, den diese Notiz nicht machen darf.
-        - Erwähne den Grundumsatz (bmr) nur, wenn bmrFactorsChanged true ist. \
-        Sonst ist seine Differenz reines Modellrauschen.
-        - Wenn isPartialDay true ist, zählen für heute nur die bisherigen \
-        Stunden, für den Vortag der ganze Tag. Beschreibe den Stand dann als \
-        Zwischenstand und deute die Differenz nicht als Rückgang.
-        - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute die \
-        tef-Differenz nicht — dann fehlen die Einträge. Sag das lieber.
-        - Fehlt weekly, vergleiche nur mit gestern und erfinde keinen Schnitt.
-        - Keine Gesundheits-, Ernährungs- oder Trainingsempfehlungen, keine \
-        moralische Bewertung des Tages. Beschreiben und einordnen, nicht raten.
-        - Ein schwacher Tag wird nicht schöngeredet. Sachlich bleiben und, wo \
-        es die Daten hergeben, zeigen, was trotzdem gut lief.
-        - Komponentennamen: bmr = Grundumsatz, neat = Alltagsbewegung, \
-        eat = Workouts, tef = Verdauung, caffeine = Koffein.
-        \(localeRule)
-        """
-    }
-
     /// The deep dive's voice.
     ///
     /// Written to read like a person who looked at the numbers and has
     /// something to say about them — a verdict first, then the reason, then
-    /// the one thing worth taking away. The card above the button is a
-    /// glance; this is the version you actually read, so it is allowed the
-    /// space the card is not.
+    /// the one thing worth taking away. Someone tapped to get here, so it is
+    /// allowed the space a glanceable card would not be.
     private static func deepDivePrompt(language: String, name: String) -> String {
         let address = name.trimmingCharacters(in: .whitespaces).isEmpty
             ? "Sprich die Person direkt an, ohne Namen."
@@ -150,9 +72,9 @@ struct DayNarrativeService {
             : "Write in English and address the person directly by name."
 
         return """
-        Du schreibst in der App Caloric den ausführlichen Tagesvergleich. Die \
-        Person hat dafür bewusst auf einen Button getippt — sie will mehr als \
-        die zwei Sätze, die oben schon stehen.
+        Du schreibst in der App Caloric den Tagesvergleich. Die Person hat \
+        dafür bewusst auf einen Button getippt — sie will wissen, wie ihr Tag \
+        gelaufen ist und woran das lag.
 
         \(address)
 
@@ -175,8 +97,7 @@ struct DayNarrativeService {
 
         Formatierung: Setze die Zahlen, auf die es ankommt, in **doppelte \
         Sternchen** — aber höchstens drei pro Absatz, sonst ist der Text \
-        gesprenkelt statt betont. Ein einzelnes passendes Emoji darf im \
-        ersten Absatz stehen, danach keins mehr.
+        gesprenkelt statt betont. Keine Emojis, an keiner Stelle.
 
         Harte Regeln:
         - Nenne ausschließlich Zahlen, die im JSON stehen. Rechne nichts aus, \
@@ -204,24 +125,6 @@ struct DayNarrativeService {
 
     /// OpenAI-style strict json_schema: every property required, no extras —
     /// that combination is what "strict" mode demands.
-    private static let responseFormat: [String: Any] = [
-        "type": "json_schema",
-        "json_schema": [
-            "name": "day_narrative",
-            "strict": true,
-            "schema": [
-                "type": "object",
-                "properties": [
-                    "headline": ["type": "string"],
-                    "body":     ["type": "string"],
-                    "insight":  ["type": "string"]
-                ],
-                "required": ["headline", "body", "insight"],
-                "additionalProperties": false
-            ]
-        ]
-    ]
-
     private static let deepDiveResponseFormat: [String: Any] = [
         "type": "json_schema",
         "json_schema": [
@@ -248,24 +151,8 @@ struct DayNarrativeService {
     /// attempt pins routing to those that do; if none is reachable the request
     /// comes back 400/404 and the schema is dropped, the model asked for raw
     /// JSON in prose instead. Losing the schema costs reliability, which is
-    /// why it is the second choice — but an explanation parsed out of text
-    /// beats an empty card.
-    static func explain(_ summary: DayDeltaSummary, language: String) async throws -> Narrative {
-        try await request(
-            Narrative.self,
-            prompt: systemPrompt(language: language),
-            userContent: summary.promptJSON(),
-            schema: responseFormat,
-            fallbackShape: #"{"headline": "…", "body": "…", "insight": "…"}"#,
-            temperature: 0.3,
-            maxTokens: 220
-        )
-    }
-
-    /// The long form, requested only when the user opens it.
-    ///
-    /// Same data as the card, a different brief: several paragraphs instead of
-    /// two sentences, so the ceiling is correspondingly higher.
+    /// why it is the second choice — but a text parsed out of prose beats an
+    /// empty sheet.
     static func deepDive(
         _ summary: DayDeltaSummary,
         language: String,
