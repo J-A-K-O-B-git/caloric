@@ -206,7 +206,6 @@ struct DayDeepDiveSheet: View {
                 .font(.system(size: 10, weight: .bold))
             Text(language == "de" ? "Von KI analyisert" : "Analyzed by AI")
                 .font(.poppins(size: 12, weight: .bold))
-                .kerning(1.2)
         }
         .foregroundStyle(aiGradient)
     }
