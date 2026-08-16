@@ -168,8 +168,7 @@ struct DataInsightView: View {
         }
         .sheet(item: $selectedHistoryType) { type in
             HistoryDetailSheet(type: type, healthKit: healthKit, language: language, accentBlue: accentBlue)
-                .presentationDetents([.height(580)]) // Increased height
-                .presentationDragIndicator(.visible)
+                .presentationDetents([.height(620)]) // Increased height
                 .presentationBackground(Theme.canvas)
         }
     }
@@ -601,7 +600,8 @@ private struct HistoryDetailSheet: View {
     let healthKit: HealthKitImportService
     let language: String
     let accentBlue: Color
-    
+
+    @Environment(\.dismiss) private var dismiss
     @State private var rawSelectedDate: Date?
     
     struct HistoryPoint: Identifiable {
@@ -644,12 +644,26 @@ private struct HistoryDetailSheet: View {
     }
 
     var body: some View {
+        NavigationStack {
+            content
+                .navigationTitle(type.title(language: language))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(language == "de" ? "Fertig" : "Done") { dismiss() }
+                            .foregroundStyle(accentBlue)
+                            .fontWeight(.semibold)
+                    }
+                }
+        }
+        .caloricAppearance()
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
-            // Header Section
+            // The title lives in the navigation bar now, so this block only
+            // carries the selected value and its date.
             VStack(alignment: .leading, spacing: 12) {
-                Text(type.title(language: language))
-                    .font(.poppins(size: 22, weight: .bold))
-                
                 if let sel = selectedPoint {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         let displayVal: String = {
@@ -681,13 +695,12 @@ private struct HistoryDetailSheet: View {
                         .frame(height: 50)
                 }
             }
-            // Without this the block only spans its widest line, and the whole
-            // header sits centred — so the title looked indented while the
-            // placeholder under it looked centred.
+            // Without this the block only spans its widest line and gets
+            // centred by its parent.
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
-            .padding(.top, 36)
-            .padding(.bottom, 28)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
             
             // Content (Chart or List)
             ScrollView {
