@@ -76,6 +76,7 @@ struct MainTabView: View {
                 selectedTab: $selectedTab
             )
             .tag(0)
+            .toolbarBackground(.hidden, for: .tabBar)
             .tabItem {
                 Label(language == "de" ? "Übersicht" : "Overview",
                       systemImage: "square.grid.2x2.fill")
@@ -101,6 +102,7 @@ struct MainTabView: View {
                 metabolismFactor: $metabolismFactor
             )
             .tag(1)
+            .toolbarBackground(.hidden, for: .tabBar)
             .tabItem {
                 Label(language == "de" ? "Meine Daten" : "My Data",
                       systemImage: "slider.horizontal.3")
@@ -117,11 +119,17 @@ struct MainTabView: View {
                 selectedDate: $selectedDate
             )
             .tag(2)
+            .toolbarBackground(.hidden, for: .tabBar)
             .tabItem {
                 Label("Journal", systemImage: "book.pages.fill")
             }
         }
         .tint(accentBlue)
+        // The bar carries its own tinted material, which in dark mode reads as
+        // a pale blue slab under the page rather than as part of it. Hidden on
+        // every tab — set on the TabView alone it never reaches the bar, the
+        // modifier has to travel with the content each tab shows.
+        .toolbarBackground(.hidden, for: .tabBar)
         .caloricAppearance()
         .ignoresSafeArea()
         .environment(journalStore)
