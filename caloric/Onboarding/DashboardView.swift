@@ -517,7 +517,8 @@ struct DashboardView: View {
                 foodLoggedPrevious: hasLoggedFood(on: prevDate)
             ),
             weekly: narrativeWeekly,
-            highlights: narrativeHighlights
+            highlights: narrativeHighlights,
+            goalKcal: dailyGoalKcal > 0 ? dailyGoalKcal : nil
         )
     }
 
@@ -1501,6 +1502,17 @@ struct DashboardView: View {
         .onChange(of: showProfileSidebar) { _, isOpen in
             if isOpen { prepareExport() }
         }
+        // Only the crossing matters — dragging the slider moves the value
+        // continuously and must not touch the row on every step.
+        .onChange(of: dailyGoalKcal) { old, new in
+            guard (old > 0) != (new > 0) else { return }
+            syncGoalTile(hasGoal: new > 0)
+            // The cached text was written for a day with no goal in it — and
+            // the store would serve that same text straight back, so the
+            // persisted copy has to go too.
+            deepDiveStore.clear(dateKey: HealthKitImportService.dateKey(selectedDate))
+            resetDeepDive()
+        }
         .onChange(of: weightSource) { _, _ in syncWeightFromHealth() }
         // History arrives after the first fetch, so the average would otherwise
         // stay empty until the next refresh and the ring stay neutral.
@@ -2402,6 +2414,10 @@ struct DashboardView: View {
                         DailyGoalSetting(
                             accent: accentBlue,
                             language: language,
+                            // Starting at the user's own recent average beats a
+                            // round number nobody picked: the first goal they
+                            // see is already one they could plausibly hit.
+                            suggestedKcal: trailingAverage ?? sevenDayAverage,
                             goalKcal: $dailyGoalKcal
                         )
                         .padding(.vertical, 8)
@@ -2535,6 +2551,19 @@ struct DashboardView: View {
                         Text("kcal")
                             .font(.poppins(size: 14, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
+
+                        // With a goal set the arc fills against it, which makes
+                        // the end of the ring *be* the goal — so it needs no
+                        // marker of its own, only a name. Without this line a
+                        // half-full ring never said half of what.
+                        if dailyGoalKcal > 0, !isSelectedFuture {
+                            Text(String(format: language == "de" ? "von %d kcal" : "of %d kcal",
+                                        Int(dailyGoalKcal)))
+                                .font(.poppins(size: 11, weight: .medium))
+                                .foregroundStyle(displayBurnedSoFar >= dailyGoalKcal
+                                                 ? Theme.segNEAT : Theme.textSecondary.opacity(0.75))
+                                .padding(.top, 3)
+                        }
                     }
                     .offset(y: -4) // Slight upward shift to center visually in the open arc
                 }
@@ -2628,6 +2657,25 @@ struct DashboardView: View {
     }
 
     private var activeKPITiles: [DashboardKPI] { DashboardKPI.decode(kpiTilesRaw) }
+
+    /// Puts the goal tile on the row when a goal appears, takes it off again
+    /// when the goal goes.
+    ///
+    /// Without this the setting was almost invisible: the tile is not in the
+    /// default row, so switching a goal on changed how full the ring drew and
+    /// nothing else, and the one tile that reports the goal had to be found in
+    /// a picker first. It goes in front, where the day's own figures are.
+    private func syncGoalTile(hasGoal: Bool) {
+        var tiles = activeKPITiles
+        if hasGoal {
+            guard !tiles.contains(.vsGoal) else { return }
+            tiles.insert(.vsGoal, at: min(1, tiles.count))
+        } else {
+            guard tiles.contains(.vsGoal) else { return }
+            tiles.removeAll { $0 == .vsGoal }
+        }
+        kpiTilesRaw = DashboardKPI.encode(tiles)
+    }
 
     /// Adds the PAL tile once to layouts saved before it moved here from the
     /// day narrative. Runs a single time and never touches the row again, so a
