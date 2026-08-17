@@ -92,6 +92,9 @@ struct DayDeltaSummary: Codable, Equatable {
     let context: Context
     let weekly: Weekly?
     let highlights: Highlights?
+    /// The user's own target for the day, if they set one. Nil means there is
+    /// no goal and the text must not invent a target to measure against.
+    let goalKcal: Double?
 
     var totalDeltaKcal: Double { todayTotalKcal - previousTotalKcal }
 
@@ -164,6 +167,17 @@ struct DayDeltaSummary: Codable, Equatable {
                 "afterburnKcal": round0(h.afterburnKcal),
                 "kcalPerThousandSteps": round0(h.kcalPerThousandSteps),
                 "wakingHours": (h.wakingHours * 10).rounded() / 10
+            ]
+        }
+
+        // The gap is computed here for the same reason every other figure is:
+        // the model may quote numbers, never derive them — and "how much is
+        // left" is a subtraction it would otherwise have to do itself.
+        if let goalKcal, goalKcal > 0 {
+            payload["goal"] = [
+                "targetKcal": round0(goalKcal),
+                "reachedPercent": round0(todayTotalKcal / goalKcal * 100),
+                "remainingKcal": round0(max(0, goalKcal - todayTotalKcal))
             ]
         }
 

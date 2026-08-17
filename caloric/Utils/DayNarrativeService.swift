@@ -161,6 +161,12 @@ struct DayNarrativeService {
         - Wenn foodLoggedToday oder foodLoggedPreviousDay false ist, deute \
         die Verdauung nicht — dann fehlen die Einträge. Sag das lieber.
         - Fehlt weekly, vergleiche nur mit gestern und erfinde keinen Schnitt.
+        - Steht goal im JSON, hat die Person sich ein Tagesziel gesetzt. Dann \
+        gehört der Stand dazu in den Text — wie weit sie ist und wie viel \
+        fehlt (remainingKcal), in einem Satz, ohne Druck aufzubauen. Ist das \
+        Ziel schon erreicht, sag das und mach nichts daraus, was es nicht \
+        ist. Fehlt goal, gibt es kein Ziel: dann erwähnst du keins und \
+        schlägst auch keines vor.
         - Keine medizinischen Ratschläge, keine Diät- oder Trainingspläne, \
         keine moralische Bewertung. Ein leichter, konkreter Anstoß am Ende \
         ist erlaubt, wenn er direkt aus den Zahlen folgt — mehr nicht.

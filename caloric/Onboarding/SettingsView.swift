@@ -234,10 +234,18 @@ struct WeightSourceSetting: View {
 struct DailyGoalSetting: View {
     let accent: Color
     let language: String
+    /// What the user has actually been burning, when the app knows. Rounded to
+    /// the nearest 50 so it lands on the slider's own steps.
+    let suggestedKcal: Double?
     @Binding var goalKcal: Double
 
+    private var startingPoint: Double {
+        guard let suggested = suggestedKcal, suggested > 0 else { return 2500 }
+        return min(5000, max(1200, (suggested / 50).rounded() * 50))
+    }
+
     private var isOn: Binding<Bool> {
-        Binding(get: { goalKcal > 0 }, set: { goalKcal = $0 ? 2500 : 0 })
+        Binding(get: { goalKcal > 0 }, set: { goalKcal = $0 ? startingPoint : 0 })
     }
 
     var body: some View {
