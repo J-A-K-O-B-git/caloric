@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct caloricApp: App {
@@ -13,6 +14,30 @@ struct caloricApp: App {
 
     init() {
         container = Self.makeContainer()
+        Self.clearTabBarBackground()
+    }
+
+    /// Lets the page run behind the tab bar.
+    ///
+    /// The bar draws a full-width surface of its own, and it is opaque enough
+    /// to cut the day chart off wherever the page scrolls under it. SwiftUI's
+    /// `toolbarBackground(.hidden, for: .tabBar)` asks for the same thing but
+    /// does not reach the bar the running app already built, so the appearance
+    /// proxy sets it before the first one exists — which is why this belongs in
+    /// the app's initialiser and not in an onAppear.
+    ///
+    /// Only the surface goes. The selected item keeps its own capsule, and on
+    /// iOS 26 the floating bar keeps the glass behind that capsule, so the
+    /// controls stay legible over whatever scrolls past.
+    private static func clearTabBarBackground() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = .clear
+        appearance.backgroundEffect = nil
+        appearance.shadowColor = .clear
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
     var body: some Scene {
