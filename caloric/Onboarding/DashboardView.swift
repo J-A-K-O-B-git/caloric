@@ -406,9 +406,15 @@ struct DashboardView: View {
     private var dayDeltaSummary: DayDeltaSummary {
         let prevDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate)!
 
-        // The day as it stands right now, against the previous day in full.
+        // Both days cut at the same point on the clock. Against a finished
+        // previous day every morning would read as a collapse, and the text
+        // would keep explaining a gap that is only the time of day.
         let today = componentsSoFar(for: selectedDate)
-        let prev  = dayComponents(for: prevDate)
+        let prev  = componentsAtSameTime(
+            dayComponents(for: prevDate),
+            on: prevDate,
+            workouts: previousActivityResult.workoutDetails
+        )
         // Derived from exactly these two figures rather than taken from the
         // KPI tile: that one projects both days to midnight, and a percentage
         // computed on one basis next to totals from another is the kind of
@@ -423,13 +429,14 @@ struct DashboardView: View {
             .init(key: "caffeine", todayKcal: today.caffeine, previousKcal: prev.caffeine)
         ]
 
-        // NEAT sub-parts, both sides at full day value like the components above.
+        // NEAT sub-parts, previous day trimmed to the same slice as its total.
         let todayNeat = activityResult.neatBreakdown
         let prevNeat  = previousActivityResult.neatBreakdown
+        let share     = elapsedActivityFraction
         let neatBreakdown: [DayDeltaSummary.ComponentDelta] = [
-            .init(key: "steps",     todayKcal: todayNeat.neatSteps, previousKcal: prevNeat.neatSteps),
-            .init(key: "standing",  todayKcal: todayNeat.neatStand, previousKcal: prevNeat.neatStand),
-            .init(key: "heartRate", todayKcal: todayNeat.neatHR,    previousKcal: prevNeat.neatHR)
+            .init(key: "steps",     todayKcal: todayNeat.neatSteps, previousKcal: prevNeat.neatSteps * share),
+            .init(key: "standing",  todayKcal: todayNeat.neatStand, previousKcal: prevNeat.neatStand * share),
+            .init(key: "heartRate", todayKcal: todayNeat.neatHR,    previousKcal: prevNeat.neatHR * share)
         ]
 
         // BMR only moves for a reason — illness or cycle. Without one, any delta
@@ -457,11 +464,16 @@ struct DashboardView: View {
             bmrFactorsChanged: bmrFactorsChanged,
             context: DayDeltaSummary.Context(
                 steps: selectedActivity.steps,
-                stepsPrevious: prevSnapshot?.activity.steps ?? 0,
+                // Raw counts get the same treatment as the kcal they drive.
+                // Steps and standing minutes are day totals with no intraday
+                // resolution, so they are scaled; workout minutes have real
+                // timestamps and are clipped exactly.
+                stepsPrevious: Int((Double(prevSnapshot?.activity.steps ?? 0) * share).rounded()),
                 standMinutes: selectedActivity.standTimeMinutes,
-                standMinutesPrevious: prevSnapshot?.activity.standTimeMinutes ?? 0,
+                standMinutesPrevious: (prevSnapshot?.activity.standTimeMinutes ?? 0) * share,
                 workoutMinutes: selectedWorkouts.reduce(0.0) { $0 + $1.duration } / 60.0,
-                workoutMinutesPrevious: (prevSnapshot?.workouts ?? []).reduce(0.0) { $0 + $1.duration } / 60.0,
+                workoutMinutesPrevious: minutesFromSessions(prevSnapshot?.workouts ?? [],
+                                                            on: prevDate, before: nowFraction),
                 sleepHours: sleepHours,
                 foodLoggedToday: hasLoggedFood(on: selectedDate),
                 foodLoggedPrevious: hasLoggedFood(on: prevDate)
@@ -476,9 +488,12 @@ struct DashboardView: View {
         guard let average = sevenDayAverage, average > 0,
               let steps = sevenDayAverageSteps else { return nil }
         return DayDeltaSummary.Weekly(
+            // averageKcal already comes from comparableTotal, so it covers the
+            // same hours as today. The step average does not, and left raw it
+            // would put a morning's steps against seven whole days.
             averageKcal: average,
             percentVsAverage: (displayBurnedSoFar - average) / average * 100,
-            averageSteps: steps,
+            averageSteps: Int((Double(steps) * elapsedActivityFraction).rounded()),
             daysCounted: sevenDayCount
         )
     }
@@ -617,11 +632,81 @@ struct DashboardView: View {
     /// Schnitt. Die Komponenten werden deshalb genauso skaliert wie in
     /// `previousValue(for:)`, damit beide Seiten dieselbe Tagesscheibe meinen.
     private func comparableTotal(_ c: DayComponents) -> Double {
-        guard isSelectedToday else { return c.total }
+        componentsAtSameTime(c).total
+    }
+
+    /// The same slice, component by component.
+    ///
+    /// `comparableTotal` only ever needed the sum; the day comparison needs
+    /// the parts, because it says *which* of them explains the difference.
+    /// Both go through here so the two can never drift apart.
+    ///
+    /// Sessions are clipped by their real timestamps where they are available:
+    /// scaling a past day's EAT by the elapsed share would credit a third of
+    /// an evening workout to a morning, which is the one comparison this text
+    /// is most likely to be asked about. Steps and standing minutes have no
+    /// intraday resolution, so they keep the proportional treatment.
+    private func componentsAtSameTime(
+        _ c: DayComponents,
+        on date: Date? = nil,
+        workouts: [ActivityCalculationService.WorkoutDetail] = []
+    ) -> DayComponents {
+        guard isSelectedToday else { return c }
         let bmrRatio = tdeeResult.bmrDynamisch > 0 ? bmrBurnedSoFar / tdeeResult.bmrDynamisch : 1
         let active   = elapsedActivityFraction
         let clock    = nowFraction / 24.0
-        return c.bmr * bmrRatio + (c.neat + c.eat) * active + (c.tef + c.caffeine) * clock
+
+        let eat: Double
+        if let date, !workouts.isEmpty {
+            eat = kcalFromSessions(workouts, on: date, before: nowFraction)
+        } else {
+            eat = c.eat * active
+        }
+
+        return DayComponents(
+            bmr:      c.bmr * bmrRatio,
+            neat:     c.neat * active,
+            eat:      eat,
+            tef:      c.tef * clock,
+            caffeine: c.caffeine * clock
+        )
+    }
+
+    /// How many workout minutes a day had accumulated by a given hour.
+    private func minutesFromSessions(
+        _ workouts: [HKWorkoutSnapshot],
+        on date: Date,
+        before hour: Double
+    ) -> Double {
+        guard isSelectedToday else {
+            return workouts.reduce(0.0) { $0 + $1.duration } / 60.0
+        }
+        let dayStart = Calendar.current.startOfDay(for: date)
+        return workouts.reduce(0.0) { sum, w in
+            let start = w.startDate.timeIntervalSince(dayStart) / 3600.0
+            let end   = w.endDate.timeIntervalSince(dayStart) / 3600.0
+            return sum + max(0, min(hour, end) - start) * 60.0
+        }
+    }
+
+    /// What a day's sessions had cost by a given hour.
+    ///
+    /// A session straddling the cutoff contributes the share of itself that
+    /// had happened; its afterburn only counts once it is over, since EPOC
+    /// cannot precede the session that owes it.
+    private func kcalFromSessions(
+        _ details: [ActivityCalculationService.WorkoutDetail],
+        on date: Date,
+        before hour: Double
+    ) -> Double {
+        let dayStart = Calendar.current.startOfDay(for: date)
+        return details.reduce(0.0) { sum, d in
+            let start = d.startDate.timeIntervalSince(dayStart) / 3600.0
+            let end   = d.endDate.timeIntervalSince(dayStart) / 3600.0
+            guard end > start else { return sum }
+            let share = min(1, max(0, (min(hour, end) - start) / (end - start)))
+            return sum + d.duringKcal * share + (hour >= end ? d.afterburnKcal : 0)
+        }
     }
 
     /// Nur Tage zählen, für die HealthKit tatsächlich Daten hat — ein Lücken-Tag
