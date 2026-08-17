@@ -148,10 +148,12 @@ struct DayNarrativeService {
         leite nichts ab, schätze nichts dazu. Eine erfundene Zahl ist der \
         einzige Fehler, den dieser Text nicht machen darf.
         - todayTotal ist der Stand in diesem Moment, nicht der fertige Tag. \
-        Wenn isPartialDay true ist, ist das der Zwischenstand nach den \
-        bisherigen Stunden, während der Vortag komplett ist. Sag das in \
-        eigenen Worten und lies die Differenz nicht als Rückgang. Der \
-        Wochenschnitt besteht ebenfalls aus vollen Tagen.
+        Alle Vergleichswerte — Vortag, Wochenschnitt, Schritte, \
+        Workout-Minuten — sind auf genau dieselbe Uhrzeit zugeschnitten. Der \
+        Vergleich ist also fair und du sollst ihn auch so erzählen: nicht \
+        "weniger als gestern insgesamt", sondern "weniger als gestern um \
+        diese Zeit". Erwähne trotzdem, dass der Tag noch läuft, wenn \
+        isPartialDay true ist.
         - Ist eine Komponente heute null oder kaum verändert, lass sie weg. \
         Ein früher Vormittag hat wenig zu erzählen, und das ist in Ordnung.
         - Erwähne den Grundumsatz nur, wenn bmrFactorsChanged true ist. Sonst \
