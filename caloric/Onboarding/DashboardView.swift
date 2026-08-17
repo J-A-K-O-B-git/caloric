@@ -65,6 +65,13 @@ struct DashboardView: View {
     /// the dashboard instead. Changing the default alone would never reach a
     /// layout the user has already saved.
     @AppStorage("dashboard.kpiPalMigrated") private var kpiPalMigrated = false
+    /// Where the weight behind the BMR comes from — typed in, or whatever
+    /// Apple Health last recorded.
+    @AppStorage("settings.weightSource") private var weightSource = WeightSource.manual.rawValue
+    /// Optional target for the day's burn. Zero means no goal, and the ring
+    /// falls back to comparing the day against its own 14-day average.
+    @AppStorage("settings.dailyGoalKcal") private var dailyGoalKcal: Double = 0
+    @State private var exportURL: URL? = nil
     @State private var editWeightKg: Int = 70
     @State private var editWeightLb: Int = 154
     @State private var editHeightCm: Int = 170
@@ -106,6 +113,37 @@ struct DashboardView: View {
     
     
     
+    /// The stored record every screen reads its language from.
+    private var storedProfile: UserProfile? {
+        profiles.first(where: { $0.isOnboardingCompleted }) ?? profiles.first
+    }
+
+    /// Written once when the panel opens.
+    ///
+    /// As a computed property this rebuilt the file on every render of the
+    /// panel, which puts a disk write behind a scroll — and ShareLink needs
+    /// the URL before the tap, so it cannot wait for one either.
+    private func prepareExport() {
+        guard !healthKit.history.isEmpty else {
+            exportURL = nil
+            return
+        }
+        exportURL = HistoryExport.writeCSV(history: healthKit.history)
+    }
+
+    /// Pulls the weight from Health into the field the calculations read.
+    ///
+    /// The manual entry is not overwritten in place until the source is set to
+    /// Health, and a value that already matches is left alone — otherwise the
+    /// write would loop through onChange back into itself.
+    private func syncWeightFromHealth() {
+        guard weightSource == WeightSource.health.rawValue,
+              let kg = healthKit.bodyMassKg, kg > 0 else { return }
+        let shown = weightUnit == "kg" ? kg : kg / 0.453592
+        let text  = String(format: "%.1f", shown)
+        if weightText != text { weightText = text }
+    }
+
     private var ringSize: CGFloat { LayoutMetrics.ringSize }
     
     private var topSafeArea: CGFloat {
@@ -566,8 +604,17 @@ struct DashboardView: View {
         }
     }
 
+    /// How full the ring is drawn.
+    ///
+    /// Without a goal the ring fills against the day's own projection, so a
+    /// finished day always ends full — it shows progress through the day, not
+    /// achievement. A goal replaces that reference with a fixed line, which is
+    /// the only thing that makes a full ring mean something.
+    ///
+    /// The tint is not touched either way: that still comes from the 14-day
+    /// average, and two different meanings on one ring would be one too many.
     private var burnProgress: Double {
-        let target = todayProjected
+        let target = dailyGoalKcal > 0 ? dailyGoalKcal : todayProjected
         guard target > 0 else { return 0 }
         return min(1.0, burnedSoFar / target)
     }
@@ -602,6 +649,10 @@ struct DashboardView: View {
             return burnProgress
         } else if isSelectedFuture {
             return 0
+        } else if dailyGoalKcal > 0 {
+            // A past day against the goal, not automatically full: with a line
+            // to reach, "finished" and "reached" stop being the same thing.
+            return min(1.0, dayComponents(for: selectedDate).total / dailyGoalKcal)
         } else {
             return 1.0
         }
@@ -867,7 +918,7 @@ struct DashboardView: View {
         // Comparisons against a moving baseline. A fortnight of "% vs. the day
         // before" would be a table of second derivatives — true, and unreadable.
         // These tiles show their own history as the underlying total instead.
-        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage:
+        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage, .vsGoal:
             return c.total
         }
     }
@@ -1437,6 +1488,7 @@ struct DashboardView: View {
         .onAppear {
             migrateKPITilesForPAL()
             runBurnAnimation()
+            syncWeightFromHealth()
         }
         .onChange(of: selectedDate) { _, _ in
             runBurnAnimation()
@@ -1445,6 +1497,11 @@ struct DashboardView: View {
         .onChange(of: tdeeResult.tdeeTotal) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.activity.fetchedAt) { _, _ in runBurnAnimation() }
         .onChange(of: healthKit.workouts) { _, _ in runBurnAnimation() }
+        .onChange(of: healthKit.bodyMassKg) { _, _ in syncWeightFromHealth() }
+        .onChange(of: showProfileSidebar) { _, isOpen in
+            if isOpen { prepareExport() }
+        }
+        .onChange(of: weightSource) { _, _ in syncWeightFromHealth() }
         // History arrives after the first fetch, so the average would otherwise
         // stay empty until the next refresh and the ring stay neutral.
         .onChange(of: healthKit.history.count) { _, _ in updateTrailingAverage() }
@@ -2248,10 +2305,12 @@ struct DashboardView: View {
             // Header
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(language == "de" ? "Meine Daten" : "My Data")
+                    Text(language == "de" ? "Einstellungen" : "Settings")
                         .font(.poppins(size: 24, weight: .bold))
                         .foregroundStyle(Theme.textPrimary)
-                    Text(language == "de" ? "Verwalte dein Profil und Körperwerte" : "Manage your profile and body metrics")
+                    Text(language == "de"
+                         ? "Körperwerte bearbeitest du unter Meine Daten"
+                         : "Body metrics are edited under My Data")
                         .font(.poppins(size: 13, weight: .regular))
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -2274,59 +2333,31 @@ struct DashboardView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    // SECTION 1: PERSONAL
-                    profileSection(title: language == "de" ? "Persönlich" : "Personal") {
-                        VStack(spacing: 0) {
-                            profileRow(icon: "person.fill", label: language == "de" ? "Vorname" : "First Name") {
-                                TextField("", text: $accountUsername)
-                                    .font(.poppins(size: 15, weight: .semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                                    .multilineTextAlignment(.trailing)
-                                    .submitLabel(.done)
-                            }
-                            Divider().padding(.leading, 52)
-                            profileRow(icon: "calendar", label: language == "de" ? "Geburtsdatum" : "Birth Date") {
-                                DatePicker("", selection: $birthDate, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .tint(accentBlue)
-                            }
-                            Divider().padding(.leading, 52)
-                            profileRow(icon: "figure.arms.open", label: language == "de" ? "Geschlecht" : "Gender") {
-                                Text(selectedGender ?? "—")
-                                    .font(.poppins(size: 15, weight: .semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                            }
-                        }
-                    }
-
-                    // SECTION 2: BODY METRICS
-                    profileSection(title: language == "de" ? "Körperwerte" : "Body Metrics") {
-                        VStack(spacing: 0) {
-                            profileActionRow(icon: "scalemass.fill", label: language == "de" ? "Gewicht" : "Weight", value: weightText + " " + weightUnit) {
-                                editingField = "weight"
-                            }
-                            Divider().padding(.leading, 52)
-                            profileActionRow(icon: "ruler.fill", label: language == "de" ? "Größe" : "Height", value: heightText + " " + heightUnit) {
-                                editingField = "height"
-                            }
-                            Divider().padding(.leading, 52)
-                            profileActionRow(icon: "percent", label: language == "de" ? "Körperfettanteil" : "Body Fat %", value: (knowsBodyFat == true) ? bodyFatText + "%" : (language == "de" ? "Unbekannt" : "Unknown")) {
-                                editingField = "bodyFat"
-                            }
-                        }
-                    }
-
-                    // SECTION 3: METABOLISM
-                    profileSection(title: language == "de" ? "Stoffwechsel & Gesundheit" : "Metabolism & Health") {
-                        profileActionRow(icon: "bolt.heart.fill", label: language == "de" ? "Besonderheiten" : "Conditions", value: selectedConditions.contains(noConditionText) ? (language == "de" ? "Keine" : "None") : "\(selectedConditions.count) Aktiv") {
-                            editingField = "conditions"
-                        }
-                    }
-
-                    // SECTION 4: APPEARANCE
-                    profileSection(title: language == "de" ? "Einstellungen" : "Settings") {
-                        VStack(spacing: 12) {
-                            HStack {
+                    // Master data is deliberately absent. Gender, age,
+                    // height, weight, body fat and conditions were editable
+                    // here, under Meine Daten and in the onboarding, and three
+                    // editors over one record is three chances to disagree.
+                    // Meine Daten → Stammdaten is the only one left.
+                    profileSection(title: language == "de" ? "Allgemein" : "General") {
+                        VStack(spacing: 4) {
+                            LanguageSetting(
+                                accent: accentBlue,
+                                language: language,
+                                onChange: { newValue in
+                                    storedProfile?.sprache = newValue
+                                }
+                            )
+                            Divider().padding(.leading, 40)
+                            UnitSettings(
+                                accent: accentBlue,
+                                language: language,
+                                weightText: $weightText,
+                                weightUnit: $weightUnit,
+                                heightText: $heightText,
+                                heightUnit: $heightUnit
+                            )
+                            Divider().padding(.leading, 40)
+                            HStack(spacing: 12) {
                                 Image(systemName: "circle.lefthalf.filled")
                                     .font(.system(size: 16))
                                     .foregroundStyle(accentBlue)
@@ -2334,17 +2365,77 @@ struct DashboardView: View {
                                 Text(language == "de" ? "Erscheinungsbild" : "Appearance")
                                     .font(.poppins(size: 15, weight: .regular))
                                     .foregroundStyle(Theme.textPrimary)
-                                Spacer()
+                                Spacer(minLength: 8)
+                                AppearancePicker(language: language, accent: accentBlue)
                             }
-                            AppearancePicker(language: language, accent: accentBlue)
+                            .padding(.vertical, 6)
                         }
-                        .padding(.vertical, 14)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                    }
+
+                    profileSection(title: language == "de" ? "Messung" : "Measurement") {
+                        VStack(spacing: 4) {
+                            HealthStatusSetting(
+                                accent: accentBlue,
+                                language: language,
+                                isAuthorized: healthKit.isAuthorized,
+                                onConnect: {
+                                    Task { try? await healthKit.requestAuthorization() }
+                                }
+                            )
+                            Divider().padding(.leading, 40)
+                            WeightSourceSetting(
+                                accent: accentBlue,
+                                language: language,
+                                healthKitAuthorized: healthKit.isAuthorized,
+                                healthWeightKg: healthKit.bodyMassKg,
+                                healthWeightDate: healthKit.bodyMassDate,
+                                source: $weightSource
+                            )
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                    }
+
+                    profileSection(title: language == "de" ? "Ziel" : "Goal") {
+                        DailyGoalSetting(
+                            accent: accentBlue,
+                            language: language,
+                            goalKcal: $dailyGoalKcal
+                        )
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                    }
+
+                    profileSection(title: language == "de" ? "Daten" : "Data") {
+                        VStack(spacing: 4) {
+                            if let url = exportURL {
+                                ShareLink(item: url) {
+                                    SettingsRow(icon: "square.and.arrow.up",
+                                                label: language == "de" ? "Daten exportieren" : "Export data",
+                                                accent: accentBlue,
+                                                caption: language == "de"
+                                                    ? "\(healthKit.history.count) Tage als CSV"
+                                                    : "\(healthKit.history.count) days as CSV") {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(Theme.textSecondary.opacity(0.55))
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                Divider().padding(.leading, 40)
+                            }
+                            AboutSetting(language: language)
+                                .padding(.vertical, 6)
+                        }
+                        .padding(.vertical, 8)
                         .padding(.horizontal, 16)
                     }
 
                     // FOOTER INFO
                     VStack(spacing: 8) {
-                        Text(language == "de" 
+                        Text(language == "de"
                              ? "Deine Daten werden lokal auf deinem Gerät gespeichert und für die präzise Berechnung deines Energiebedarfs verwendet."
                              : "Your data is stored locally on your device and used for accurate energy expenditure calculations.")
                             .font(.poppins(size: 12, weight: .regular))
@@ -2377,58 +2468,6 @@ struct DashboardView: View {
             content()
                 .background(GlassCardBackground(cornerRadius: 20))
         }
-    }
-
-    private func profileRow<Content: View>(icon: String, label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(accentBlue)
-                .frame(width: 28, height: 28)
-                .background(accentBlue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            
-            Text(label)
-                .font(.poppins(size: 15, weight: .regular))
-                .foregroundStyle(Theme.textPrimary)
-            
-            Spacer()
-            
-            content()
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 16)
-    }
-
-    private func profileActionRow(icon: String, label: String, value: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundStyle(accentBlue)
-                    .frame(width: 28, height: 28)
-                    .background(accentBlue.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                
-                Text(label)
-                    .font(.poppins(size: 15, weight: .regular))
-                    .foregroundStyle(Theme.textPrimary)
-                
-                Spacer()
-                
-                Text(value)
-                    .font(.poppins(size: 15, weight: .semibold))
-                    .foregroundStyle(accentBlue)
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.5))
-            }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Kalorien-Ring-Widget (USP)
@@ -2652,6 +2691,10 @@ struct DashboardView: View {
         case .vsFourteenDayAverage:
             guard let percent = vsFourteenDayPercent else { return ("–", nil) }
             return (String(format: "%+.0f", percent), percent >= 0 ? .green : .red)
+        case .vsGoal:
+            guard dailyGoalKcal > 0, !isSelectedFuture else { return ("–", nil) }
+            let reached = displayBurnedSoFar / dailyGoalKcal * 100
+            return (String(format: "%.0f", reached), reached >= 100 ? .green : nil)
 
         case .bmrShare:
             guard !isSelectedFuture else { return ("–", nil) }
@@ -3929,6 +3972,8 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
     case vsYesterday
     case vsSevenDayAverage
     case vsFourteenDayAverage
+    /// Only meaningful once a goal is set; reads "–" until then.
+    case vsGoal
 
     // Composition — how the day's energy is split.
     case bmrShare
@@ -3971,6 +4016,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .vsYesterday:              return "arrow.up.arrow.down"
         case .vsSevenDayAverage:        return "chart.line.uptrend.xyaxis"
         case .vsFourteenDayAverage:     return "chart.bar.xaxis"
+        case .vsGoal:                   return "target"
         case .bmrShare:                 return "chart.pie.fill"
         case .activeShare:              return "bolt.circle.fill"
         case .neatShare:                return "figure.walk.circle.fill"
@@ -3997,6 +4043,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .vsYesterday:          return de ? "% vs. Gestern" : "% vs. yesterday"
         case .vsSevenDayAverage:    return de ? "% vs. Ø 7 Tage" : "% vs. 7-day avg"
         case .vsFourteenDayAverage: return de ? "% vs. Ø 14 Tage" : "% vs. 14-day avg"
+        case .vsGoal:               return de ? "% vom Tagesziel" : "% of daily goal"
 
         case .bmrShare:    return de ? "% Grundumsatz am Tag" : "% basal of the day"
         case .activeShare: return de ? "% Aktivanteil am Tag" : "% active of the day"
@@ -4023,7 +4070,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .palFactor:
             return ""
         case .bmrShare, .activeShare, .neatShare, .eatShare, .tefShare,
-             .afterburnShareOfWorkout:
+             .afterburnShareOfWorkout, .vsGoal:
             return "%"
         default:
             return "kcal"
@@ -4034,7 +4081,7 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
     func tableCaption(language: String) -> String? {
         let de = language == "de"
         switch self {
-        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage:
+        case .vsYesterday, .vsSevenDayAverage, .vsFourteenDayAverage, .vsGoal:
             return de ? "Tagesverbrauch, aus dem der Vergleich entsteht"
                       : "The daily burn the comparison is drawn from"
         case .burnPerWakingHour:
@@ -4088,6 +4135,9 @@ enum DashboardKPI: String, CaseIterable, Identifiable {
         case .vsFourteenDayAverage:
             return de ? "Wie dieser Tag gegenüber dem Schnitt deiner letzten vierzehn Tage steht. Derselbe Wert färbt den Ring."
                       : "How this day stands against your last fourteen days. The same figure tints the ring."
+        case .vsGoal:
+            return de ? "Wie viel deines Tagesziels du bisher verbrannt hast. Das Ziel setzt du in den Einstellungen; ohne Ziel bleibt die Kachel leer."
+                      : "How much of your daily goal you have burnt so far. The goal is set in the settings; without one the tile stays empty."
 
         case .bmrShare:
             return de ? "Wie viel Prozent des Tages allein auf den Grundumsatz entfallen. Ein hoher Wert heißt: ruhiger Tag."

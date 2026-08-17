@@ -111,6 +111,10 @@ final class HealthKitImportService {
     var isAuthorized = false
     /// Most recent VO2max estimate from Apple Health (mL/kg·min). Nil if not available.
     var vo2Max: Double? = nil
+    /// Latest body mass from Apple Health, in kilograms, with the day it was
+    /// recorded. Read only — the app never writes weight back to Health.
+    var bodyMassKg: Double? = nil
+    var bodyMassDate: Date? = nil
     /// Per-day history keyed by "yyyy-MM-dd". Populated for the last 30 days on launch.
     var history: [String: DaySnapshot] = [:]
 
@@ -149,7 +153,8 @@ final class HealthKitImportService {
         HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!,
         HKObjectType.quantityType(forIdentifier: .appleStandTime)!,
         HKObjectType.quantityType(forIdentifier: .restingHeartRate)!,
-        HKObjectType.quantityType(forIdentifier: .vo2Max)!
+        HKObjectType.quantityType(forIdentifier: .vo2Max)!,
+        HKObjectType.quantityType(forIdentifier: .bodyMass)!
     ]
 
     // MARK: - SwiftData Cache (Note: Sleep detailed stages not cached for simplicity here, can be added to model if needed)
@@ -217,12 +222,17 @@ final class HealthKitImportService {
         async let s = fetchSleepData()
         async let v = fetchVO2Max()
         async let h = fetchRecentHeartRate(limit: 50)
+        async let m = fetchBodyMass()
 
-        let (wData, sData, vData, hData) = await (w, s, v, h)
+        let (wData, sData, vData, hData, mData) = await (w, s, v, h, m)
         workouts = wData
         sleep    = sData
         vo2Max   = vData
         recentHR = hData
+        if let mData {
+            bodyMassKg   = mData.kg
+            bodyMassDate = mData.date
+        }
         activity = await fetchActivityData(sleep: sData)
     }
 
@@ -639,6 +649,31 @@ final class HealthKitImportService {
         let pred  = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
         return await hkStatistic(type: type, predicate: pred, options: .discreteAverage, requireWatch: false) {
             $0.averageQuantity()?.doubleValue(for: HKUnit(from: "ml/kg*min"))
+        }
+    }
+
+    /// The newest weight entry, whatever wrote it — a scale, the Health app by
+    /// hand, another tracker. A year's window because someone who steps on a
+    /// scale twice a year still has a truer figure there than in a text field
+    /// filled in at onboarding.
+    private func fetchBodyMass() async -> (kg: Double, date: Date)? {
+        if isSimulator { return (78.4, Date()) }
+        guard let type = HKQuantityType.quantityType(forIdentifier: .bodyMass) else { return nil }
+        let end   = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -365, to: end) ?? end
+        let pred  = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let sort  = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+
+        return await withCheckedContinuation { continuation in
+            let q = HKSampleQuery(sampleType: type, predicate: pred, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+                guard let sample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: (sample.quantity.doubleValue(for: .gramUnit(with: .kilo)),
+                                                sample.endDate))
+            }
+            store.execute(q)
         }
     }
 
