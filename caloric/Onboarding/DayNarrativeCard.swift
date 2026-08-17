@@ -10,10 +10,12 @@
 //  until someone asks for it, and when they do they get the long version
 //  rather than a teaser.
 //
-//  Both are deliberately styled unlike the rest of the dashboard: gradient
-//  frame, sparkle mark, an explicit AI label. This is the one place in the app
-//  where the numbers are phrased by a model rather than measured, and it
-//  should be recognisable as such at a glance.
+//  Both are set slightly apart from the rest of the dashboard: a tinted frame,
+//  a sparkle mark, an explicit AI label. This is the one place in the app where
+//  the numbers are phrased by a model rather than measured, and it should be
+//  recognisable as such — but a step above the surrounding cards, not a
+//  different design language. The violet and the travelling highlight the
+//  button started with did the second thing.
 //
 
 import SwiftUI
@@ -31,13 +33,9 @@ struct DayDeepDiveButton: View {
     let accentBlue: Color
     let action: () -> Void
 
-    /// Slow, endless drift across the pill. Just enough motion to read as
-    /// "there is something here" without pulling the eye off the ring above.
-    @State private var shinePhase: CGFloat = -1
-
     private var aiGradient: LinearGradient {
         LinearGradient(
-            colors: [Theme.accentSky, accentBlue, Theme.segTEF],
+            colors: [Theme.accentSky, accentBlue],
             startPoint: .leading, endPoint: .trailing
         )
     }
@@ -47,7 +45,7 @@ struct DayDeepDiveButton: View {
             HStack(spacing: 11) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(aiGradient)
+                    .foregroundStyle(accentBlue)
 
                 Text(language == "de" ? "Dein Tag im Vergleich" : "Your day in context")
                     .font(.poppins(size: 14, weight: .semibold))
@@ -66,37 +64,15 @@ struct DayDeepDiveButton: View {
                     .fill(Theme.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(aiGradient.opacity(0.10))
+                            .fill(accentBlue.opacity(0.05))
                     )
-                    .overlay(shine)
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(aiGradient.opacity(0.35), lineWidth: 1)
+                            .strokeBorder(aiGradient.opacity(0.28), lineWidth: 1)
                     )
             )
         }
         .buttonStyle(.plain)
-        .onAppear {
-            withAnimation(.linear(duration: 3.4).repeatForever(autoreverses: false)) {
-                shinePhase = 2
-            }
-        }
-    }
-
-    private var shine: some View {
-        GeometryReader { geo in
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, .white.opacity(0.30), .clear],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                )
-                .frame(width: geo.size.width * 0.4)
-                .offset(x: shinePhase * geo.size.width)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .allowsHitTesting(false)
     }
 }
 
@@ -119,7 +95,7 @@ struct DayDeepDiveSheet: View {
 
     private var aiGradient: LinearGradient {
         LinearGradient(
-            colors: [Theme.accentSky, accentBlue, Theme.segTEF],
+            colors: [Theme.accentSky, accentBlue],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
     }
