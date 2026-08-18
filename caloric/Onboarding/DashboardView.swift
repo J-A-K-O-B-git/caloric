@@ -39,6 +39,9 @@ struct DashboardView: View {
     @State private var showProfileSidebar = false
     @State private var showActivityBreakdown = false
     @State private var ringProgress: Double = 0
+    /// The inner, goal ring. Its own state because it fills against a fixed
+    /// target while the outer one fills against the day.
+    @State private var goalRingProgress: Double = 0
     @State private var animatedBurn: Double = 0
     /// Mittel der 14 Tage vor dem gewählten — färbt den Ring ein.
     /// Gecached, weil die Berechnung pro Tag eine volle NEAT/EAT-Auswertung
@@ -605,19 +608,19 @@ struct DashboardView: View {
         }
     }
 
-    /// How full the ring is drawn.
-    ///
-    /// Without a goal the ring fills against the day's own projection, so a
-    /// finished day always ends full — it shows progress through the day, not
-    /// achievement. A goal replaces that reference with a fixed line, which is
-    /// the only thing that makes a full ring mean something.
-    ///
-    /// The tint is not touched either way: that still comes from the 14-day
-    /// average, and two different meanings on one ring would be one too many.
+    /// How full the outer ring is drawn: progress through the day, against the
+    /// day's own projection. A goal does not change it — the goal has its own
+    /// track now, and one arc cannot answer two questions.
     private var burnProgress: Double {
-        let target = dailyGoalKcal > 0 ? dailyGoalKcal : todayProjected
+        let target = todayProjected
         guard target > 0 else { return 0 }
         return min(1.0, burnedSoFar / target)
+    }
+
+    /// How full the inner ring is drawn: the day against the goal.
+    private var goalProgress: Double {
+        guard dailyGoalKcal > 0, !isSelectedFuture else { return 0 }
+        return min(1.0, displayBurnedSoFar / dailyGoalKcal)
     }
     
     private var isSelectedToday: Bool { Calendar.current.isDateInToday(selectedDate) }
@@ -650,10 +653,6 @@ struct DashboardView: View {
             return burnProgress
         } else if isSelectedFuture {
             return 0
-        } else if dailyGoalKcal > 0 {
-            // A past day against the goal, not automatically full: with a line
-            // to reach, "finished" and "reached" stop being the same thing.
-            return min(1.0, dayComponents(for: selectedDate).total / dailyGoalKcal)
         } else {
             return 1.0
         }
@@ -1586,6 +1585,7 @@ struct DashboardView: View {
         withAnimation(.easeOut(duration: 0.4)) {
             animatedBurn = displayBurnedSoFar
             ringProgress = displayBurnProgress
+            goalRingProgress = goalProgress
         }
     }
 
@@ -1594,9 +1594,11 @@ struct DashboardView: View {
         // a different day than its fill.
         updateTrailingAverage()
         ringProgress = 0
+        goalRingProgress = 0
         animatedBurn = 0
         withAnimation(.spring(response: 0.9, dampingFraction: 0.85).delay(0.15)) {
             ringProgress = displayBurnProgress
+            goalRingProgress = goalProgress
         }
         let target = displayBurnedSoFar
         let steps = 60
@@ -2522,70 +2524,30 @@ struct DashboardView: View {
                             .shadow(color: accentBlue.opacity(0.35), radius: 8, x: 0, y: 0)
                             .animation(.easeInOut(duration: 0.55), value: ringPosition)
 
-                        // The distance still to go, drawn rather than
-                        // written. The plain track already sits there whether
-                        // or not a goal exists, so it reads as "nothing yet",
-                        // not as "this much left" — dashes turn the same
-                        // stretch into an outstanding amount, and the figure
-                        // rides on it so the gap can be read without doing the
-                        // subtraction.
-                        if dailyGoalKcal > 0, ringProgress < 0.999 {
-                            Circle()
-                                .trim(from: ringProgress * 0.75, to: 0.75)
-                                .stroke(
-                                    accentBlue.opacity(0.30),
-                                    style: StrokeStyle(lineWidth: 12, lineCap: .butt,
-                                                       dash: [2, 7])
-                                )
-                                .rotationEffect(.degrees(135))
-                                .animation(.easeInOut(duration: 0.55), value: ringProgress)
-
-                            GeometryReader { geo in
-                                // Derived from the drawn arc, not from the
-                                // burn figure, so the number and the gap it
-                                // labels can never disagree mid-animation.
-                                let missing = dailyGoalKcal * (1 - Double(ringProgress))
-                                let midpoint = (Double(ringProgress) + 1) / 2
-                                let rad = (midpoint * 0.75 * 360 + 135) * .pi / 180
-                                let radius = geo.size.width / 2
-                                // Between the arc and the centre figure. Closer
-                                // in and a four-digit burn runs into the
-                                // capsule when the gap sits left or right.
-                                let inset = radius * 0.86
-
-                                Text(String(format: language == "de" ? "noch %d" : "%d to go",
-                                            Int(missing.rounded())))
-                                    .font(.poppins(size: 11, weight: .semibold))
-                                    .foregroundStyle(accentBlue)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        Capsule()
-                                            .fill(Theme.card)
-                                            .overlay(Capsule().strokeBorder(accentBlue.opacity(0.28),
-                                                                            lineWidth: 0.8))
-                                    )
-                                    .position(x: radius + inset * cos(rad),
-                                              y: radius + inset * sin(rad))
+                        // The goal gets a track of its own rather than a
+                        // share of this one. The outer arc answers "how far
+                        // through the day am I", the inner one "how close to
+                        // the target" — the same stroke cannot say both, and
+                        // the version that tried put a floating label over its
+                        // own dashes.
+                        if dailyGoalKcal > 0 {
+                            let reached = goalRingProgress >= 0.999
+                            ZStack {
+                                Circle()
+                                    .trim(from: 0, to: 0.75)
+                                    .stroke(Theme.trackFill.opacity(0.7),
+                                            style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                                Circle()
+                                    .trim(from: 0, to: goalRingProgress * 0.75)
+                                    .stroke(reached ? Theme.segNEAT : accentBlue.opacity(0.85),
+                                            style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                                    .animation(.easeInOut(duration: 0.55), value: goalRingProgress)
                             }
-                        }
-
-                        // Goal met: the arc is full, and a full arc means the
-                        // same thing as an unfinished one unless something
-                        // says so.
-                        if dailyGoalKcal > 0, ringProgress >= 0.999 {
-                            GeometryReader { geo in
-                                let rad = (0.75 * 360 + 135) * .pi / 180
-                                let radius = geo.size.width / 2
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 9, weight: .black))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 18, height: 18)
-                                    .background(Circle().fill(Theme.segNEAT))
-                                    .shadow(color: Theme.segNEAT.opacity(0.45), radius: 4)
-                                    .position(x: radius + radius * cos(rad),
-                                              y: radius + radius * sin(rad))
-                            }
+                            .rotationEffect(.degrees(135))
+                            // Clear of the outer stroke by more than its own
+                            // width, so the two read as two instruments rather
+                            // than one thick smudged one.
+                            .padding(15)
                         }
 
                         // Small Indicator Bead only today
