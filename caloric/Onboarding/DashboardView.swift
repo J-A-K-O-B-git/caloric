@@ -2522,6 +2522,72 @@ struct DashboardView: View {
                             .shadow(color: accentBlue.opacity(0.35), radius: 8, x: 0, y: 0)
                             .animation(.easeInOut(duration: 0.55), value: ringPosition)
 
+                        // The distance still to go, drawn rather than
+                        // written. The plain track already sits there whether
+                        // or not a goal exists, so it reads as "nothing yet",
+                        // not as "this much left" — dashes turn the same
+                        // stretch into an outstanding amount, and the figure
+                        // rides on it so the gap can be read without doing the
+                        // subtraction.
+                        if dailyGoalKcal > 0, ringProgress < 0.999 {
+                            Circle()
+                                .trim(from: ringProgress * 0.75, to: 0.75)
+                                .stroke(
+                                    accentBlue.opacity(0.30),
+                                    style: StrokeStyle(lineWidth: 12, lineCap: .butt,
+                                                       dash: [2, 7])
+                                )
+                                .rotationEffect(.degrees(135))
+                                .animation(.easeInOut(duration: 0.55), value: ringProgress)
+
+                            GeometryReader { geo in
+                                // Derived from the drawn arc, not from the
+                                // burn figure, so the number and the gap it
+                                // labels can never disagree mid-animation.
+                                let missing = dailyGoalKcal * (1 - Double(ringProgress))
+                                let midpoint = (Double(ringProgress) + 1) / 2
+                                let rad = (midpoint * 0.75 * 360 + 135) * .pi / 180
+                                let radius = geo.size.width / 2
+                                // Between the arc and the centre figure. Closer
+                                // in and a four-digit burn runs into the
+                                // capsule when the gap sits left or right.
+                                let inset = radius * 0.86
+
+                                Text(String(format: language == "de" ? "noch %d" : "%d to go",
+                                            Int(missing.rounded())))
+                                    .font(.poppins(size: 11, weight: .semibold))
+                                    .foregroundStyle(accentBlue)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule()
+                                            .fill(Theme.card)
+                                            .overlay(Capsule().strokeBorder(accentBlue.opacity(0.28),
+                                                                            lineWidth: 0.8))
+                                    )
+                                    .position(x: radius + inset * cos(rad),
+                                              y: radius + inset * sin(rad))
+                            }
+                        }
+
+                        // Goal met: the arc is full, and a full arc means the
+                        // same thing as an unfinished one unless something
+                        // says so.
+                        if dailyGoalKcal > 0, ringProgress >= 0.999 {
+                            GeometryReader { geo in
+                                let rad = (0.75 * 360 + 135) * .pi / 180
+                                let radius = geo.size.width / 2
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .black))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 18, height: 18)
+                                    .background(Circle().fill(Theme.segNEAT))
+                                    .shadow(color: Theme.segNEAT.opacity(0.45), radius: 4)
+                                    .position(x: radius + radius * cos(rad),
+                                              y: radius + radius * sin(rad))
+                            }
+                        }
+
                         // Small Indicator Bead only today
                         if isSelectedToday {
                             GeometryReader { geo in
@@ -2551,19 +2617,6 @@ struct DashboardView: View {
                         Text("kcal")
                             .font(.poppins(size: 14, weight: .regular))
                             .foregroundStyle(Theme.textSecondary)
-
-                        // With a goal set the arc fills against it, which makes
-                        // the end of the ring *be* the goal — so it needs no
-                        // marker of its own, only a name. Without this line a
-                        // half-full ring never said half of what.
-                        if dailyGoalKcal > 0, !isSelectedFuture {
-                            Text(String(format: language == "de" ? "von %d kcal" : "of %d kcal",
-                                        Int(dailyGoalKcal)))
-                                .font(.poppins(size: 11, weight: .medium))
-                                .foregroundStyle(displayBurnedSoFar >= dailyGoalKcal
-                                                 ? Theme.segNEAT : Theme.textSecondary.opacity(0.75))
-                                .padding(.top, 3)
-                        }
                     }
                     .offset(y: -4) // Slight upward shift to center visually in the open arc
                 }
